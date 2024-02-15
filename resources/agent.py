@@ -4,7 +4,7 @@ import time
 
 class AgentsApi(Resource):
     def get(self):
-        return {"data": []}
+        return {"data": [{"id": 123, "name": "foo"}]}
 
     def post(self):
         return {"created": "agent_id"}, 201
