@@ -7,7 +7,12 @@ class AgentsApi(Resource):
         return {"data": [{"id": 123, "name": "foo"}]}
 
     def post(self):
-        return {"created": "agent_id"}, 201
+        agent = {
+            "name": request.form["name"],
+            "description": request.form["description"],
+            "file": request.files["file"].filename
+        }
+        return agent, 201
 
 class AgentApi(Resource):
     def get(self, id):
