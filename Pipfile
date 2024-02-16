@@ -11,6 +11,7 @@ pgvector = "*"
 sqlalchemy = "*"
 langchain = "*"
 langchain-community = "*"
+psycopg2 = "*"
 
 [dev-packages]
 
