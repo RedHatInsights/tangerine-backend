@@ -3,6 +3,7 @@
 
 ## Setup
 * `pipenv install`
+* `pipenv run pip install psycopg2-binary`
 * `pipenv shell`
 
 ### Run the API Server
