@@ -26,7 +26,10 @@ class AgentsApi(Resource):
 
 
     def post(self):
-        agent = request.get_json()
+        agent = {
+            "agent_name": request.form["name"],
+            "description": request.form["description"]
+        }
 
         try:
             new_data = Agents(**agent)
