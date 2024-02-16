@@ -3,7 +3,6 @@
 
 ## Setup
 * `pipenv install`
-* `pipenv run pip install psycopg2-binary`
 * `pipenv shell`
 
 ## Spin up the DB
