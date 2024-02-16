@@ -6,6 +6,9 @@
 * `pipenv run pip install psycopg2-binary`
 * `pipenv shell`
 
+## Spin up the DB
+* `docker-compose up`
+
 ### Run the API Server
 * `python main.py`
 * access on `http://localhost:5000`
