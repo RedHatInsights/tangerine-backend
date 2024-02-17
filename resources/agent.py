@@ -1,8 +1,11 @@
+import json
 from flask import Response, request
 from flask_restful import Resource
 import time
 
 from connectors.vector_store.db import db, Agents
+from connectors.vector_store.db import vector_interface
+from utils.processors import text_extractor
 
 
 class AgentsApi(Resource):
@@ -30,6 +33,10 @@ class AgentsApi(Resource):
             "agent_name": request.form["name"],
             "description": request.form["description"]
         }
+
+        # Don't let them create the agent id and filenames
+        agent.pop("id", None)
+        agent.pop("filenames", None)
 
         try:
             new_data = Agents(**agent)
@@ -61,8 +68,9 @@ class AgentApi(Resource):
         if agent:
             data = request.get_json()
 
-            # Don't let them update the agent id
+            # Don't let them update the agent id and filenames
             data.pop("id", None)
+            data.pop("filenames", None)
 
             for key, value in data.items():
                 # Update each field if it exists in the request data
@@ -80,6 +88,53 @@ class AgentApi(Resource):
             return {'message': 'Agent deleted successfully'}, 200
         else:
             return {'message': 'Agent not found'}, 404
+
+        # TODO: delete agent documents from vector store
+
+class AgentDocUpload(Resource):
+    def post(self, id):
+        agent = Agents.query.get(id)
+        if not agent:
+            return {'message': 'Agent not found'}, 404
+
+        # Check if the post request has the file part
+        if 'file' not in request.files:
+            return {'message': 'No file part'}, 400
+
+        files = request.files.getlist('file')
+
+        file_contents=[]
+        for file in files:
+            filename = file.filename
+            if not any([filename.endswith(filetype) for filetype in [".txt", ".pdf", ".md"]]):
+                return {'message': 'Unsupported file type uploaded'}, 400
+
+            file_content = file.stream.read()
+
+            file_contents.append([filename, file_content])
+
+        # Add filenames to the DB
+        new_filenames = agent.filenames.copy()
+        for fileinfo in file_contents:
+            new_filenames.append(fileinfo[0])
+        agent.filenames = new_filenames
+        db.session.commit()
+
+        def generate_progress():
+            for filename, file_content in file_contents:
+                yield json.dumps({"file": filename, "step": "start"}) + "\n"
+                extracted_text = text_extractor(filename, file_content)
+                yield json.dumps({"file": filename, "step": "text_extracted"}) + "\n"
+
+                # Only generate embeddings when there is actual texts
+                if len(extracted_text) > 0:
+                    vector_interface.add_document(extracted_text, id)
+                    yield json.dumps({"file": filename, "step": "embedding_created"}) + "\n"
+
+                yield json.dumps({"file": filename, "step": "end"}) + "\n"
+
+        return Response(generate_progress(), mimetype='application/json')
+
 
 class AgentChatApi(Resource):
     def get(self, id):
