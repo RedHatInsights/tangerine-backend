@@ -15,6 +15,7 @@ class Agents(db.Model):
     agent_name = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=False)
     system_prompt = db.Column(db.Text, nullable=True)
+    filenames = db.Column(db.ARRAY(db.String), default=[], nullable=True)
 
     def __repr__(self):
         return f'<Agents {self.id}>'
@@ -46,7 +47,7 @@ class VectorStoreInterface():
         try:
             self.store.add_documents(docs)
         except Exception as e:
-            print(f"Erro adding_documents: {e}")
+            print(f"Error adding_documents: {e}")
 
         return
 

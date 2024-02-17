@@ -12,6 +12,7 @@ sqlalchemy = "*"
 langchain = "*"
 langchain-community = "*"
 psycopg2 = "*"
+pypdf2 = "*"
 
 [dev-packages]
 
