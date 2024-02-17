@@ -5,6 +5,7 @@ import time
 
 from connectors.vector_store.db import db, Agents
 from connectors.vector_store.db import vector_interface
+from connectors.llm.interface import llm
 from utils.processors import text_extractor
 
 
@@ -143,3 +144,10 @@ class AgentChatApi(Resource):
                 yield f"{c}"
                 time.sleep(1)
         return Response(generate(), mimetype='text/plain')
+    def post(self,id):
+        agent = Agents.query.filter_by(id=id).first()
+        if not agent:
+            return {'message': 'Agent not found'}, 404
+        query = request.json.get("query")
+        return {'answer':llm.ask(query,id)} , 200
+
