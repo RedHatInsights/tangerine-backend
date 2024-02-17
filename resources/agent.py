@@ -14,7 +14,7 @@ class AgentsApi(Resource):
             all_agents = Agents.query.all()
         except Exception as e:
             print(f"Exception AgentsApi GET: {e}")
-            return {'message': 'error fetching agents form DB'}, 500
+            return {'message': 'error fetching agents from DB'}, 500
 
         agents_list = []
 
@@ -31,7 +31,8 @@ class AgentsApi(Resource):
     def post(self):
         agent = {
             "agent_name": request.form["name"],
-            "description": request.form["description"]
+            "description": request.form["description"],
+            "system_prompt": request.form["system_prompt"]
         }
 
         # Don't let them create the agent id and filenames
