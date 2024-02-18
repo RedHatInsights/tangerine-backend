@@ -1,12 +1,15 @@
 from flask_sqlalchemy import SQLAlchemy
 from langchain_community.docstore.document import Document
 from langchain_community.embeddings import OllamaEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores.pgvector import PGVector
 from langchain.text_splitter import CharacterTextSplitter
 
 
 db_connection_string = 'postgresql://citrus:citrus@localhost/citrus'
 vector_collection_name = 'collection'
+
+MODEL_SOURCE = "ollama"
 
 db = SQLAlchemy()
 
@@ -24,10 +27,14 @@ class Agents(db.Model):
 class VectorStoreInterface():
     def __init__(self):
         self.store = None
-        self.embeddings = OllamaEmbeddings(model="mistral")
         self.vector_chunk_size = 1000
         self.vector_chunk_overlap = 0
-    
+
+        if MODEL_SOURCE == "ollama":
+            self.embeddings = OllamaEmbeddings(model="mistral")
+        elif MODEL_SOURCE == "huggingface":
+            self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+
     def init_vector_store(self):
         try:
             self.store = PGVector(
@@ -52,7 +59,7 @@ class VectorStoreInterface():
         return
 
     def search(self, query, agent_id):
-        docs_with_score = self.store.max_marginal_relevance_search_with_score(query=query, filter={"agent_id": agent_id})
+        docs_with_score = self.store.max_marginal_relevance_search_with_score(query=query, filter={"agent_id": agent_id}, k=3)
         return docs_with_score      # list(int, Document(page_content, metadata))
 
 
