@@ -22,5 +22,5 @@
 | `/agents/<id>`                 | `PUT`    | Update an agent          |
 | `/agents/<id>`                 | `DELETE` | Delete an agent          |
 | `/agents/<id>/document_upload` | `POST`   | Agent document uploads   |
-| `/agents/<id>/chat`            | `GET`    | Chat with an agent       |
+| `/agents/<id>/chat`            | `POST`    | Chat with an agent       |
 | `/ping`                        | `GET`    | Health check             |

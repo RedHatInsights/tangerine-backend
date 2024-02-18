@@ -139,16 +139,17 @@ class AgentDocUpload(Resource):
 
 
 class AgentChatApi(Resource):
-    def get(self, id):
-        def generate():
-            for c in id:
-                yield f"{c}"
-                time.sleep(1)
-        return Response(generate(), mimetype='text/plain')
     def post(self,id):
         agent = Agents.query.filter_by(id=id).first()
         if not agent:
             return {'message': 'Agent not found'}, 404
-        query = request.json.get("query")
-        return {'answer':llm.ask(query,id)} , 200
 
+        query = request.json.get("query")
+        stream = request.json.get("stream") == "true"
+
+        llm_response = llm.ask(query, id, stream)
+
+        if stream:
+            return Response(llm_response(), mimetype='application/json')
+
+        return {'answer':llm_response} , 200

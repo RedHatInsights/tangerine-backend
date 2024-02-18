@@ -1,5 +1,9 @@
+import json
+
 from connectors.vector_store.db import vector_interface
 from langchain_community.chat_models import ChatOllama
+from langchain_core.output_parsers import StrOutputParser
+
 from langchain.prompts import ChatPromptTemplate
 
 PROMPT_TEMPLATE = """
@@ -16,19 +20,28 @@ class LLMInterface:
     def __init__(self):
         pass
 
-
-    def ask(self, question, agent_id):
+    def ask(self, question, agent_id, stream):
         results = vector_interface.search(question,agent_id)
         if len(results) == 0 :
             print(f"Unable to find results")
             #return "I am lost"
         
         context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in results])
-        prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
-        prompt = prompt_template.format(context=context_text, question=question)
+        prompt = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
+        prompt_params = {"context": context_text, "question": question}
+
         print(prompt)
         model = ChatOllama(model="mistral")
-        response_text = model.predict(prompt)
+
+        chain = prompt | model | StrOutputParser()
+
+        if stream:
+            def stream_generator():
+                for chunks in chain.stream(prompt_params):
+                    yield json.dumps({"text_content": chunks}) + "\n"
+            return stream_generator
+
+        response_text = chain.invoke(prompt_params)
         return response_text
-    
+
 llm = LLMInterface()
