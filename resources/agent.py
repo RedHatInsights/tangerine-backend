@@ -156,4 +156,4 @@ class AgentChatApi(Resource):
         if stream:
             return Response(llm_response(), mimetype='application/json')
 
-        return {'answer':llm_response} , 200
+        return {'text_content':llm_response} , 200

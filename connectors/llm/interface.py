@@ -23,6 +23,7 @@ class LLMInterface:
 
     def ask(self, system_prompt, question, agent_id, stream):
         results = vector_interface.search(question,agent_id)
+        print("info...", agent_id, question)
 
         prompt_params = {"question": question}
         prompt = ChatPromptTemplate.from_template("{question}")
@@ -43,11 +44,15 @@ class LLMInterface:
 
         if stream:
             def stream_generator():
+                stream_text = ""
                 for chunks in chain.stream(prompt_params):
-                    yield json.dumps({"text_content": chunks}) + "\n"
+                    stream_text += chunks
+                    print("stream:", stream_text)
+                    yield json.dumps({"text_content": stream_text}) + "\n"
             return stream_generator
 
         response_text = chain.invoke(prompt_params)
+        print("response: ", response_text)
         return response_text
 
 llm = LLMInterface()

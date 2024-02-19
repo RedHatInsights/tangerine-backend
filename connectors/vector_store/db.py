@@ -9,7 +9,7 @@ from langchain.text_splitter import CharacterTextSplitter
 db_connection_string = 'postgresql://citrus:citrus@localhost/citrus'
 vector_collection_name = 'collection'
 
-MODEL_SOURCE = "ollama"
+MODEL_SOURCE = "huggingface"
 
 db = SQLAlchemy()
 
