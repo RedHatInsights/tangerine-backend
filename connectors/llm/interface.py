@@ -44,11 +44,8 @@ class LLMInterface:
 
         if stream:
             def stream_generator():
-                stream_text = ""
                 for chunks in chain.stream(prompt_params):
-                    stream_text += chunks
-                    print("stream:", stream_text)
-                    yield json.dumps({"text_content": stream_text}) + "\n"
+                    yield json.dumps({"text_content": chunks}) + "\n"
             return stream_generator
 
         response_text = chain.invoke(prompt_params)
