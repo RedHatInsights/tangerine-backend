@@ -1,7 +1,7 @@
 import json
 
 from connectors.vector_store.db import vector_interface
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import SystemMessage
 from langchain_community.chat_models import ChatOllama
 from langchain_core.output_parsers import StrOutputParser
 
