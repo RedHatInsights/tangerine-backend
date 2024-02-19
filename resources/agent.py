@@ -25,6 +25,7 @@ class AgentsApi(Resource):
                 'agent_name': agent.agent_name,
                 'description': agent.description,
                 'system_prompt': agent.system_prompt,
+                'filenames': agent.filenames,
             })
         return {'data': agents_list}, 200
 
@@ -35,6 +36,9 @@ class AgentsApi(Resource):
             "description": request.form["description"],
             "system_prompt": request.form["system_prompt"]
         }
+
+        if len(agent["agent_name"]) < 1:
+            return {'message': 'agent_name is required.' }, 400
 
         # Don't let them create the agent id and filenames
         agent.pop("id", None)
@@ -147,7 +151,7 @@ class AgentChatApi(Resource):
         query = request.json.get("query")
         stream = request.json.get("stream") == "true"
 
-        llm_response = llm.ask(query, id, stream)
+        llm_response = llm.ask(agent.system_prompt, query, agent.id, stream)
 
         if stream:
             return Response(llm_response(), mimetype='application/json')
