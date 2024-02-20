@@ -9,7 +9,7 @@ from langchain.text_splitter import CharacterTextSplitter
 db_connection_string = 'postgresql://citrus:citrus@localhost/citrus'
 vector_collection_name = 'collection'
 
-MODEL_SOURCE = "ollama"
+MODEL_SOURCE = "huggingface"
 
 db = SQLAlchemy()
 
@@ -27,7 +27,7 @@ class Agents(db.Model):
 class VectorStoreInterface():
     def __init__(self):
         self.store = None
-        self.vector_chunk_size = 1000
+        self.vector_chunk_size = 500
         self.vector_chunk_overlap = 0
 
         if MODEL_SOURCE == "ollama":
