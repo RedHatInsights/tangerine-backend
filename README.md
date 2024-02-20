@@ -2,6 +2,7 @@
 🍊
 
 ## Setup
+* Install [Ollama](https://ollama.com/) on your machine, and pull their version of the `mistral` model.
 * `pipenv install`
 * `pipenv shell`
 
