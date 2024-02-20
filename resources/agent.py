@@ -151,8 +151,9 @@ class AgentChatApi(Resource):
 
         query = request.json.get("query")
         stream = request.json.get("stream") == "true"
+        previous_messages = request.json.get("prevMsgs")
 
-        llm_response = llm.ask(agent.system_prompt, query, agent.id, stream)
+        llm_response = llm.ask(agent.system_prompt, previous_messages, query, agent.id, stream)
 
         if stream:
             return Response(llm_response(), mimetype='application/json')

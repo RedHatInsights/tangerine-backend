@@ -1,7 +1,7 @@
 import json
 
 from connectors.vector_store.db import vector_interface
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_community.chat_models import ChatOllama
 from langchain_core.output_parsers import StrOutputParser
 
@@ -21,7 +21,7 @@ class LLMInterface:
     def __init__(self):
         pass
 
-    def ask(self, system_prompt, question, agent_id, stream):
+    def ask(self, system_prompt, previous_messages, question, agent_id, stream):
         results = vector_interface.search(question,agent_id)
 
         prompt_params = {"question": question}
@@ -34,7 +34,16 @@ class LLMInterface:
             prompt = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
             prompt_params = {"context": context_text, "question": question}
 
-        prompt.messages.insert(0, SystemMessage(content=system_prompt))
+        # Adding system prompt and memory
+        msg_list = []
+        msg_list.append(SystemMessage(content=system_prompt))
+        if previous_messages:
+            for msg in previous_messages:
+                if msg["sender"] == "human":
+                    msg_list.append(HumanMessage(content=msg["text"]))
+                if msg["sender"] == "ai":
+                    msg_list.append(AIMessage(content=msg["text"]))
+        prompt.messages = msg_list + prompt.messages
 
         print(prompt)
         model = ChatOllama(model="mistral")
