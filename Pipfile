@@ -11,8 +11,9 @@ pgvector = "*"
 sqlalchemy = "*"
 langchain = "*"
 langchain-community = "*"
-psycopg2 = "*"
+psycopg2-binary = "*"
 pypdf2 = "*"
+sentence-transformers = "*"
 
 [dev-packages]
 

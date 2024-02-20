@@ -66,6 +66,7 @@ class AgentApi(Resource):
             'agent_name': agent.agent_name,
             'description': agent.description,
             'system_prompt': agent.system_prompt,
+            'filenames': agent.filenames,
         }, 200
 
 
