@@ -113,7 +113,7 @@ class AgentDocUpload(Resource):
         file_contents=[]
         for file in files:
             filename = file.filename
-            if not any([filename.endswith(filetype) for filetype in [".txt", ".pdf", ".md"]]):
+            if not any([filename.endswith(filetype) for filetype in [".txt", ".pdf", ".md", ".rst"]]):
                 return {'message': 'Unsupported file type uploaded'}, 400
 
             file_content = file.stream.read()

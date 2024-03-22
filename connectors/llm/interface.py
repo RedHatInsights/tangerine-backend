@@ -33,6 +33,7 @@ class LLMInterface:
             context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in results])
             prompt = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
             prompt_params = {"context": context_text, "question": question}
+            print("search result:", context_text)
 
         # Adding system prompt and memory
         msg_list = []
