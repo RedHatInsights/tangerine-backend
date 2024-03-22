@@ -13,12 +13,7 @@ def upload_files(directory_path, agent_id):
     for i in range(num_batches):
         batch_files = files[i * batch_size: (i+1) * batch_size]
         files_to_upload = [('file', (os.path.basename(file_path), open(file_path, 'rb'), 'text/plain')) for file_path in batch_files]
-        
-        # for j, file_path in enumerate(batch_files):
-        #     with open(file_path, 'rb') as file:
-        #         files_to_upload.append(('file', (os.path.basename(file_path), file, 'text/plain')))
-        #         # files_to_upload[f'file{j+1}'] = (os.path.basename(file_path), file.read())
-    
+
         # print(files_to_upload)
         url = f'http://localhost:3000/agents/{agent_id}/document_upload'
         response = requests.post(url, files=files_to_upload)
