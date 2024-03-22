@@ -3,13 +3,13 @@ from langchain_community.docstore.document import Document
 from langchain_community.embeddings import OllamaEmbeddings
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores.pgvector import PGVector
-from langchain.text_splitter import CharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 
 db_connection_string = 'postgresql://citrus:citrus@localhost/citrus'
 vector_collection_name = 'collection'
 
-MODEL_SOURCE = "huggingface"
+MODEL_SOURCE = "ollama"
 
 db = SQLAlchemy()
 
@@ -27,11 +27,11 @@ class Agents(db.Model):
 class VectorStoreInterface():
     def __init__(self):
         self.store = None
-        self.vector_chunk_size = 500
-        self.vector_chunk_overlap = 0
+        self.vector_chunk_size = 1000
+        self.vector_chunk_overlap = 100
 
         if MODEL_SOURCE == "ollama":
-            self.embeddings = OllamaEmbeddings(model="mistral")
+            self.embeddings = OllamaEmbeddings(model="nomic-embed-text")
         elif MODEL_SOURCE == "huggingface":
             self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
@@ -48,7 +48,12 @@ class VectorStoreInterface():
 
     def add_document(self, text, agent_id):
         documents = [Document(page_content=text, metadata={"agent_id": agent_id})]
-        text_splitter = CharacterTextSplitter(chunk_size=self.vector_chunk_size, chunk_overlap=self.vector_chunk_overlap)
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=self.vector_chunk_size,
+            chunk_overlap=self.vector_chunk_overlap,
+            length_function=len,
+            is_separator_regex=False
+        )
         docs = text_splitter.split_documents(documents)
 
         try:
