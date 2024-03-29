@@ -27,8 +27,8 @@ class Agents(db.Model):
 class VectorStoreInterface():
     def __init__(self):
         self.store = None
-        self.vector_chunk_size = 1000
-        self.vector_chunk_overlap = 100
+        self.vector_chunk_size = 2000
+        self.vector_chunk_overlap = 500
 
         if MODEL_SOURCE == "ollama":
             self.embeddings = OllamaEmbeddings(model="nomic-embed-text")
@@ -64,7 +64,7 @@ class VectorStoreInterface():
         return
 
     def search(self, query, agent_id):
-        docs_with_score = self.store.max_marginal_relevance_search_with_score(query=query, filter={"agent_id": agent_id}, k=3)
+        docs_with_score = self.store.max_marginal_relevance_search_with_score(query=query, filter={"agent_id": agent_id}, k=2)
         return docs_with_score      # list(int, Document(page_content, metadata))
 
 

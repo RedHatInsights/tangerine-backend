@@ -9,6 +9,7 @@ from langchain.prompts import ChatPromptTemplate
 
 PROMPT_TEMPLATE = """
 Here are some search results:
+---
 
 {context}
 
@@ -30,7 +31,11 @@ class LLMInterface:
             print(f"Unable to find results")
             #return "I am lost"
         else:
-            context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in results])
+            context_text = ""
+            for i, doc_with_score in enumerate(results):
+                page_content = doc_with_score[0].page_content
+                context_text += f"---\n<<Search Result {i+1}>>\n---\n{page_content}\n\n<<Search Result {i+1} END>>\n---\n"
+            # context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in results])
             prompt = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
             prompt_params = {"context": context_text, "question": question}
             print("search result:", context_text)
