@@ -2,7 +2,9 @@
 🍊
 
 ## Setup
-* Install [Ollama](https://ollama.com/) on your machine, and pull their version of the `mistral` model.
+* Install [Ollama](https://ollama.com/) on your machine, and pull their version of `mistral` and `nomic-embed-text` model.
+  *  `ollama pull mistral`
+  *  `ollama pull nomic-embed-text`
 * `pipenv install`
 * `pipenv shell`
 
