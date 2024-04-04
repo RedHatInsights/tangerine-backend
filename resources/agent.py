@@ -135,7 +135,7 @@ class AgentDocUpload(Resource):
 
                 # Only generate embeddings when there is actual texts
                 if len(extracted_text) > 0:
-                    vector_interface.add_document(extracted_text, id)
+                    vector_interface.add_document(extracted_text, id, filename)
                     yield json.dumps({"file": filename, "step": "embedding_created"}) + "\n"
 
                 yield json.dumps({"file": filename, "step": "end"}) + "\n"
@@ -158,4 +158,4 @@ class AgentChatApi(Resource):
         if stream:
             return Response(llm_response(), mimetype='application/json')
 
-        return {'answer':llm_response} , 200
+        return llm_response , 200
