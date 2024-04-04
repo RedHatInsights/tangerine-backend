@@ -27,6 +27,7 @@ class LLMInterface:
 
         prompt_params = {"question": question}
         prompt = ChatPromptTemplate.from_template("{question}")
+        extra_doc_info = []
         if len(results) == 0 :
             print(f"Unable to find results")
             #return "I am lost"
@@ -34,6 +35,9 @@ class LLMInterface:
             context_text = ""
             for i, doc_with_score in enumerate(results):
                 page_content = doc_with_score[0].page_content
+                metadata = doc_with_score[0].metadata
+                extra_doc_info.append({"metadata": metadata, "page_content": page_content})
+                print("metadata:", metadata)
                 context_text += f"---\n<<Search Result {i+1}>>\n---\n{page_content}\n\n<<Search Result {i+1} END>>\n---\n"
             # context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in results])
             prompt = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
@@ -61,9 +65,11 @@ class LLMInterface:
                 for chunks in chain.stream(prompt_params):
                     print("chunks:", chunks)
                     yield json.dumps({"text_content": chunks}) + "\n"
+                yield json.dumps({"search_metadata": extra_doc_info}) + "\n"
             return stream_generator
 
         response_text = chain.invoke(prompt_params)
-        return response_text
+        response = {"answer":response_text, "search_metadata": extra_doc_info}
+        return response
 
 llm = LLMInterface()
