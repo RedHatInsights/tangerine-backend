@@ -1,22 +1,31 @@
 import json
 
 from connectors.vector_store.db import vector_interface
+from connectors.config import CHAT_MODEL_NAME, OPENAI_API_KEY, OPENAI_BASE_URL
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_community.chat_models import ChatOllama
+from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 
 from langchain.prompts import ChatPromptTemplate
 
+
 PROMPT_TEMPLATE = """
-Here are some search results:
+<s>[INST]
+You are an assistant that answers questions based on information found in technical documents.
+You are given a set of document search results and must concisely answer a user's question.
+Answers need to consider chat history.
+
+This is the user's question: {question}
+
+Below are the document search results:
 ---
 
 {context}
 
 ---
-
-Answer this question based solely on the above context: {question}
+[/INST]
 """
+
 
 class LLMInterface:
     def __init__(self):
@@ -56,7 +65,11 @@ class LLMInterface:
         prompt.messages = msg_list + prompt.messages
 
         print(prompt)
-        model = ChatOllama(model="mistral")
+        model = ChatOpenAI(
+            model=CHAT_MODEL_NAME,
+            openai_api_base=OPENAI_BASE_URL,
+            openai_api_key=OPENAI_API_KEY
+        )
 
         chain = prompt | model | StrOutputParser()
 

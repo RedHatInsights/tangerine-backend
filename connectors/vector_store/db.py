@@ -4,12 +4,10 @@ from langchain_community.embeddings import OllamaEmbeddings
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores.pgvector import PGVector
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-
+from connectors.config import EMBEDDING_MODEL_NAME, EMBEDDING_MODEL_SOURCE, TRUST_REMOTE_CODE
 
 db_connection_string = 'postgresql://citrus:citrus@localhost/citrus'
 vector_collection_name = 'collection'
-
-MODEL_SOURCE = "ollama"
 
 db = SQLAlchemy()
 
@@ -30,10 +28,13 @@ class VectorStoreInterface():
         self.vector_chunk_size = 2000
         self.vector_chunk_overlap = 500
 
-        if MODEL_SOURCE == "ollama":
-            self.embeddings = OllamaEmbeddings(model="nomic-embed-text")
-        elif MODEL_SOURCE == "huggingface":
-            self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        if EMBEDDING_MODEL_SOURCE == "ollama":
+            self.embeddings = OllamaEmbeddings(model=EMBEDDING_MODEL_NAME)
+        elif EMBEDDING_MODEL_SOURCE == "huggingface":
+            self.embeddings = HuggingFaceEmbeddings(
+                model_name=EMBEDDING_MODEL_NAME,
+                model_kwargs={'trust_remote_code': TRUST_REMOTE_CODE}
+            )
 
     def init_vector_store(self):
         try:
