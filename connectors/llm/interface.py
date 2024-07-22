@@ -1,7 +1,7 @@
 import json
 
 from connectors.vector_store.db import vector_interface
-from connectors.config import CHAT_MODEL_NAME, OPENAI_API_KEY, OPENAI_BASE_URL
+import connectors.config as cfg
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
@@ -66,9 +66,9 @@ class LLMInterface:
 
         print(prompt)
         model = ChatOpenAI(
-            model=CHAT_MODEL_NAME,
-            openai_api_base=OPENAI_BASE_URL,
-            openai_api_key=OPENAI_API_KEY
+            model=cfg.CHAT_MODEL_NAME,
+            openai_api_base=cfg.OPENAI_BASE_URL,
+            openai_api_key=cfg.OPENAI_API_KEY
         )
 
         chain = prompt | model | StrOutputParser()

@@ -1,13 +1,10 @@
 from flask_sqlalchemy import SQLAlchemy
 from langchain_community.docstore.document import Document
-from langchain_community.embeddings import OllamaEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores.pgvector import PGVector
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from connectors.config import EMBEDDING_MODEL_NAME, EMBEDDING_MODEL_SOURCE, TRUST_REMOTE_CODE
-
-db_connection_string = 'postgresql://citrus:citrus@localhost/citrus'
-vector_collection_name = 'collection'
+import connectors.config as cfg
 
 db = SQLAlchemy()
 
@@ -28,19 +25,23 @@ class VectorStoreInterface():
         self.vector_chunk_size = 2000
         self.vector_chunk_overlap = 500
 
-        if EMBEDDING_MODEL_SOURCE == "ollama":
-            self.embeddings = OllamaEmbeddings(model=EMBEDDING_MODEL_NAME)
-        elif EMBEDDING_MODEL_SOURCE == "huggingface":
+        if cfg.EMBEDDING_MODEL_SOURCE == "openai":
+            self.embeddings = OpenAIEmbeddings(
+                model=cfg.EMBEDDING_MODEL_NAME,
+                openai_api_base=cfg.OPENAI_BASE_URL,
+                openai_api_key=cfg.OPENAI_API_KEY
+            )
+        elif cfg.EMBEDDING_MODEL_SOURCE == "local":
             self.embeddings = HuggingFaceEmbeddings(
-                model_name=EMBEDDING_MODEL_NAME,
-                model_kwargs={'trust_remote_code': TRUST_REMOTE_CODE}
+                model_name=cfg.EMBEDDING_MODEL_NAME,
+                model_kwargs={'trust_remote_code': cfg.TRUST_REMOTE_CODE}
             )
 
     def init_vector_store(self):
         try:
             self.store = PGVector(
-                collection_name=vector_collection_name,
-                connection_string=db_connection_string,
+                collection_name=cfg.VECTOR_COLLECTION_NAME,
+                connection_string=cfg.DB_URI,
                 embedding_function=self.embeddings,
             )
         except Exception as e:
