@@ -36,7 +36,7 @@ class VectorStoreInterface():
         elif cfg.EMBEDDING_MODEL_SOURCE == "local":
             self.embeddings = HuggingFaceEmbeddings(
                 model_name=cfg.EMBEDDING_MODEL_NAME,
-                model_kwargs={'trust_remote_code': cfg.TRUST_REMOTE_CODE}
+                model_kwargs={'trust_remote_code': cfg.HF_TRUST_REMOTE_CODE}
             )
 
     def init_vector_store(self):
