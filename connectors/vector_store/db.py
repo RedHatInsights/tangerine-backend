@@ -1,7 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from langchain_community.docstore.document import Document
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings import OllamaEmbeddings, HuggingFaceEmbeddings
 from langchain_community.vectorstores.pgvector import PGVector
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import connectors.config as cfg
@@ -31,6 +31,8 @@ class VectorStoreInterface():
                 openai_api_base=cfg.OPENAI_BASE_URL,
                 openai_api_key=cfg.OPENAI_API_KEY
             )
+        elif cfg.EMBEDDING_MODEL_SOURCE == "ollama":
+            self.embeddings = OllamaEmbeddings(model=cfg.EMBEDDING_MODEL_NAME)
         elif cfg.EMBEDDING_MODEL_SOURCE == "local":
             self.embeddings = HuggingFaceEmbeddings(
                 model_name=cfg.EMBEDDING_MODEL_NAME,
