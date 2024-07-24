@@ -17,10 +17,11 @@ langchain-openai = "*"
 einops = "*"
 langchain-text-splitters = "*"
 langchain-postgres = "*"
+typing-extensions = "*"
 
 [dev-packages]
 black = "*"
 isort = "*"
 
 [requires]
-python_version = "3.9"
+python_version = "3.11"
