@@ -1,9 +1,8 @@
-from langchain_community.docstore.document import Document
 from langchain.text_splitter import CharacterTextSplitter
+from langchain_community.docstore.document import Document
 from langchain_community.document_loaders import TextLoader
-from langchain_community.vectorstores.pgvector import PGVector
-
 from langchain_community.embeddings import OllamaEmbeddings
+from langchain_community.vectorstores.pgvector import PGVector
 
 CONNECTION_STRING = 'postgresql://citrus:citrus@localhost/citrus'
 

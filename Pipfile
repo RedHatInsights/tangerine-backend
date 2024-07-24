@@ -11,11 +11,12 @@ pgvector = "*"
 sqlalchemy = "*"
 langchain = "*"
 langchain-community = "*"
-psycopg2-binary = "*"
 pypdf2 = "*"
 sentence-transformers = "*"
 langchain-openai = "*"
 einops = "*"
+langchain-text-splitters = "*"
+langchain-postgres = "*"
 
 [dev-packages]
 black = "*"

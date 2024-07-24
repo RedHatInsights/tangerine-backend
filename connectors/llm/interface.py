@@ -1,13 +1,12 @@
 import json
 
-from connectors.vector_store.db import vector_interface
-import connectors.config as cfg
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
-
 from langchain.prompts import ChatPromptTemplate
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.output_parsers import StrOutputParser
+from langchain_openai import ChatOpenAI
 
+import connectors.config as cfg
+from connectors.vector_store.db import vector_interface
 
 PROMPT_TEMPLATE = """
 <s>[INST]
@@ -32,7 +31,7 @@ class LLMInterface:
         pass
 
     def ask(self, system_prompt, previous_messages, question, agent_id, stream):
-        results = vector_interface.search(question,agent_id)
+        results = vector_interface.search(question, agent_id)
 
         prompt_params = {"question": question}
         prompt = ChatPromptTemplate.from_template("{question}")
@@ -66,9 +65,9 @@ class LLMInterface:
 
         print(prompt)
         model = ChatOpenAI(
-            model=cfg.CHAT_MODEL_NAME,
-            openai_api_base=cfg.OPENAI_BASE_URL,
-            openai_api_key=cfg.OPENAI_API_KEY
+            model=cfg.LLM_MODEL_NAME,
+            openai_api_base=cfg.LLM_BASE_URL,
+            openai_api_key=cfg.LLM_API_KEY
         )
 
         chain = prompt | model | StrOutputParser()

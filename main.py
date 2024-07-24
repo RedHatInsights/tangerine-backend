@@ -1,8 +1,8 @@
 from flask import Flask
 from flask_restful import Api
 
-from connectors.vector_store.db import db, vector_interface
 import connectors.config as cfg
+from connectors.vector_store.db import db, vector_interface
 from resources.routes import initialize_routes
 
 app = Flask(__name__)
