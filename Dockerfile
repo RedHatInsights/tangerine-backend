@@ -43,7 +43,10 @@ RUN microdnf remove -y $( comm -13 packages-before-devel-install.txt packages-af
 
 USER 1001
 
-COPY . .
+ADD connectors ./connectors
+ADD resources ./resources
+ADD utils ./utils
+ADD main.py .
 
 EXPOSE 5000
 
