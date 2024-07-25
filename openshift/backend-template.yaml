@@ -1,0 +1,280 @@
+---
+kind: Template
+apiVersion: template.openshift.io/v1
+metadata:
+  name: tangerine-backend
+
+objects:
+# postgres vector DB
+- kind: Secret
+  apiVersion: v1
+  metadata:
+    name: vector-db
+  stringData:
+    db.name: vectordb
+    db.password: ${POSTGRES_PASSWORD}
+    db.user: ${POSTGRES_USER}
+    db.host: postgresql
+    db.port: "5432"
+  type: Opaque
+
+- kind: PersistentVolumeClaim
+  apiVersion: v1
+  metadata:
+    name: postgresql
+  spec:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: ${POSTGRES_VOLUME_SIZE}
+    volumeMode: Filesystem
+
+- kind: Deployment
+  apiVersion: apps/v1
+  metadata:
+    name: postgresql
+  spec:
+    strategy:
+      type: Recreate
+      recreateParams:
+        timeoutSeconds: 600
+      resources: {}
+      activeDeadlineSeconds: 21600
+    replicas: 1
+    selector:
+      matchLabels:
+        app: postgresql
+    template:
+      metadata:
+        labels:
+          app: postgresql
+      spec:
+        volumes:
+          - name: postgresql-data
+            persistentVolumeClaim:
+              claimName: postgresql
+        initContainers:
+          - command:
+            - /bin/bash
+            - -c
+            - psql -c "CREATE EXTENSION vector;" 'CREATE EXTENSION IF NOT EXISTS vector;'
+            name: postgresql-init
+            resources:
+              requests:
+                memory: 512Mi
+                cpu: 250m
+              limits:
+                memory: 512Mi
+                cpu: 1
+            env:
+              - name: POSTGRESQL_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.user
+              - name: POSTGRESQL_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.password
+              - name: POSTGRESQL_DATABASE
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.name
+            imagePullPolicy: IfNotPresent
+            volumeMounts:
+              - name: postgresql-data
+                mountPath: /var/lib/pgsql/data
+            image: 'quay.io/rh-aiservices-bu/postgresql-15-pgvector-c9s:0.0.2'
+        containers:
+          - resources:
+              requests:
+                memory: 512Mi
+                cpu: 250m
+              limits:
+                memory: 512Mi
+                cpu: 1
+            readinessProbe:
+              exec:
+                command:
+                  - /usr/libexec/check-container
+              initialDelaySeconds: 5
+              timeoutSeconds: 1
+              periodSeconds: 10
+              successThreshold: 1
+              failureThreshold: 3
+            terminationMessagePath: /dev/termination-log
+            name: postgresql
+            livenessProbe:
+              exec:
+                command:
+                  - /usr/libexec/check-container
+                  - '--live'
+              initialDelaySeconds: 120
+              timeoutSeconds: 10
+              periodSeconds: 10
+              successThreshold: 1
+              failureThreshold: 3
+            env:
+              - name: POSTGRESQL_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: postgresql
+                    key: database-user
+              - name: POSTGRESQL_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: postgresql
+                    key: database-password
+              - name: POSTGRESQL_DATABASE
+                valueFrom:
+                  secretKeyRef:
+                    name: postgresql
+                    key: database-name
+            securityContext:
+              capabilities: {}
+              privileged: false
+            ports:
+              - containerPort: 5432
+                protocol: TCP
+            imagePullPolicy: IfNotPresent
+            volumeMounts:
+              - name: postgresql-data
+                mountPath: /var/lib/pgsql/data
+            terminationMessagePolicy: File
+            image: 'quay.io/rh-aiservices-bu/postgresql-15-pgvector-c9s:0.0.2'
+        restartPolicy: Always
+        terminationGracePeriodSeconds: 30
+        dnsPolicy: ClusterFirst
+        securityContext: {}
+        schedulerName: default-scheduler
+
+- kind: Service
+  apiVersion: v1
+  metadata:
+    name: postgresql
+  spec:
+    selector:
+      app: postgresql
+    ports:
+      - name: postgresql
+        protocol: TCP
+        port: 5432
+        targetPort: 5432
+
+# tangerine backend
+- kind: Deployment
+  apiVersion: apps/v1
+  metadata:
+    name: tangerine-backend
+  spec:
+    strategy:
+      type: Recreate  # TODO: switch to Rolling
+      recreateParams:
+        timeoutSeconds: 600
+      resources: {}
+      activeDeadlineSeconds: 21600
+    replicas: 1
+    selector:
+      matchLabels:
+        app: tangerine-backend
+    template:
+      metadata:
+        labels:
+          app: tangerine-backend
+      spec:
+        containers:
+          - resources:
+              requests:
+                memory: 256Mi
+                cpu: 250m
+              limits:
+                memory: 512Mi
+                cpu: 500m
+            readinessProbe:
+              httpGet:
+                path: /ping
+                port: 5000
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 1
+              successThreshold: 1
+              failureThreshold: 3
+            livenessProbe:
+              httpGet:
+                path: /ping
+                port: 5000
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 1
+              successThreshold: 1
+              failureThreshold: 3
+            terminationMessagePath: /dev/termination-log
+            name: tangerine-backend
+            env:
+              - name: DB_USERNAME
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.user
+              - name: DB_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.password
+              - name: DB_NAME
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.name
+              - name: DB_HOST
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.host
+              - name: DB_PORT
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.port
+            securityContext:
+              capabilities: {}
+              privileged: false
+            ports:
+              - containerPort: 5000
+                protocol: TCP
+             imagePullPolicy: Always  # TODO: change to "IfNotPresent" when project stabilizes
+            terminationMessagePolicy: File
+            image: 'quay.io/tangerine/tangerine-backend:latest'
+        restartPolicy: Always
+        terminationGracePeriodSeconds: 30
+        dnsPolicy: ClusterFirst
+        securityContext: {}
+        schedulerName: default-scheduler
+
+- kind: Service
+  apiVersion: v1
+  metadata:
+    name: tangerine-backend
+  spec:
+    selector:
+      app: tangerine-backend
+    ports:
+      - name: tangerine-backend
+        protocol: TCP
+        port: 5000
+        targetPort: 5000
+
+parameters:
+  - name: POSTGRES_USER
+    description: "Postgres username"
+    generate: expression
+    from: "[a-zA-Z0-9]{12}"
+  - name: POSTGRES_PASSWORD
+    description: "Postgres password"
+    generate: expression
+    from: "[a-zA-Z0-9]{12}"
+  - name: POSTGRES_VOLUME_SIZE
+    value: "5Gi"
