@@ -25,4 +25,4 @@ if __name__ == "__main__":
         vector_interface.init_vector_store()
         print("vector store initiated.")
 
-    app.run(debug=True)
+    app.run(host="0.0.0.0", debug=True)

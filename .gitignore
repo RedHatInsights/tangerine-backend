@@ -160,3 +160,8 @@ cython_debug/
 #.idea/
 
 .DS_Store
+
+# local docker data
+models/
+ollama/
+postgres-data/

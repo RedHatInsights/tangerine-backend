@@ -1,0 +1,92 @@
+# NOTE: llama.cpp currently not working due to:
+#   llama-cpp-embeddings  |  ERR [              send_error] task error | tid="140445060377152" timestamp=1721944595 id_multi=-1 id_task=4 error="input is too large to process. increase the physical batch size"
+
+services:
+  postgres:
+    container_name: postgres
+    image: pgvector/pgvector:pg16
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=citrus
+      - POSTGRES_USER=citrus
+      - POSTGRES_DB=citrus
+    healthcheck:
+      test: "psql -U $${POSTGRES_USER} -d $${POSTGRES_DB} 'SELECT 1' || exit 1"
+      start_period: 10s
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  llama-cpp-llm:
+    container_name: llama-cpp-llm
+    image: ghcr.io/ggerganov/llama.cpp:server
+    command: -m /models/Mistral-7B-Instruct-v0.3.Q4_K_M.gguf --port 8081 --host 0.0.0.0
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./models:/models
+    healthcheck:
+      # TODO: change to curl test when https://github.com/ggerganov/llama.cpp/pull/8693 is released
+      #test: curl --fail "http://localhost:8081/health" || exit 1
+      test: exit 0
+      start_period: 10s
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  llama-cpp-embeddings:
+    container_name: llama-cpp-embeddings
+    image: ghcr.io/ggerganov/llama.cpp:server
+    command: --embeddings -m /models/nomic-embed-text-v1.5.f16.gguf --port 8082 --host 0.0.0.0
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./models:/models
+    healthcheck:
+      # TODO: change to curl test when https://github.com/ggerganov/llama.cpp/pull/8693 is released
+      #test: curl --fail "http://localhost:8082/health" || exit 1
+      test: exit 0
+      start_period: 10s
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  tangerine-backend:
+    container_name: tangerine-backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_HOST=postgres
+      - DB_USERNAME=citrus
+      - DB_PASSWORD=citrus
+      - DB_NAME=citrus
+      - LLM_BASE_URL=http://llama-cpp-llm:8081/v1
+      - EMBED_BASE_URL=http://llama-cpp-embeddings:8082
+      - LLM_MODEL_NAME=models--mistralai--Mistral-7B-Instruct-v0.3
+      - EMBED_MODEL_NAME=nomic-embed-text-v1.5
+    healthcheck:
+      test: curl --fail "http://localhost:5000/ping" || exit 1
+      start_period: 10s
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+      llama-cpp-embeddings:
+        condition: service_healthy
+      llama-cpp-llm:
+        condition: service_healthy
+
+networks:
+  default:
+    name: tangerine
+    driver: bridge

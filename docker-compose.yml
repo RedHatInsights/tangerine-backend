@@ -1,15 +1,68 @@
 services:
-  db:
+  postgres:
+    container_name: tangerine-postgres
     image: pgvector/pgvector:pg16
     ports:
       - "5432:5432"
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
     environment:
       - POSTGRES_PASSWORD=citrus
       - POSTGRES_USER=citrus
       - POSTGRES_DB=citrus
-  # ollama:
-  #   image: ollama/ollama:latest
-  #   ports:
-  #     - 11434:11434
-  #   volumes:
-  #     - ./data:/root/.ollama
+    healthcheck:
+      test: "psql -U $${POSTGRES_USER} -d $${POSTGRES_DB} 'SELECT 1' || exit 1"
+      start_period: 10s
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    container_name: tangerine-ollama
+    image: ollama/ollama:0.3.0
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./ollama:/root/.ollama
+    healthcheck:
+      test: "bash -c 'cat < /dev/null > /dev/tcp/localhost/11434'"
+      start_period: 10s
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  tangerine-backend:
+    container_name: tangerine-backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_HOST=postgres
+      - DB_USERNAME=citrus
+      - DB_PASSWORD=citrus
+      - DB_NAME=citrus
+      - LLM_BASE_URL=http://ollama:11434/v1
+      - EMBED_BASE_URL=http://ollama:11434/v1
+      - LLM_MODEL_NAME=mistral
+      - EMBED_MODEL_NAME=nomic-embed-text
+    healthcheck:
+      test: curl --fail "http://localhost:5000/ping" || exit 1
+      start_period: 10s
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+
+networks:
+  default:
+    name: tangerine
+    driver: bridge
