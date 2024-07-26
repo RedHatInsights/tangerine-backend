@@ -1,19 +1,35 @@
 # tangerine-backend
+
 🍊
 
-## Setup
-* Install [Ollama](https://ollama.com/) on your machine, and pull their version of `mistral` and `nomic-embed-text` model.
-  *  `ollama pull mistral`
-  *  `ollama pull nomic-embed-text`
-* `pipenv install`
-* `pipenv shell`
+A work in progress
 
-## Spin up the DB
-* `docker-compose up`
+## Local Environment Setup
 
-### Run the API Server
-* `python main.py`
-* access on `http://localhost:5000`
+The local dev environment uses ollama to serve the LLM.
+
+You may require further tweaks to properly make use of your GPU. Refer to the [ollama docker image documentation](https://hub.docker.com/r/ollama/ollama).
+
+1. Create the directory which will house the local environment data:
+    ```
+    mkdir data
+    ```
+2. Create a directory to house the embedding model and download the `snowflake-arctic-embed-m-long` model:
+    ```
+    mkdir data/embeddings
+    git clone https://huggingface.co/Snowflake/snowflake-arctic-embed-m-long \
+      data/embeddings/snowflake-arctic-embed-m-long
+    ```
+3. Invoke docker compose (postgres data will persist in `data/postgres`):
+    ```
+    docker compose up --build
+    ```
+4. Pull the mistral LLM (data will persist in `data/ollama`):
+    ```
+    docker exec tangerine-ollama ollama pull mistral
+    ```
+5. The API can now be accessed on `http://localhost:5000`
+6. To use UI, install and start [tangerine-frontend](https://github.com/tahmidefaz/tangerine-frontend)
 
 
 ### Available API Paths
@@ -25,5 +41,5 @@
 | `/agents/<id>`                 | `PUT`    | Update an agent          |
 | `/agents/<id>`                 | `DELETE` | Delete an agent          |
 | `/agents/<id>/document_upload` | `POST`   | Agent document uploads   |
-| `/agents/<id>/chat`            | `POST`    | Chat with an agent       |
+| `/agents/<id>/chat`            | `POST`   | Chat with an agent       |
 | `/ping`                        | `GET`    | Health check             |

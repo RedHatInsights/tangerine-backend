@@ -1,12 +1,13 @@
 from flask import Flask
 from flask_restful import Api
 
-from connectors.vector_store.db import db, db_connection_string, vector_interface
+import connectors.config as cfg
+from connectors.vector_store.db import db, vector_interface
 from resources.routes import initialize_routes
 
 app = Flask(__name__)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = db_connection_string
+app.config['SQLALCHEMY_DATABASE_URI'] = cfg.DB_URI
 
 db.init_app(app)
 
@@ -24,4 +25,4 @@ if __name__ == "__main__":
         vector_interface.init_vector_store()
         print("vector store initiated.")
 
-    app.run(debug=True)
+    app.run(host="0.0.0.0", debug=True)
