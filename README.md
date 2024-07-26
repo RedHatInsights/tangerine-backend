@@ -6,21 +6,30 @@ A work in progress
 
 ## Local Environment Setup
 
-The local dev environment uses ollama to get you up and running quickly.
+The local dev environment uses ollama to serve the LLM.
 
 You may require further tweaks to properly make use of your GPU. Refer to the [ollama docker image documentation](https://hub.docker.com/r/ollama/ollama).
 
-1. Invoke docker compose (postgres data will persist in `./postgres-data`):
+1. Create the directory which will house the local environment data:
     ```
-    docker-compose up -d --build
+    mkdir data
     ```
-2. Pull needed ollama models (data will persist in `./ollama`):
+2. Create a directory to house the embedding model and download the `snowflake-arctic-embed-m-long` model:
+    ```
+    mkdir data/embeddings
+    git clone https://huggingface.co/Snowflake/snowflake-arctic-embed-m-long \
+      data/embeddings/snowflake-arctic-embed-m-long
+    ```
+3. Invoke docker compose (postgres data will persist in `data/postgres`):
+    ```
+    docker compose up --build
+    ```
+4. Pull the mistral LLM (data will persist in `data/ollama`):
     ```
     docker exec tangerine-ollama ollama pull mistral
-    docker exec tangerine-ollama ollama pull nomic-embed-text
     ```
-3. The API can now be accessed on `http://localhost:5000`
-4. To use UI, install and start [tangerine-frontend](https://github.com/tahmidefaz/tangerine-frontend)
+5. The API can now be accessed on `http://localhost:5000`
+6. To use UI, install and start [tangerine-frontend](https://github.com/tahmidefaz/tangerine-frontend)
 
 
 ### Available API Paths

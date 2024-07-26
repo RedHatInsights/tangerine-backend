@@ -162,6 +162,4 @@ cython_debug/
 .DS_Store
 
 # local docker data
-models/
-ollama/
-postgres-data/
+data/
