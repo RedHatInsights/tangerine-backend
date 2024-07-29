@@ -342,31 +342,11 @@ objects:
         port: 5000
         targetPort: 5000
 
-- apiVersion: route.openshift.io/v1
-  kind: Route
-  metadata:
-    labels:
-      app: tangerine-backend
-    name: backend
-  spec:
-    port:
-      targetPort: 5000-tcp
-    to:
-      kind: Service
-      name: tangerine-backend
-    tls:
-      insecureEdgeTerminationPolicy: Redirect
-      termination: edge
-
 parameters:
   - name: POSTGRES_USER
-    description: "Postgres username"
-    generate: expression
-    from: "[a-zA-Z0-9]{12}"
+    required: true
   - name: POSTGRES_PASSWORD
-    description: "Postgres password"
-    generate: expression
-    from: "[a-zA-Z0-9]{12}"
+    required: true
   - name: POSTGRES_VOLUME_SIZE
     value: "20Gi"
   - name: EMBEDDINGS_VOLUME_SIZE
