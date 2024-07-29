@@ -1,0 +1,381 @@
+---
+kind: Template
+apiVersion: template.openshift.io/v1
+metadata:
+  name: tangerine-backend
+
+objects:
+# postgres vector DB
+- kind: Secret
+  apiVersion: v1
+  metadata:
+    name: vector-db
+  stringData:
+    db.name: vectordb
+    db.password: ${POSTGRES_PASSWORD}
+    db.user: ${POSTGRES_USER}
+    db.host: postgresql
+    db.port: "5432"
+  type: Opaque
+
+- kind: PersistentVolumeClaim
+  apiVersion: v1
+  metadata:
+    name: postgresql
+  spec:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: ${POSTGRES_VOLUME_SIZE}
+    volumeMode: Filesystem
+
+- kind: Deployment
+  apiVersion: apps/v1
+  metadata:
+    name: postgresql
+  spec:
+    strategy:
+      type: Recreate
+      recreateParams:
+        timeoutSeconds: 600
+      resources: {}
+      activeDeadlineSeconds: 21600
+    replicas: 1
+    selector:
+      matchLabels:
+        app: postgresql
+    template:
+      metadata:
+        labels:
+          app: postgresql
+      spec:
+        volumes:
+          - name: postgresql-data
+            persistentVolumeClaim:
+              claimName: postgresql
+        containers:
+          - resources:
+              requests:
+                memory: 512Mi
+                cpu: 250m
+              limits:
+                memory: 512Mi
+                cpu: 1
+            readinessProbe:
+              exec:
+                command:
+                  - /usr/libexec/check-container
+              initialDelaySeconds: 5
+              timeoutSeconds: 1
+              periodSeconds: 10
+              successThreshold: 1
+              failureThreshold: 3
+            terminationMessagePath: /dev/termination-log
+            name: postgresql
+            livenessProbe:
+              exec:
+                command:
+                  - /usr/libexec/check-container
+                  - '--live'
+              initialDelaySeconds: 120
+              timeoutSeconds: 10
+              periodSeconds: 10
+              successThreshold: 1
+              failureThreshold: 3
+            env:
+              - name: POSTGRESQL_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.user
+              - name: POSTGRESQL_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.password
+              - name: POSTGRESQL_DATABASE
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.name
+            securityContext:
+              capabilities: {}
+              privileged: false
+            ports:
+              - containerPort: 5432
+                protocol: TCP
+            imagePullPolicy: IfNotPresent
+            volumeMounts:
+              - name: postgresql-data
+                mountPath: /var/lib/pgsql/data
+            terminationMessagePolicy: File
+            image: 'quay.io/tangerine/postgresql-16-pgvector-0-7-3-c9s:0.0.1'
+        restartPolicy: Always
+        terminationGracePeriodSeconds: 30
+        dnsPolicy: ClusterFirst
+        securityContext: {}
+        schedulerName: default-scheduler
+
+- kind: Service
+  apiVersion: v1
+  metadata:
+    name: postgresql
+  spec:
+    selector:
+      app: postgresql
+    ports:
+      - name: postgresql
+        protocol: TCP
+        port: 5432
+        targetPort: 5432
+
+# huggingface text-embeddings-interface
+- kind: PersistentVolumeClaim
+  apiVersion: v1
+  metadata:
+    name: embedding-models
+  spec:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: ${EMBEDDINGS_VOLUME_SIZE}
+    volumeMode: Filesystem
+
+- kind: Deployment
+  apiVersion: apps/v1
+  metadata:
+    name: text-embeddings-inference
+  spec:
+    strategy:
+      type: Recreate
+      recreateParams:
+        timeoutSeconds: 600
+      resources: {}
+      activeDeadlineSeconds: 21600
+    replicas: 1
+    selector:
+      matchLabels:
+        app: text-embeddings-inference
+    template:
+      metadata:
+        labels:
+          app: text-embeddings-inference
+      spec:
+        volumes:
+          - name: embedding-models-data
+            persistentVolumeClaim:
+              claimName: embedding-models
+        containers:
+          - resources:
+              requests:
+                memory: 2Gi
+                cpu: 2
+              limits:
+                memory: 2Gi
+                cpu: 16
+            readinessProbe:
+              tcpSocket:
+                port: 3000
+              initialDelaySeconds: 30
+              timeoutSeconds: 1
+              periodSeconds: 10
+              successThreshold: 1
+              failureThreshold: 3
+            terminationMessagePath: /dev/termination-log
+            name: text-embeddings-inference
+            livenessProbe:
+              tcpSocket:
+                port: 3000
+              initialDelaySeconds: 120
+              timeoutSeconds: 10
+              periodSeconds: 10
+              successThreshold: 1
+              failureThreshold: 3
+            env:
+              - name: HUGGINGFACE_HUB_CACHE
+                value: "/data"
+              - name: MODEL_ID
+                value: Snowflake/snowflake-arctic-embed-m-long
+              - name: PORT
+                value: "3000"
+            securityContext:
+              capabilities: {}
+              privileged: false
+            ports:
+              - containerPort: 3000
+                protocol: TCP
+            imagePullPolicy: IfNotPresent
+            volumeMounts:
+              - name: embedding-models-data
+                mountPath: /data
+            terminationMessagePolicy: File
+            image: 'ghcr.io/huggingface/text-embeddings-inference:cpu-1.5'
+        restartPolicy: Always
+        terminationGracePeriodSeconds: 30
+        dnsPolicy: ClusterFirst
+        securityContext: {}
+        schedulerName: default-scheduler
+
+- kind: Service
+  apiVersion: v1
+  metadata:
+    name: text-embeddings-inference
+  spec:
+    selector:
+      app: text-embeddings-inference
+    ports:
+      - name: text-embeddings-inference
+        protocol: TCP
+        port: 3000
+        targetPort: 3000
+
+# tangerine backend
+- kind: Deployment
+  apiVersion: apps/v1
+  metadata:
+    name: tangerine-backend
+  spec:
+    strategy:
+      type: Recreate  # TODO: switch to Rolling
+      recreateParams:
+        timeoutSeconds: 600
+      resources: {}
+      activeDeadlineSeconds: 21600
+    replicas: 1
+    selector:
+      matchLabels:
+        app: tangerine-backend
+    template:
+      metadata:
+        labels:
+          app: tangerine-backend
+      spec:
+        containers:
+          - resources:
+              requests:
+                memory: 256Mi
+                cpu: 250m
+              limits:
+                memory: 512Mi
+                cpu: 500m
+            readinessProbe:
+              httpGet:
+                path: /ping
+                port: 5000
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 1
+              successThreshold: 1
+              failureThreshold: 3
+            livenessProbe:
+              httpGet:
+                path: /ping
+                port: 5000
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 1
+              successThreshold: 1
+              failureThreshold: 3
+            terminationMessagePath: /dev/termination-log
+            name: tangerine-backend
+            env:
+              - name: DB_USERNAME
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.user
+              - name: DB_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.password
+              - name: DB_NAME
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.name
+              - name: DB_HOST
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.host
+              - name: DB_PORT
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.port
+              - name: LLM_BASE_URL
+                value: ${LLM_BASE_URL}
+              - name: EMBED_BASE_URL
+                value: ${EMBED_BASE_URL}
+              - name: LLM_MODEL_NAME
+                value: ${LLM_MODEL_NAME}
+              - name: EMBED_MODEL_NAME
+                value: ${EMBED_MODEL_NAME}
+            securityContext:
+              capabilities: {}
+              privileged: false
+            ports:
+              - containerPort: 5000
+                protocol: TCP
+            imagePullPolicy: Always  # TODO: change to "IfNotPresent" when project stabilizes
+            terminationMessagePolicy: File
+            image: 'quay.io/tangerine/tangerine-backend:latest'
+        restartPolicy: Always
+        terminationGracePeriodSeconds: 30
+        dnsPolicy: ClusterFirst
+        securityContext: {}
+        schedulerName: default-scheduler
+
+- kind: Service
+  apiVersion: v1
+  metadata:
+    name: tangerine-backend
+  spec:
+    selector:
+      app: tangerine-backend
+    ports:
+      - name: tangerine-backend
+        protocol: TCP
+        port: 5000
+        targetPort: 5000
+
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    labels:
+      app: tangerine-backend
+    name: backend
+  spec:
+    port:
+      targetPort: 5000-tcp
+    to:
+      kind: Service
+      name: tangerine-backend
+    tls:
+      insecureEdgeTerminationPolicy: Redirect
+      termination: edge
+
+parameters:
+  - name: POSTGRES_USER
+    description: "Postgres username"
+    generate: expression
+    from: "[a-zA-Z0-9]{12}"
+  - name: POSTGRES_PASSWORD
+    description: "Postgres password"
+    generate: expression
+    from: "[a-zA-Z0-9]{12}"
+  - name: POSTGRES_VOLUME_SIZE
+    value: "20Gi"
+  - name: EMBEDDINGS_VOLUME_SIZE
+    value: "5Gi"
+  - name: LLM_BASE_URL
+    value: http://vllm.llm-hosting.svc.cluster.local:8000/v1
+  - name: EMBED_BASE_URL
+    value: http://text-embeddings-inference:3000/v1
+  - name: LLM_MODEL_NAME
+    value: mistralai/Mistral-7B-Instruct-v0.2
+  - name: EMBED_MODEL_NAME
+    value: Snowflake/snowflake-arctic-embed-m-long
