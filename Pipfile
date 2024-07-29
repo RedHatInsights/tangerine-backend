@@ -9,13 +9,17 @@ flask-restful = "*"
 flask-sqlalchemy = "*"
 pgvector = "*"
 sqlalchemy = "*"
-langchain = "*"
-langchain-community = "*"
-psycopg2-binary = "*"
+langchain-core = "*"
 pypdf2 = "*"
-sentence-transformers = "*"
+langchain-openai = "*"
+einops = "*"
+langchain-text-splitters = "*"
+langchain-postgres = "*"
+typing-extensions = "*"
 
 [dev-packages]
+black = "*"
+isort = "*"
 
 [requires]
-python_version = "3.9"
+python_version = "3.11"

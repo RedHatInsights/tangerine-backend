@@ -1,5 +1,7 @@
 from io import BytesIO
+
 import PyPDF2
+
 
 def text_extractor(filename, file_content):
     if filename.endswith('.pdf'):

@@ -1,6 +1,8 @@
-import os
-import requests
 import glob
+import os
+
+import requests
+
 
 def upload_files(directory_path, agent_id):
     files = glob.glob(os.path.join(directory_path, '**', '*.rst'), recursive=True)

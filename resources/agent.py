@@ -1,11 +1,11 @@
 import json
-from flask import Response, request
-from flask_restful import Resource
 import time
 
-from connectors.vector_store.db import db, Agents
-from connectors.vector_store.db import vector_interface
+from flask import Response, request
+from flask_restful import Resource
+
 from connectors.llm.interface import llm
+from connectors.vector_store.db import Agents, db, vector_interface
 from utils.processors import text_extractor
 
 
@@ -56,6 +56,7 @@ class AgentsApi(Resource):
 
 class AgentApi(Resource):
     def get(self, id):
+        id = int(id)
         agent = Agents.query.filter_by(id=id).first()
 
         if not agent:
@@ -71,6 +72,7 @@ class AgentApi(Resource):
 
 
     def put(self, id):
+        id = int(id)
         agent = Agents.query.get(id)
         if agent:
             data = request.get_json()
@@ -88,6 +90,7 @@ class AgentApi(Resource):
             return {'message': 'Agent not found'}, 404
 
     def delete(self, id):
+        id = int(id)
         agent = Agents.query.get(id)
         if agent:
             db.session.delete(agent)
@@ -100,6 +103,7 @@ class AgentApi(Resource):
 
 class AgentDocUpload(Resource):
     def post(self, id):
+        id = int(id)
         agent = Agents.query.get(id)
         if not agent:
             return {'message': 'Agent not found'}, 404
@@ -144,7 +148,8 @@ class AgentDocUpload(Resource):
 
 
 class AgentChatApi(Resource):
-    def post(self,id):
+    def post(self, id):
+        id = int(id)
         agent = Agents.query.filter_by(id=id).first()
         if not agent:
             return {'message': 'Agent not found'}, 404

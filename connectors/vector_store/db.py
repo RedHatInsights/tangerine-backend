@@ -1,15 +1,10 @@
 from flask_sqlalchemy import SQLAlchemy
-from langchain_community.docstore.document import Document
-from langchain_community.embeddings import OllamaEmbeddings
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores.pgvector import PGVector
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
+from langchain_openai import OpenAIEmbeddings
+from langchain_postgres.vectorstores import PGVector
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-
-db_connection_string = 'postgresql://citrus:citrus@localhost/citrus'
-vector_collection_name = 'collection'
-
-MODEL_SOURCE = "ollama"
+import connectors.config as cfg
 
 db = SQLAlchemy()
 
@@ -30,17 +25,19 @@ class VectorStoreInterface():
         self.vector_chunk_size = 2000
         self.vector_chunk_overlap = 500
 
-        if MODEL_SOURCE == "ollama":
-            self.embeddings = OllamaEmbeddings(model="nomic-embed-text")
-        elif MODEL_SOURCE == "huggingface":
-            self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        self.embeddings = OpenAIEmbeddings(
+            model=cfg.EMBED_MODEL_NAME,
+            openai_api_base=cfg.EMBED_BASE_URL,
+            openai_api_key=cfg.EMBED_API_KEY,
+            check_embedding_ctx_length=False
+        )
 
     def init_vector_store(self):
         try:
             self.store = PGVector(
-                collection_name=vector_collection_name,
-                connection_string=db_connection_string,
-                embedding_function=self.embeddings,
+                collection_name=cfg.VECTOR_COLLECTION_NAME,
+                connection=cfg.DB_URI,
+                embeddings=self.embeddings,
             )
         except Exception as e:
             print(f"Error init_vector_store: {e}")
@@ -57,6 +54,9 @@ class VectorStoreInterface():
         docs = text_splitter.split_documents(documents)
 
         try:
+            #texts = [doc.page_content for doc in docs]
+            #embeddings = self.embeddings.embed_documents(list(texts))
+            #self.store.add_embeddings(texts=texts, embeddings=embeddings, metadatas=None, ids=None)
             self.store.add_documents(docs)
         except Exception as e:
             print(f"Error adding_documents: {e}")
@@ -64,7 +64,7 @@ class VectorStoreInterface():
         return
 
     def search(self, query, agent_id):
-        docs_with_score = self.store.max_marginal_relevance_search_with_score(query=query, filter={"agent_id": agent_id}, k=2)
+        docs_with_score = self.store.max_marginal_relevance_search_with_score(query=query, filter={"agent_id": agent_id}, k=4)
         return docs_with_score      # list(int, Document(page_content, metadata))
 
 
