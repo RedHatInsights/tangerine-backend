@@ -1,12 +1,15 @@
 from flask import Flask
 from flask_restful import Api
+from flask_cors import CORS, cross_origin
 
 import connectors.config as cfg
 from connectors.vector_store.db import db, vector_interface
 from resources.routes import initialize_routes
 
 app = Flask(__name__)
+cors = CORS(app)
 
+app.config['CORS_HEADERS'] = 'Content-Type'
 app.config['SQLALCHEMY_DATABASE_URI'] = cfg.DB_URI
 
 db.init_app(app)
