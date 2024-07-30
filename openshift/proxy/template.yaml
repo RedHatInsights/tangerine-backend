@@ -1,0 +1,131 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: tangerine-proxy
+
+parameters:
+- name: BACKEND_SERVICE
+  description: The name of the backend service
+  value: tangerine-backend
+- name: BACKEND_PORT
+  description: The port of the backend service
+  value: "5000"
+- name: FRONTEND_SERVICE
+  description: The name of the frontend service
+  value: tangerine-frontend
+- name: FRONTEND_PORT
+  description: The port of the frontend service
+  value: "3000"
+- name: IMAGE_TAG
+  description: The image tag
+  value: latest
+- name: IMAGE
+  description: The image
+  value: quay.io/tangerine/tangerine-proxy
+- name: HOSTNAME
+  description: The hostname of the Route/Ingress
+  required: true
+
+objects:
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: tangerine-proxy
+    annotations:
+       serviceaccounts.openshift.io/oauth-redirectreference.primary: '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"tangerine-proxy"}}'
+
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: tangerine-proxy
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: tangerine-proxy
+    template:
+      metadata:
+        labels:
+          app: tangerine-proxy
+      spec:
+        volumes:
+          - name: secret-tangerine-proxy-tls
+            secret:
+              defaultMode: 420
+              secretName: tangerine-proxy-tls
+          - name: secret-tangerine-proxy-cookie
+            secret:
+              defaultMode: 420
+              secretName: tangerine-proxy-cookie-secret
+        containers:
+        - name: tangerine-proxy
+          image: ${IMAGE}:${IMAGE_TAG}
+          ports:
+          - containerPort: 8000
+          env:
+          - name: BACKEND_SERVICE
+            value: ${BACKEND_SERVICE}
+          - name: BACKEND_PORT
+            value: ${BACKEND_PORT}
+          - name: FRONTEND_SERVICE
+            value: ${FRONTEND_SERVICE}
+          - name: FRONTEND_PORT
+            value: ${FRONTEND_PORT}
+        - name: oauth-proxy
+          args:
+            - --provider=openshift
+            - --https-address=:8888
+            - --http-address=
+            - --email-domain=*
+            - --upstream=http://localhost:8000
+            - --tls-cert=/etc/tls/private/tls.crt
+            - --tls-key=/etc/tls/private/tls.key
+            - --cookie-secret-file=/etc/proxy/secrets/clientSecret
+            - --openshift-service-account=tangerine-proxy
+            - --openshift-ca=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            - --skip-auth-regex=^/metrics
+            - --pass-user-headers=true
+          image: quay.io/openshift/origin-oauth-proxy:4.14
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: oauth-proxy
+              containerPort: 8888
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /etc/tls/private
+              name: secret-tangerine-proxy-tls
+            - mountPath: /etc/proxy/secrets
+              name: secret-tangerine-proxy-cookie
+        serviceAccountName: tangerine-proxy
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: tangerine-proxy
+    annotations:
+      service.alpha.openshift.io/serving-cert-secret-name: tangerine-proxy-tls
+    labels:
+      name: tangerine-proxy
+  spec:
+    selector:
+      app: tangerine-proxy
+    ports:
+    - name: oauth-proxy
+      protocol: TCP
+      port: 8888
+      targetPort: 8888
+
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: tangerine-proxy
+  spec:
+    to:
+      kind: Service
+      name: tangerine-proxy
+    tls:
+      termination: reencrypt
+      insecureEdgeTerminationPolicy: Redirect
+    host: ${HOSTNAME}
+    port:
+      targetPort: 8888
