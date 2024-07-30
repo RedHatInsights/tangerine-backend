@@ -7,6 +7,7 @@ from flask_restful import Resource
 from connectors.llm.interface import llm
 from connectors.vector_store.db import Agents, db, vector_interface
 from utils.processors import text_extractor
+from sqlalchemy import text
 
 
 class AgentsApi(Resource):
@@ -113,6 +114,7 @@ class AgentDocUpload(Resource):
             return {'message': 'No file part'}, 400
 
         files = request.files.getlist('file')
+        path = request.form.get('path')
 
         file_contents=[]
         for file in files:
@@ -139,12 +141,24 @@ class AgentDocUpload(Resource):
 
                 # Only generate embeddings when there is actual texts
                 if len(extracted_text) > 0:
-                    vector_interface.add_document(extracted_text, id, filename)
+                    vector_interface.add_document(extracted_text, id, path, filename)
                     yield json.dumps({"file": filename, "step": "embedding_created"}) + "\n"
 
                 yield json.dumps({"file": filename, "step": "end"}) + "\n"
 
         return Response(generate_progress(), mimetype='application/json')
+    
+    def delete(self, id):
+        filename = request.json.get("filename")
+        path = request.json.get("path")
+
+        metadata = {"path": path, "agent_id": id, "filename": filename}
+
+        query = text(f"SELECT id FROM langchain_pg_embedding WHERE cmetadata='{json.dumps(metadata)}';")
+
+        documents = db.session.execute(query).all()
+        
+        vector_interface.delete_documents([document[0] for document in documents])
 
 
 class AgentChatApi(Resource):

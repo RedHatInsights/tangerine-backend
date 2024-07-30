@@ -18,7 +18,7 @@ def upload_files(directory_path, agent_id):
 
         # print(files_to_upload)
         url = f'http://localhost:3000/agents/{agent_id}/document_upload'
-        response = requests.post(url, files=files_to_upload)
+        response = requests.post(url, files=files_to_upload, data={"path": directory_path})
 
         if response.status_code == 200:
             print(f"Batch {i+1}/{num_batches} uploaded successfully.")
