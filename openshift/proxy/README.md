@@ -10,8 +10,10 @@ Inspired by the [firelink-proxy](https://github.com/RedHatInsights/firelink-prox
 
 ```
 NAMESPACE=<namespace>
+
 oc process \
     -p SECRET=$(python -c 'import os,base64; print(base64.b64encode(os.urandom(16)).decode())') \
     -f secret.yaml | oc apply -f - -n $NAMESPACE
-oc process -f template.yaml | oc apply -f - -n $NAMESPACE
+
+oc process -p HOSTNAME=<your public Route hostname> -f template.yaml | oc apply -f - -n $NAMESPACE
 ```
