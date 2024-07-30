@@ -16,6 +16,7 @@ einops = "*"
 langchain-text-splitters = "*"
 langchain-postgres = "*"
 typing-extensions = "*"
+flask-cors = "*"
 
 [dev-packages]
 black = "*"
