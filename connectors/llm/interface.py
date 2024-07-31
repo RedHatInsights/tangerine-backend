@@ -76,12 +76,14 @@ class LLMInterface:
             def stream_generator():
                 for chunks in chain.stream(prompt_params):
                     print("chunks:", chunks)
-                    yield json.dumps({"text_content": chunks}) + "\n"
-                yield json.dumps({"search_metadata": extra_doc_info}) + "\n"
+                    json_data = json.dumps({"text_content": chunks})
+                    yield f"data: {json_data}\r\n"
+                json_data = json.dumps({"search_metadata": extra_doc_info})
+                yield f"data: {json_data}\r\n"
             return stream_generator
 
         response_text = chain.invoke(prompt_params)
-        response = {"answer":response_text, "search_metadata": extra_doc_info}
+        response = {"text_content": response_text, "search_metadata": extra_doc_info}
         return response
 
 llm = LLMInterface()
