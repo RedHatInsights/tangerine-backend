@@ -120,12 +120,13 @@ class AgentDocUpload(Resource):
         file_contents=[]
         for file in files:
             filename = file.filename
-            if not any([filename.endswith(filetype) for filetype in [".txt", ".pdf", ".md", ".rst"]]):
+            file_id = f"{repo}:{path}{file.filename}"
+            if not any([file_id.endswith(filetype) for filetype in [".txt", ".pdf", ".md", ".rst"]]):
                 return {'message': 'Unsupported file type uploaded'}, 400
 
             file_content = file.stream.read()
 
-            file_contents.append([filename, file_content])
+            file_contents.append([file_id, filename, file_content])
 
         # Add filenames to the DB
         new_filenames = agent.filenames.copy()
@@ -135,7 +136,7 @@ class AgentDocUpload(Resource):
         db.session.commit()
 
         def generate_progress():
-            for filename, file_content in file_contents:
+            for _, filename, file_content in file_contents:
                 yield json.dumps({"file": filename, "step": "start"}) + "\n"
                 extracted_text = text_extractor(filename, file_content)
                 yield json.dumps({"file": filename, "step": "text_extracted"}) + "\n"
@@ -153,7 +154,7 @@ class AgentDocUpload(Resource):
         filename = request.json.get("filename")
         path = request.json.get("path")
         repo = request.json.get("repo")
-        metadata = {"agent_id": id, "repo": repo, "path": path, "filename": filename}
+        metadata = {"path": path, "repo": repo, "agent_id": id, "filename": filename}
         query = text(f"SELECT id FROM langchain_pg_embedding WHERE cmetadata='{json.dumps(metadata)}';")
 
         # delete documents from vector store
@@ -161,6 +162,12 @@ class AgentDocUpload(Resource):
         vector_interface.delete_documents([document[0] for document in documents])
 
         # delete documents from agent
+        id = int(id)
+        agent = Agents.query.get(id)
+        file_id = f"{repo}:{path}{filename}"
+        new_filenames = [file for file in agent.filenames.copy() if file != file_id]
+        agent.filenames = new_filenames
+        db.session.commit()
 
 
 
