@@ -81,7 +81,7 @@ class LLMInterface:
             return stream_generator
 
         response_text = chain.invoke(prompt_params)
-        response = {"answer":response_text, "search_metadata": extra_doc_info}
+        response = {"text_content": response_text, "search_metadata": extra_doc_info}
         return response
 
 llm = LLMInterface()
