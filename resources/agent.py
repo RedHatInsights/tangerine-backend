@@ -103,8 +103,8 @@ class AgentApi(Resource):
         # TODO: delete agent documents from vector store
 
 class AgentDocUpload(Resource):
-    def get_file_id(self, repo, filename):
-        return f"{repo}:{filename}"
+    def get_file_id(self, repo, full_path):
+        return f"{repo}:{full_path}"
 
     def post(self, id):
         id = int(id)
@@ -121,41 +121,41 @@ class AgentDocUpload(Resource):
 
         file_contents=[]
         for file in files:
-            filename = file.filename
-            file_id = self.get_file_id(repo, filename)
+            full_path = file.filename
+            file_id = self.get_file_id(repo, full_path)
             if not any([file_id.endswith(filetype) for filetype in [".txt", ".pdf", ".md", ".rst"]]):
                 return {'message': 'Unsupported file type uploaded'}, 400
 
             file_content = file.stream.read()
 
-            file_contents.append([file_id, filename, file_content])
+            file_contents.append([file_id, full_path, file_content])
 
         # Add filenames to the DB
-        new_filenames = agent.filenames.copy()
+        new_full_paths = agent.filenames.copy()
         for fileinfo in file_contents:
-            new_filenames.append(fileinfo[0])
-        agent.filenames = new_filenames
+            new_full_paths.append(fileinfo[0])
+        agent.filenames = new_full_paths
         db.session.commit()
 
         def generate_progress():
-            for _, filename, file_content in file_contents:
-                yield json.dumps({"file": filename, "step": "start"}) + "\n"
-                extracted_text = text_extractor(filename, file_content)
-                yield json.dumps({"file": filename, "step": "text_extracted"}) + "\n"
+            for _, full_path, file_content in file_contents:
+                yield json.dumps({"file": full_path, "step": "start"}) + "\n"
+                extracted_text = text_extractor(full_path, file_content)
+                yield json.dumps({"file": full_path, "step": "text_extracted"}) + "\n"
 
                 # Only generate embeddings when there is actual texts
                 if len(extracted_text) > 0:
-                    vector_interface.add_document(extracted_text, id, repo, filename)
-                    yield json.dumps({"file": filename, "step": "embedding_created"}) + "\n"
+                    vector_interface.add_document(extracted_text, id, repo, full_path)
+                    yield json.dumps({"file": full_path, "step": "embedding_created"}) + "\n"
 
-                yield json.dumps({"file": filename, "step": "end"}) + "\n"
+                yield json.dumps({"file": full_path, "step": "end"}) + "\n"
 
         return Response(generate_progress(), mimetype='application/json')
     
     def delete(self, id):
-        filename = request.json.get("filename")
+        full_path = request.json.get("full_path")
         repo = request.json.get("repo")
-        metadata = {"repo": repo, "agent_id": id, "filename": filename}
+        metadata = {"repo": repo, "agent_id": id, "full_path": full_path}
         query = text(f"SELECT id FROM langchain_pg_embedding WHERE cmetadata='{json.dumps(metadata)}';")
 
         # delete documents from vector store
@@ -165,9 +165,9 @@ class AgentDocUpload(Resource):
         # delete documents from agent
         id = int(id)
         agent = Agents.query.get(id)
-        file_id = self.get_file_id(repo, filename)
-        new_filenames = [file for file in agent.filenames.copy() if file != file_id]
-        agent.filenames = new_filenames
+        file_id = self.get_file_id(repo, full_path)
+        new_full_paths = [file for file in agent.filenames.copy() if file != file_id]
+        agent.filenames = new_full_paths
         db.session.commit()
 
 
