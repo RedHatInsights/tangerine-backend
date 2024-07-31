@@ -115,6 +115,7 @@ class AgentDocUpload(Resource):
 
         files = request.files.getlist('file')
         path = request.form.get('path')
+        repo = request.form.get('repo')
 
         file_contents=[]
         for file in files:
@@ -141,7 +142,7 @@ class AgentDocUpload(Resource):
 
                 # Only generate embeddings when there is actual texts
                 if len(extracted_text) > 0:
-                    vector_interface.add_document(extracted_text, id, path, filename)
+                    vector_interface.add_document(extracted_text, id, repo, path, filename)
                     yield json.dumps({"file": filename, "step": "embedding_created"}) + "\n"
 
                 yield json.dumps({"file": filename, "step": "end"}) + "\n"
@@ -151,14 +152,16 @@ class AgentDocUpload(Resource):
     def delete(self, id):
         filename = request.json.get("filename")
         path = request.json.get("path")
-
-        metadata = {"path": path, "agent_id": id, "filename": filename}
-
+        repo = request.json.get("repo")
+        metadata = {"agent_id": id, "repo": repo, "path": path, "filename": filename}
         query = text(f"SELECT id FROM langchain_pg_embedding WHERE cmetadata='{json.dumps(metadata)}';")
 
+        # delete documents from vector store
         documents = db.session.execute(query).all()
-        
         vector_interface.delete_documents([document[0] for document in documents])
+
+        # delete documents from agent
+
 
 
 class AgentChatApi(Resource):

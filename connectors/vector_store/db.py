@@ -44,8 +44,8 @@ class VectorStoreInterface():
             print(f"Error init_vector_store: {e}")
         return
 
-    def add_document(self, text, agent_id, path, filename):
-        documents = [Document(page_content=text, metadata={"agent_id": str(agent_id), "path": path, "filename": filename})]
+    def add_document(self, text, agent_id, repo, path, filename):
+        documents = [Document(page_content=text, metadata={"agent_id": str(agent_id), "repo": repo, "path": path, "filename": filename})]
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.vector_chunk_size,
             chunk_overlap=self.vector_chunk_overlap,
