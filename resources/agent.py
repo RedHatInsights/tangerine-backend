@@ -158,17 +158,28 @@ class AgentDocUpload(Resource):
         metadata = {"repo": repo, "agent_id": id, "full_path": full_path}
         query = text(f"SELECT id FROM langchain_pg_embedding WHERE cmetadata='{json.dumps(metadata)}';")
 
-        # delete documents from vector store
-        documents = db.session.execute(query).all()
-        vector_interface.delete_documents([document[0] for document in documents])
+        try:
+            # delete documents from vector store
+            documents = db.session.execute(query).all()
+            if len(documents) == 0:
+                return {'message': f'File {full_path} not found.'}, 400
+            vector_interface.delete_documents([document[0] for document in documents])
 
+        except Exception as e:
+            return {'message': f'Error deleting {full_path} from vector store. {e}'}, 400
+        
         # delete documents from agent
-        id = int(id)
-        agent = Agents.query.get(id)
-        file_id = self.get_file_id(repo, full_path)
-        new_full_paths = [file for file in agent.filenames.copy() if file != file_id]
-        agent.filenames = new_full_paths
-        db.session.commit()
+        try:
+            id = int(id)
+            agent = Agents.query.get(id)
+            file_id = self.get_file_id(repo, full_path)
+            new_full_paths = [file for file in agent.filenames.copy() if file != file_id]
+            agent.filenames = new_full_paths
+            db.session.commit()
+        except Exception as e:
+            return {'message': f'Error deleting {full_path} from Agent {id}. {e}'}, 400
+
+        return {'message': f'File {full_path} deleted successfully.'}, 200
 
 
 
