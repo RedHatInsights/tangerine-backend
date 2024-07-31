@@ -14,11 +14,11 @@ def upload_files(repo, directory_path, agent_id):
 
     for i in range(num_batches):
         batch_files = files[i * batch_size: (i+1) * batch_size]
-        files_to_upload = [('file', (os.path.basename(file_path), open(file_path, 'rb'), 'text/plain')) for file_path in batch_files]
+        files_to_upload = [('file', (file_path, open(file_path, 'rb'), 'text/plain')) for file_path in batch_files]
 
         # print(files_to_upload)
         url = f'http://localhost:3000/agents/{agent_id}/document_upload'
-        response = requests.post(url, files=files_to_upload, data={"repo": repo, "path": directory_path})
+        response = requests.post(url, files=files_to_upload, data={"repo": repo})
 
         if response.status_code == 200:
             print(f"Batch {i+1}/{num_batches} uploaded successfully.")
