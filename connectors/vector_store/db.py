@@ -65,7 +65,7 @@ class VectorStoreInterface():
         return
 
     def search(self, query, agent_id):
-        docs_with_score = self.store.max_marginal_relevance_search_with_score(query=query, filter={"agent_id": agent_id}, k=4)
+        docs_with_score = self.store.max_marginal_relevance_search_with_score(query=query, filter={"agent_id": str(agent_id)}, k=4)
         return docs_with_score      # list(int, Document(page_content, metadata))
     
     def delete_documents(self, ids):
