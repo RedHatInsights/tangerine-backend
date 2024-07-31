@@ -103,6 +103,9 @@ class AgentApi(Resource):
         # TODO: delete agent documents from vector store
 
 class AgentDocUpload(Resource):
+    def get_file_id(self, repo, path, filename):
+        return f"{repo}:{path}{filename}"
+
     def post(self, id):
         id = int(id)
         agent = Agents.query.get(id)
@@ -120,7 +123,7 @@ class AgentDocUpload(Resource):
         file_contents=[]
         for file in files:
             filename = file.filename
-            file_id = f"{repo}:{path}{file.filename}"
+            file_id = self.get_file_id(repo, path, filename)
             if not any([file_id.endswith(filetype) for filetype in [".txt", ".pdf", ".md", ".rst"]]):
                 return {'message': 'Unsupported file type uploaded'}, 400
 
@@ -164,7 +167,7 @@ class AgentDocUpload(Resource):
         # delete documents from agent
         id = int(id)
         agent = Agents.query.get(id)
-        file_id = f"{repo}:{path}{filename}"
+        file_id = self.get_file_id(repo, path, filename)
         new_filenames = [file for file in agent.filenames.copy() if file != file_id]
         agent.filenames = new_filenames
         db.session.commit()
