@@ -36,7 +36,9 @@ You may require further tweaks to properly make use of your GPU. Refer to the [o
     docker exec tangerine-ollama ollama pull mistral
     ```
 1. The API can now be accessed on `http://localhost:5000`
-1. To use the UI, install and start [tangerine-frontend](https://github.com/tahmidefaz/tangerine-frontend)
+
+
+To run the UI in a development environment, see [tangerine-frontend](https://github.com/coderbydesign/tangerine-frontend)
 
 
 ### Available API Paths
