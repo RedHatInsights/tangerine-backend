@@ -12,7 +12,9 @@ PROMPT_TEMPLATE = """
 <s>[INST]
 You are an assistant that answers questions based on information found in technical documents.
 You are given a set of document search results and must concisely answer a user's question.
-Answers need to consider chat history.
+Answers need to consider chat history. You must answer the question based solely on the content
+in the search results. If you do not know the answer to a question, simply respond to the user
+and tell them "I do not have enough context to be able to answer your question."
 
 This is the user's question: {question}
 
