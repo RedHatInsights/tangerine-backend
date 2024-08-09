@@ -25,6 +25,9 @@ parameters:
 - name: HOSTNAME
   description: The hostname of the Route/Ingress
   required: true
+- name: NAMESPACE
+  description: Namespace that the proxy runs in
+  value: tangerine
 
 objects:
 - apiVersion: v1
@@ -33,6 +36,20 @@ objects:
     name: tangerine-proxy
     annotations:
        serviceaccounts.openshift.io/oauth-redirectreference.primary: '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"tangerine-proxy"}}'
+
+# NOTE: cluster admin rights needed to apply this ClusterRoleBinding
+- apiVersion: rbac.authorization.k8s.io/v1beta1
+  kind: ClusterRoleBinding
+  metadata:
+    name: tangerine-proxy-auth-delegator
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: system:auth-delegator
+  subjects:
+  - kind: ServiceAccount
+    name: tangerine-proxy
+    namespace: ${NAMESPACE}
 
 - apiVersion: apps/v1
   kind: Deployment
@@ -85,6 +102,7 @@ objects:
             - --openshift-ca=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
             - --skip-auth-regex=^/metrics
             - --pass-user-headers=true
+            - --openshift-delegate-urls={"/":{"resource":"services","name":"tangerine-proxy","verb":"get","namespace":"${NAMESPACE}"}}
           image: quay.io/openshift/origin-oauth-proxy:4.14
           imagePullPolicy: IfNotPresent
           ports:
