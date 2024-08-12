@@ -103,8 +103,8 @@ class AgentApi(Resource):
         # TODO: delete agent documents from vector store
 
 class AgentDocUpload(Resource):
-    def get_file_id(self, repo, full_path):
-        return f"{repo}:{full_path}"
+    def get_file_id(self, source, full_path):
+        return f"{source}:{full_path}"
 
     def post(self, id):
         id = int(id)
@@ -117,12 +117,12 @@ class AgentDocUpload(Resource):
             return {'message': 'No file part'}, 400
 
         files = request.files.getlist('file')
-        repo = request.form.get('repo')
+        source = request.form.get('source')
 
         file_contents=[]
         for file in files:
             full_path = file.filename
-            file_id = self.get_file_id(repo, full_path)
+            file_id = self.get_file_id(source, full_path)
             if not any([file_id.endswith(filetype) for filetype in [".txt", ".pdf", ".md", ".rst"]]):
                 return {'message': 'Unsupported file type uploaded'}, 400
 
@@ -145,7 +145,7 @@ class AgentDocUpload(Resource):
 
                 # Only generate embeddings when there is actual texts
                 if len(extracted_text) > 0:
-                    vector_interface.add_document(extracted_text, id, repo, full_path)
+                    vector_interface.add_document(extracted_text, id, source, full_path)
                     yield json.dumps({"file": full_path, "step": "embedding_created"}) + "\n"
 
                 yield json.dumps({"file": full_path, "step": "end"}) + "\n"
@@ -154,8 +154,8 @@ class AgentDocUpload(Resource):
     
     def delete(self, id):
         full_path = request.json.get("full_path")
-        repo = request.json.get("repo")
-        metadata = {"repo": repo, "agent_id": id, "full_path": full_path}
+        source = request.json.get("source")
+        metadata = {"source": source, "agent_id": id, "full_path": full_path}
         query = text(f"SELECT id FROM langchain_pg_embedding WHERE cmetadata='{json.dumps(metadata)}';")
 
         try:
@@ -172,7 +172,7 @@ class AgentDocUpload(Resource):
         try:
             id = int(id)
             agent = Agents.query.get(id)
-            file_id = self.get_file_id(repo, full_path)
+            file_id = self.get_file_id(source, full_path)
             new_full_paths = [file for file in agent.filenames.copy() if file != file_id]
             agent.filenames = new_full_paths
             db.session.commit()
