@@ -7,6 +7,7 @@ from flask_restful import Resource
 from connectors.llm.interface import llm
 from connectors.vector_store.db import Agents, db, vector_interface
 from utils.processors import text_extractor
+from sqlalchemy import text
 
 
 class AgentsApi(Resource):
@@ -102,6 +103,9 @@ class AgentApi(Resource):
         # TODO: delete agent documents from vector store
 
 class AgentDocUpload(Resource):
+    def get_file_id(self, source, full_path):
+        return f"{source}:{full_path}"
+
     def post(self, id):
         id = int(id)
         agent = Agents.query.get(id)
@@ -113,38 +117,70 @@ class AgentDocUpload(Resource):
             return {'message': 'No file part'}, 400
 
         files = request.files.getlist('file')
+        source = request.form.get('source')
 
         file_contents=[]
         for file in files:
-            filename = file.filename
-            if not any([filename.endswith(filetype) for filetype in [".txt", ".pdf", ".md", ".rst"]]):
+            full_path = file.filename
+            file_id = self.get_file_id(source, full_path)
+            if not any([file_id.endswith(filetype) for filetype in [".txt", ".pdf", ".md", ".rst"]]):
                 return {'message': 'Unsupported file type uploaded'}, 400
 
             file_content = file.stream.read()
 
-            file_contents.append([filename, file_content])
+            file_contents.append([file_id, full_path, file_content])
 
         # Add filenames to the DB
-        new_filenames = agent.filenames.copy()
+        new_full_paths = agent.filenames.copy()
         for fileinfo in file_contents:
-            new_filenames.append(fileinfo[0])
-        agent.filenames = new_filenames
+            new_full_paths.append(fileinfo[0])
+        agent.filenames = new_full_paths
         db.session.commit()
 
         def generate_progress():
-            for filename, file_content in file_contents:
-                yield json.dumps({"file": filename, "step": "start"}) + "\n"
-                extracted_text = text_extractor(filename, file_content)
-                yield json.dumps({"file": filename, "step": "text_extracted"}) + "\n"
+            for _, full_path, file_content in file_contents:
+                yield json.dumps({"file": full_path, "step": "start"}) + "\n"
+                extracted_text = text_extractor(full_path, file_content)
+                yield json.dumps({"file": full_path, "step": "text_extracted"}) + "\n"
 
                 # Only generate embeddings when there is actual texts
                 if len(extracted_text) > 0:
-                    vector_interface.add_document(extracted_text, id, filename)
-                    yield json.dumps({"file": filename, "step": "embedding_created"}) + "\n"
+                    vector_interface.add_document(extracted_text, id, source, full_path)
+                    yield json.dumps({"file": full_path, "step": "embedding_created"}) + "\n"
 
-                yield json.dumps({"file": filename, "step": "end"}) + "\n"
+                yield json.dumps({"file": full_path, "step": "end"}) + "\n"
 
         return Response(generate_progress(), mimetype='application/json')
+    
+    def delete(self, id):
+        full_path = request.json.get("full_path")
+        source = request.json.get("source")
+        metadata = {"source": source, "agent_id": id, "full_path": full_path}
+        query = text(f"SELECT id FROM langchain_pg_embedding WHERE cmetadata='{json.dumps(metadata)}';")
+
+        try:
+            # delete documents from vector store
+            documents = db.session.execute(query).all()
+            if len(documents) == 0:
+                return {'message': f'File {full_path} not found.'}, 400
+            vector_interface.delete_documents([document[0] for document in documents])
+
+        except Exception as e:
+            return {'message': f'Error deleting {full_path} from vector store. {e}'}, 400
+        
+        # delete documents from agent
+        try:
+            id = int(id)
+            agent = Agents.query.get(id)
+            file_id = self.get_file_id(source, full_path)
+            new_full_paths = [file for file in agent.filenames.copy() if file != file_id]
+            agent.filenames = new_full_paths
+            db.session.commit()
+        except Exception as e:
+            return {'message': f'Error deleting {full_path} from Agent {id}. {e}'}, 400
+
+        return {'message': f'File {full_path} deleted successfully.'}, 200
+
 
 
 class AgentChatApi(Resource):

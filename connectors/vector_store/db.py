@@ -1,3 +1,4 @@
+import uuid
 from flask_sqlalchemy import SQLAlchemy
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
@@ -43,8 +44,8 @@ class VectorStoreInterface():
             print(f"Error init_vector_store: {e}")
         return
 
-    def add_document(self, text, agent_id, filename):
-        documents = [Document(page_content=text, metadata={"agent_id": agent_id, "filename": filename})]
+    def add_document(self, text, agent_id, source, full_path):
+        documents = [Document(page_content=text, metadata={"agent_id": str(agent_id), "source": source, "full_path": full_path})]
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.vector_chunk_size,
             chunk_overlap=self.vector_chunk_overlap,
@@ -64,8 +65,11 @@ class VectorStoreInterface():
         return
 
     def search(self, query, agent_id):
-        docs_with_score = self.store.max_marginal_relevance_search_with_score(query=query, filter={"agent_id": agent_id}, k=4)
+        docs_with_score = self.store.max_marginal_relevance_search_with_score(query=query, filter={"agent_id": str(agent_id)}, k=4)
         return docs_with_score      # list(int, Document(page_content, metadata))
+    
+    def delete_documents(self, ids):
+        self.store.delete(ids)
 
 
 vector_interface = VectorStoreInterface()
