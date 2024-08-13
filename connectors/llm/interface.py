@@ -1,4 +1,5 @@
 import json
+import logging
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -27,6 +28,8 @@ Below are the document search results:
 [/INST]
 """
 
+log = logging.getLogger(__name__)
+
 
 class LLMInterface:
     def __init__(self):
@@ -38,21 +41,23 @@ class LLMInterface:
         prompt_params = {"question": question}
         prompt = ChatPromptTemplate.from_template("{question}")
         extra_doc_info = []
-        if len(results) == 0 :
-            print(f"Unable to find results")
-            #return "I am lost"
+        if len(results) == 0:
+            log.debug("unable to find results")
         else:
             context_text = ""
             for i, doc_with_score in enumerate(results):
                 page_content = doc_with_score[0].page_content
                 metadata = doc_with_score[0].metadata
                 extra_doc_info.append({"metadata": metadata, "page_content": page_content})
-                print("metadata:", metadata)
-                context_text += f"---\n<<Search Result {i+1}>>\n---\n{page_content}\n\n<<Search Result {i+1} END>>\n---\n"
-            # context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in results])
+                log.debug("metadata: %s", metadata)
+                context_text += (
+                    f"---\n<<Search Result {i+1}>>\n---\n"
+                    f"{page_content}\n\n"
+                    f"<<Search Result {i+1} END>>\n---\n"
+                )
             prompt = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
             prompt_params = {"context": context_text, "question": question}
-            print("search result:", context_text)
+            log.debug("search result: %s", context_text)
 
         # Adding system prompt and memory
         msg_list = []
@@ -65,27 +70,30 @@ class LLMInterface:
                     msg_list.append(AIMessage(content=msg["text"]))
         prompt.messages = msg_list + prompt.messages
 
-        print(prompt)
+        log.debug("prompt: %s", prompt)
         model = ChatOpenAI(
             model=cfg.LLM_MODEL_NAME,
             openai_api_base=cfg.LLM_BASE_URL,
-            openai_api_key=cfg.LLM_API_KEY
+            openai_api_key=cfg.LLM_API_KEY,
         )
 
         chain = prompt | model | StrOutputParser()
 
         if stream:
+
             def stream_generator():
                 for chunks in chain.stream(prompt_params):
-                    print("chunks:", chunks)
+                    log.debug("chunks: %s", chunks)
                     json_data = json.dumps({"text_content": chunks})
                     yield f"data: {json_data}\r\n"
                 json_data = json.dumps({"search_metadata": extra_doc_info})
                 yield f"data: {json_data}\r\n"
+
             return stream_generator
 
         response_text = chain.invoke(prompt_params)
         response = {"text_content": response_text, "search_metadata": extra_doc_info}
         return response
+
 
 llm = LLMInterface()

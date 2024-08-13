@@ -1,4 +1,5 @@
-import uuid
+import logging
+
 from flask_sqlalchemy import SQLAlchemy
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
@@ -7,7 +8,10 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 import connectors.config as cfg
 
+log = logging.getLogger(__name__)
+
 db = SQLAlchemy()
+
 
 class Agents(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -17,10 +21,10 @@ class Agents(db.Model):
     filenames = db.Column(db.ARRAY(db.String), default=[], nullable=True)
 
     def __repr__(self):
-        return f'<Agents {self.id}>'
+        return f"<Agents {self.id}>"
 
 
-class VectorStoreInterface():
+class VectorStoreInterface:
     def __init__(self):
         self.store = None
         self.vector_chunk_size = 2000
@@ -30,7 +34,7 @@ class VectorStoreInterface():
             model=cfg.EMBED_MODEL_NAME,
             openai_api_base=cfg.EMBED_BASE_URL,
             openai_api_key=cfg.EMBED_API_KEY,
-            check_embedding_ctx_length=False
+            check_embedding_ctx_length=False,
         )
 
     def init_vector_store(self):
@@ -40,34 +44,35 @@ class VectorStoreInterface():
                 connection=cfg.DB_URI,
                 embeddings=self.embeddings,
             )
-        except Exception as e:
-            print(f"Error init_vector_store: {e}")
-        return
+        except Exception:
+            log.exception("error initializing vector store")
 
     def add_document(self, text, agent_id, source, full_path):
-        documents = [Document(page_content=text, metadata={"agent_id": str(agent_id), "source": source, "full_path": full_path})]
+        documents = [
+            Document(
+                page_content=text,
+                metadata={"agent_id": str(agent_id), "source": source, "full_path": full_path},
+            )
+        ]
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.vector_chunk_size,
             chunk_overlap=self.vector_chunk_overlap,
             length_function=len,
-            is_separator_regex=False
+            is_separator_regex=False,
         )
         docs = text_splitter.split_documents(documents)
 
         try:
-            #texts = [doc.page_content for doc in docs]
-            #embeddings = self.embeddings.embed_documents(list(texts))
-            #self.store.add_embeddings(texts=texts, embeddings=embeddings, metadatas=None, ids=None)
             self.store.add_documents(docs)
-        except Exception as e:
-            print(f"Error adding_documents: {e}")
-
-        return
+        except Exception:
+            log.exception("error adding documents")
 
     def search(self, query, agent_id):
-        docs_with_score = self.store.max_marginal_relevance_search_with_score(query=query, filter={"agent_id": str(agent_id)}, k=4)
-        return docs_with_score      # list(int, Document(page_content, metadata))
-    
+        docs_with_score = self.store.max_marginal_relevance_search_with_score(
+            query=query, filter={"agent_id": str(agent_id)}, k=4
+        )
+        return docs_with_score  # list(int, Document(page_content, metadata))
+
     def delete_documents(self, ids):
         self.store.delete(ids)
 

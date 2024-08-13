@@ -4,7 +4,7 @@ import PyPDF2
 
 
 def text_extractor(filename, file_content):
-    if filename.endswith('.pdf'):
+    if filename.endswith(".pdf"):
         pdf_reader = PyPDF2.PdfReader(BytesIO(file_content))
 
         text_content = ""
@@ -15,8 +15,8 @@ def text_extractor(filename, file_content):
 
         return text_content
 
-    if filename.endswith('.md') or filename.endswith('.txt') or filename.endswith('.rst'):
-        text_content = file_content.decode('utf-8')
+    if filename.endswith(".md") or filename.endswith(".txt") or filename.endswith(".rst"):
+        text_content = file_content.decode("utf-8")
         return text_content
 
-    return ''
+    return ""
