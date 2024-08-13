@@ -1,6 +1,6 @@
 from flask import Flask
-from flask_restful import Api
 from flask_cors import CORS
+from flask_restful import Api
 
 import connectors.config as cfg
 from connectors.vector_store.db import db, vector_interface

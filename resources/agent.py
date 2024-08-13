@@ -3,12 +3,11 @@ import logging
 
 from flask import Response, request
 from flask_restful import Resource
+from sqlalchemy import text
 
 from connectors.llm.interface import llm
 from connectors.vector_store.db import Agents, db, vector_interface
 from utils.processors import text_extractor
-from sqlalchemy import text
-
 
 log = logging.getLogger(__name__)
 
