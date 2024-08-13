@@ -8,7 +8,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 import connectors.config as cfg
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("tangerine.db")
 
 db = SQLAlchemy()
 

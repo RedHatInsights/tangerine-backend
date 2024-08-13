@@ -9,7 +9,7 @@ from connectors.llm.interface import llm
 from connectors.vector_store.db import Agents, db, vector_interface
 from utils.processors import text_extractor
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("tangerine.agent")
 
 
 class AgentsApi(Resource):
@@ -108,6 +108,8 @@ class AgentApi(Resource):
 
 class AgentDocUpload(Resource):
     def get_file_id(self, source, full_path):
+        if not source:
+            source = "default"
         return f"{source}:{full_path}"
 
     def post(self, id):

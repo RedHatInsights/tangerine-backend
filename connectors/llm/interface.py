@@ -28,7 +28,7 @@ Below are the document search results:
 [/INST]
 """
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("tangerine.llm")
 
 
 class LLMInterface:

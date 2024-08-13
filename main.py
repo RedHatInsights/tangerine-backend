@@ -1,12 +1,13 @@
 from flask import Flask
 from flask_cors import CORS
 from flask_restful import Api
+import logging
 
 import connectors.config as cfg
 from connectors.vector_store.db import db, vector_interface
 from resources.routes import initialize_routes
 
-app = Flask(__name__)
+app = Flask("tangerine")
 cors = CORS(app)
 
 app.config["CORS_HEADERS"] = "Content-Type"
@@ -20,6 +21,7 @@ initialize_routes(api)
 
 
 if __name__ == "__main__":
+    app.logger.setLevel(logging.DEBUG)
     with app.app_context():
         db.session.commit()
         db.create_all()
