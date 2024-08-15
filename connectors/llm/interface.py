@@ -28,7 +28,7 @@ Below are the document search results:
 [/INST]
 """
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("tangerine.llm")
 
 
 class LLMInterface:
@@ -45,9 +45,9 @@ class LLMInterface:
             log.debug("unable to find results")
         else:
             context_text = ""
-            for i, doc_with_score in enumerate(results):
-                page_content = doc_with_score[0].page_content
-                metadata = doc_with_score[0].metadata
+            for i, doc in enumerate(results):
+                page_content = doc.page_content
+                metadata = doc.metadata
                 extra_doc_info.append({"metadata": metadata, "page_content": page_content})
                 log.debug("metadata: %s", metadata)
                 context_text += (

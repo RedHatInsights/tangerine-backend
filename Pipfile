@@ -17,6 +17,9 @@ langchain-text-splitters = "*"
 langchain-postgres = "*"
 typing-extensions = "*"
 flask-cors = "*"
+lxml = "*"
+bs4 = "*"
+html2text = "*"
 
 [dev-packages]
 black = "*"

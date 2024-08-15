@@ -15,7 +15,7 @@ def text_extractor(filename, file_content):
 
         return text_content
 
-    if filename.endswith(".md") or filename.endswith(".txt") or filename.endswith(".rst"):
+    if filename.endswith((".md", ".txt", ".rst", ".html")):
         text_content = file_content.decode("utf-8")
         return text_content
 
