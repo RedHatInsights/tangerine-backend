@@ -359,3 +359,5 @@ parameters:
     value: mistralai/Mistral-7B-Instruct-v0.2
   - name: EMBED_MODEL_NAME
     value: Snowflake/snowflake-arctic-embed-m-long
+  - name: LLM_TEMPERATURE
+    value: "0.3"

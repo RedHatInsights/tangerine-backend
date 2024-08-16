@@ -75,6 +75,7 @@ class LLMInterface:
             model=cfg.LLM_MODEL_NAME,
             openai_api_base=cfg.LLM_BASE_URL,
             openai_api_key=cfg.LLM_API_KEY,
+            temperature=cfg.LLM_TEMPERATURE,
         )
 
         chain = prompt | model | StrOutputParser()
