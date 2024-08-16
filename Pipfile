@@ -20,6 +20,7 @@ flask-cors = "*"
 lxml = "*"
 bs4 = "*"
 html2text = "*"
+mdformat = "*"
 
 [dev-packages]
 black = "*"

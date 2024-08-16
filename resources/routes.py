@@ -1,8 +1,9 @@
-from .agent import AgentApi, AgentChatApi, AgentDocUpload, AgentsApi
+from .agent import AgentApi, AgentChatApi, AgentDocUpload, AgentsApi, AgentDefaultsApi
 from .utils import PingApi
 
 
 def initialize_routes(api):
+    api.add_resource(AgentDefaultsApi, "/api/agentDefaults")
     api.add_resource(AgentsApi, "/api/agents")
     api.add_resource(AgentApi, "/api/agents/<id>")
     api.add_resource(AgentDocUpload, "/api/agents/<id>/document_upload")

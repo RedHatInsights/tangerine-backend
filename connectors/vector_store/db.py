@@ -2,6 +2,7 @@ import logging
 import re
 import string
 
+import mdformat
 import html2text
 from bs4 import BeautifulSoup
 from flask_sqlalchemy import SQLAlchemy
@@ -93,6 +94,11 @@ class VectorStoreInterface:
             if edit_button:
                 edit_button.decompose()
 
+            # remove line numbers from code blocks
+            linenos_columns = md_content.find_all("td", class_="linenos")
+            for linenos_column in linenos_columns:
+                linenos_column.decompose()
+
             h = html2text.HTML2Text()
             h.ignore_images = True
             h.mark_code = True
@@ -103,15 +109,13 @@ class VectorStoreInterface:
 
             md = h.handle(str(md_content))
 
-            # remove strange chars (like paragraph markers)
+            # remove non printable chars (like paragraph markers)
             md = "".join(filter(lambda x: x in string.printable, md))
-            # remove number lines created by code blocks
-            md = re.sub(r"\[code\](\s+)?(\n\s+\d+)+\n\[\/code\](\s+)?", "", md)
-            # remove excessive newlines
-            md = re.sub(r"\n\n+", "\n\n", md)
             # replace html2text code block marker with standard md
             md = md.replace("[code]", "```")
             md = md.replace("[/code]", "```")
+            # use opinionated formatter
+            md = mdformat.text(md)
         else:
             log.error("no 'md-content' div found")
 
