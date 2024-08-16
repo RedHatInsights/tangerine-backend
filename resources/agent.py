@@ -126,7 +126,7 @@ class AgentDocUpload(Resource):
             return {"message": "No file part"}, 400
 
         files = request.files.getlist("file")
-        source = request.form.get("source")
+        source = request.form.get("source", "default")
 
         file_contents = []
         for file in files:
