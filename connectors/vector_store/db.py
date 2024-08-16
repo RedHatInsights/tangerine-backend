@@ -1,5 +1,6 @@
 import logging
 import pathlib
+import re
 import string
 
 import html2text
@@ -101,6 +102,8 @@ class VectorStoreInterface:
             md = md.replace("[/code]", "```")
             # use opinionated formatter
             md = mdformat.text(md)
+            # remove extra newlines at end of code blocks
+            md = re.sub(r"\n    \n```", "\n```", md)
         else:
             log.error("no 'md-content' div found")
 
