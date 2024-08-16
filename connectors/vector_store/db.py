@@ -1,4 +1,5 @@
 import logging
+import pathlib
 import string
 
 import html2text
@@ -116,7 +117,12 @@ class VectorStoreInterface:
         documents = [
             Document(
                 page_content=text,
-                metadata={"agent_id": str(agent_id), "source": source, "full_path": full_path},
+                metadata={
+                    "agent_id": str(agent_id),
+                    "source": source,
+                    "full_path": full_path,
+                    "filename": pathlib.Path(full_path).name,
+                },
             )
         ]
 
