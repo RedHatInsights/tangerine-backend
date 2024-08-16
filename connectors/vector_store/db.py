@@ -93,17 +93,32 @@ class VectorStoreInterface:
             h.wrap_links = False
             h.ignore_tables = True
 
-            md = h.handle(str(md_content))
+            html2text_output = h.handle(str(md_content))
 
-            # remove non printable chars (like paragraph markers)
-            md = "".join(filter(lambda x: x in string.printable, md))
-            # replace html2text code block marker with standard md
-            md = md.replace("[code]", "```")
-            md = md.replace("[/code]", "```")
-            # use opinionated formatter
+            md_lines = []
+            in_code_block = False
+            for line in html2text_output.split("\n"):
+                # remove non printable chars (like paragraph markers)
+                line = "".join(filter(lambda x: x in string.printable, line))
+                if line.strip() == "[code]":
+                    in_code_block = True
+                    # replace html2text code block start with standard md
+                    line = "```"
+                elif line.strip() == "[/code]":
+                    in_code_block = False
+                    # replace html2text code block end with standard md
+                    line = "```"
+                elif in_code_block:
+                    # html2text indents all code blocks, un-indent first level
+                    line = line[4:]
+                md_lines.append(line)
+
+            md = "\n".join(md_lines)
+
+            # strip empty newlines before end of code blocks
+            md = re.sub(r"\n\n```", "\n```", md)
+            # finally, use opinionated formatter
             md = mdformat.text(md)
-            # remove extra newlines at end of code blocks
-            md = re.sub(r"\n    \n```", "\n```", md)
         else:
             log.error("no 'md-content' div found")
 
