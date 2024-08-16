@@ -1,5 +1,9 @@
 import logging
+import string
 
+import html2text
+import mdformat
+from bs4 import BeautifulSoup
 from flask_sqlalchemy import SQLAlchemy
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
@@ -8,7 +12,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 import connectors.config as cfg
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("tangerine.db")
 
 db = SQLAlchemy()
 
@@ -27,8 +31,8 @@ class Agents(db.Model):
 class VectorStoreInterface:
     def __init__(self):
         self.store = None
-        self.vector_chunk_size = 2000
-        self.vector_chunk_overlap = 500
+        self.vector_chunk_size = 1024
+        self.vector_chunk_overlap = int(self.vector_chunk_size * 0.3)
 
         self.embeddings = OpenAIEmbeddings(
             model=cfg.EMBED_MODEL_NAME,
@@ -47,31 +51,90 @@ class VectorStoreInterface:
         except Exception:
             log.exception("error initializing vector store")
 
-    def add_document(self, text, agent_id, source, full_path):
-        documents = [
-            Document(
-                page_content=text,
-                metadata={"agent_id": str(agent_id), "source": source, "full_path": full_path},
-            )
-        ]
+    def split_docs_to_chunks(self, documents):
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.vector_chunk_size,
             chunk_overlap=self.vector_chunk_overlap,
             length_function=len,
             is_separator_regex=False,
         )
-        docs = text_splitter.split_documents(documents)
+        return text_splitter.split_documents(documents)
 
+    def html_to_md(self, text):
+        """
+        Parse a .html page that has been composed with mkdocs
+
+        It is assumed that the page contains 'md-content' which was compiled based on .md
+
+        TODO: possibly handle html pages not built with mkdocs
+        """
+        md = ""
+        soup = BeautifulSoup(text, "lxml")
+        # extract 'md-content', this ignores nav/header/footer/etc.
+        md_content = soup.find("div", class_="md-content")
+        if md_content:
+            # remove "Edit this page" button
+            edit_button = md_content.find("a", title="Edit this page")
+            if edit_button:
+                edit_button.decompose()
+
+            # remove line numbers from code blocks
+            linenos_columns = md_content.find_all("td", class_="linenos")
+            for linenos_column in linenos_columns:
+                linenos_column.decompose()
+
+            h = html2text.HTML2Text()
+            h.ignore_images = True
+            h.mark_code = True
+            h.body_width = 0
+            h.ignore_emphasis = True
+            h.wrap_links = False
+            h.ignore_tables = True
+
+            md = h.handle(str(md_content))
+
+            # remove non printable chars (like paragraph markers)
+            md = "".join(filter(lambda x: x in string.printable, md))
+            # replace html2text code block marker with standard md
+            md = md.replace("[code]", "```")
+            md = md.replace("[/code]", "```")
+            # use opinionated formatter
+            md = mdformat.text(md)
+        else:
+            log.error("no 'md-content' div found")
+
+        return md
+
+    def create_documents(self, text, agent_id, source, full_path):
+        log.debug("processsing %s", full_path)
+        if full_path.lower().endswith(".html"):
+            text = self.html_to_md(text)
+
+        if not text:
+            raise ValueError("no document text provided")
+
+        documents = [
+            Document(
+                page_content=text,
+                metadata={"agent_id": str(agent_id), "source": source, "full_path": full_path},
+            )
+        ]
+
+        chunked_docs = self.split_docs_to_chunks(documents)
+        return chunked_docs
+
+    def add_document(self, text, agent_id, source, full_path):
         try:
-            self.store.add_documents(docs)
+            self.store.add_documents(self.create_documents(text, agent_id, source, full_path))
         except Exception:
             log.exception("error adding documents")
 
     def search(self, query, agent_id):
-        docs_with_score = self.store.max_marginal_relevance_search_with_score(
-            query=query, filter={"agent_id": str(agent_id)}, k=4
+        results = self.store.max_marginal_relevance_search(
+            query=query, filter={"agent_id": str(agent_id)}, k=6
         )
-        return docs_with_score  # list(int, Document(page_content, metadata))
+
+        return results
 
     def delete_documents(self, ids):
         self.store.delete(ids)

@@ -5,11 +5,16 @@ from flask import Response, request
 from flask_restful import Resource
 from sqlalchemy import text
 
-from connectors.llm.interface import llm
+from connectors.llm.interface import DEFAULT_SYSTEM_PROMPT, llm
 from connectors.vector_store.db import Agents, db, vector_interface
 from utils.processors import text_extractor
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("tangerine.agent")
+
+
+class AgentDefaultsApi(Resource):
+    def get(self):
+        return {"system_prompt": DEFAULT_SYSTEM_PROMPT}, 200
 
 
 class AgentsApi(Resource):
@@ -38,7 +43,7 @@ class AgentsApi(Resource):
         agent = {
             "agent_name": request.form["name"],
             "description": request.form["description"],
-            "system_prompt": request.form["system_prompt"],
+            "system_prompt": request.form["system_prompt"] or DEFAULT_SYSTEM_PROMPT,
         }
 
         if len(agent["agent_name"]) < 1:
@@ -128,7 +133,10 @@ class AgentDocUpload(Resource):
             full_path = file.filename
             file_id = self.get_file_id(source, full_path)
             if not any(
-                [file_id.endswith(filetype) for filetype in [".txt", ".pdf", ".md", ".rst"]]
+                [
+                    file_id.endswith(filetype)
+                    for filetype in [".txt", ".pdf", ".md", ".rst", ".html"]
+                ]
             ):
                 return {"message": "Unsupported file type uploaded"}, 400
 
