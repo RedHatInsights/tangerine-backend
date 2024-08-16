@@ -15,7 +15,11 @@ Question: {question}
 Answer the question based solely on the following document chunks:
 
 {context}
-""".lstrip('\n').rstrip('\n')
+""".lstrip(
+    "\n"
+).rstrip(
+    "\n"
+)
 
 DEFAULT_SYSTEM_PROMPT = """
 <s>[INST]
@@ -30,7 +34,11 @@ not mention anything about "document chunks" in your response; instead, you shou
 "the information available to me". If you do not know the answer to a question, you must let the
 user know this and you must not infer an answer. Your answers need to consider chat history.
 [/INST]</s>
-""".lstrip('\n').replace('\n', ' ')
+""".lstrip(
+    "\n"
+).replace(
+    "\n", " "
+)
 
 log = logging.getLogger("tangerine.llm")
 
@@ -84,6 +92,7 @@ class LLMInterface:
         chain = prompt | model | StrOutputParser()
 
         if stream:
+
             def stream_generator():
                 for chunks in chain.stream(prompt_params):
                     log.debug("chunks: %s", chunks)

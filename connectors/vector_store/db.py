@@ -1,17 +1,14 @@
 import logging
-import re
 import string
 
-import mdformat
 import html2text
+import mdformat
 from bs4 import BeautifulSoup
 from flask_sqlalchemy import SQLAlchemy
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
-from langchain_text_splitters import (HTMLSectionSplitter,
-                                      MarkdownHeaderTextSplitter,
-                                      RecursiveCharacterTextSplitter)
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 import connectors.config as cfg
 
@@ -63,28 +60,15 @@ class VectorStoreInterface:
         )
         return text_splitter.split_documents(documents)
 
-    def split_md(self, documents):
-        headers_to_split_on = [
-            ("#", "h1"),
-            ("##", "h2"),
-            ("###", "h3"),
-        ]
-        md_splitter = MarkdownHeaderTextSplitter(
-            headers_to_split_on=headers_to_split_on, strip_headers=False
-        )
-        new_docs = []
-        for doc in documents:
-            md_docs = md_splitter.split_text(doc.page_content)
-            for md_doc in md_docs:
-                # make sure new set of documents contains old doc metadata
-                md_doc.metadata.update(doc.metadata)
-            new_docs.extend(md_docs)
-        return new_docs
-
     def html_to_md(self, text):
+        """
+        Parse a .html page that has been composed with mkdocs
+
+        It is assumed that the page contains 'md-content' which was compiled based on .md
+
+        TODO: possibly handle html pages not built with mkdocs
+        """
         md = ""
-        # parse a page built with mkdocs
-        # TODO: possibly handle html pages not built with mkdocs
         soup = BeautifulSoup(text, "lxml")
         # extract 'md-content', this ignores nav/header/footer/etc.
         md_content = soup.find("div", class_="md-content")

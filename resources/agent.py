@@ -5,8 +5,7 @@ from flask import Response, request
 from flask_restful import Resource
 from sqlalchemy import text
 
-from connectors.llm.interface import llm
-from connectors.llm.interface import DEFAULT_SYSTEM_PROMPT
+from connectors.llm.interface import DEFAULT_SYSTEM_PROMPT, llm
 from connectors.vector_store.db import Agents, db, vector_interface
 from utils.processors import text_extractor
 
@@ -44,7 +43,7 @@ class AgentsApi(Resource):
         agent = {
             "agent_name": request.form["name"],
             "description": request.form["description"],
-            "system_prompt": request.form["system_prompt"] or DEFAULT_SYSTEM_PROMPT
+            "system_prompt": request.form["system_prompt"] or DEFAULT_SYSTEM_PROMPT,
         }
 
         if len(agent["agent_name"]) < 1:
