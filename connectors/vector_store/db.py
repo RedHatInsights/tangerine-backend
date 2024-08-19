@@ -100,23 +100,30 @@ class VectorStoreInterface:
             for line in html2text_output.split("\n"):
                 # remove non printable chars (like paragraph markers)
                 line = "".join(filter(lambda x: x in string.printable, line))
-                if line.strip() == "[code]":
+
+                # replace html2text code block start/end with standard md
+                if "[code]" in line:
                     in_code_block = True
-                    # replace html2text code block start with standard md
-                    line = "```"
-                elif line.strip() == "[/code]":
+                    line = line.replace("[code]", "```")
+                elif "[/code]" in line:
                     in_code_block = False
-                    # replace html2text code block end with standard md
-                    line = "```"
-                elif in_code_block:
-                    # html2text indents all code blocks, un-indent first level
-                    line = line[4:]
+                    line = line.replace("[/code]", "```")
+                if in_code_block:
+                    # also fix indent, html2text indents all code content by 4 spaces
+                    if line.startswith("```"):
+                        # start of code block and the txt may be on the same line...
+                        #   eg: ```    <text>
+                        line = f"```\n{line[8:]}"
+                    else:
+                        line = line[4:]
                 md_lines.append(line)
 
             md = "\n".join(md_lines)
 
             # strip empty newlines before end of code blocks
-            md = re.sub(r"\n\n```", "\n```", md)
+            md = re.sub(r"\n\n+```", "\n```", md)
+            # strip empty newlines after the start of a code block
+            md = re.sub(r"```\n\n+", "```\n", md)
             # finally, use opinionated formatter
             md = mdformat.text(md)
         else:
