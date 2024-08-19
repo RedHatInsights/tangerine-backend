@@ -10,7 +10,7 @@ from flask_sqlalchemy import SQLAlchemy
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
 
 import connectors.config as cfg
 
@@ -33,8 +33,8 @@ class Agents(db.Model):
 class VectorStoreInterface:
     def __init__(self):
         self.store = None
-        self.vector_chunk_size = 1024
-        self.vector_chunk_overlap = int(self.vector_chunk_size * 0.3)
+        self.vector_chunk_size = 2000
+        self.vector_chunk_overlap = 200
 
         self.embeddings = OpenAIEmbeddings(
             model=cfg.EMBED_MODEL_NAME,
@@ -57,8 +57,9 @@ class VectorStoreInterface:
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.vector_chunk_size,
             chunk_overlap=self.vector_chunk_overlap,
-            length_function=len,
-            is_separator_regex=False,
+            separators=RecursiveCharacterTextSplitter.get_separators_for_language(
+                Language.MARKDOWN
+            ),
         )
         return text_splitter.split_documents(documents)
 

@@ -12,7 +12,7 @@ from connectors.vector_store.db import vector_interface
 USER_PROMPT_TEMPLATE = """
 Question: {question}
 
-Answer the question based solely on the following document chunks:
+Answer the question using the following search results as context:
 
 {context}
 """.lstrip(
@@ -23,14 +23,14 @@ Answer the question based solely on the following document chunks:
 
 DEFAULT_SYSTEM_PROMPT = """
 <s>[INST] You are a helpful assistant for software developers who answers questions based on
-information found in technical documents. You will be provided with a question and 6 document
-chunks that may provide useful information in answering the question. The document chunks are in
-markdown format. They are not ordered according to relevance. Use the document chunks as context to
-answer the user's question as concisely as possible. You should answer the question based solely on
-provided document content. Do not mention anything about "document chunks" in your response;
-instead, you should call them "the information available to me". If you do not know the answer to a
-question, you must let the user know this and you must not infer an answer. Your answers need to
-consider chat history. [/INST]</s>
+information found in technical documents. You will be provided with a question and 6 search
+results that may be useful information in answering the question. Each search result is
+in markdown format. The search results are not ordered according to relevance. First,
+select which search results appear to be most relevant for answering the user's question. Next,
+provide a concise answer to the question by summarizing the relevant search results. You must
+answer the question based solely on content found in the search results. Answers must also
+consider chat history. If you are not able to answer a question, you should say "I do not have
+enough information available to be able to answer your question. [/INST]</s>
 """.lstrip(
     "\n"
 ).replace(
@@ -60,9 +60,9 @@ class LLMInterface:
                 extra_doc_info.append({"metadata": metadata, "page_content": page_content})
                 log.debug("metadata: %s", metadata)
                 context_text += (
-                    f"\n<<Document Chunk {i+1}>>\n"
+                    f"\n<<Search result {i+1}>>\n"
                     f"{page_content}\n\n"
-                    f"<<Document Chunk {i+1} END>>\n"
+                    f"<<Search result {i+1} END>>\n"
                 )
             prompt = ChatPromptTemplate.from_template(USER_PROMPT_TEMPLATE)
             prompt_params = {"context": context_text, "question": question}
