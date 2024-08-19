@@ -98,6 +98,7 @@ class VectorStoreInterface:
 
             md_lines = []
             in_code_block = False
+
             for line in html2text_output.split("\n"):
                 # remove non printable chars (like paragraph markers)
                 line = "".join(filter(lambda x: x in string.printable, line))
@@ -132,6 +133,28 @@ class VectorStoreInterface:
 
         return md
 
+    def remove_large_code_blocks(self, text):
+        lines = []
+        code_lines = []
+        in_code_block = False
+        for line in text.split("\n"):
+            if line.strip() == "```" and not in_code_block:
+                in_code_block = True
+                code_lines = []
+                code_lines.append(line)
+            elif line.strip() == "```" and in_code_block:
+                code_lines.append(line)
+                in_code_block = False
+                if len(code_lines) > 9:
+                    code_lines = ["```", "<large code block, visit documentation to view>", "```"]
+                lines.extend(code_lines)
+            elif in_code_block:
+                code_lines.append(line)
+            else:
+                lines.append(line)
+
+        return "\n".join(lines)
+
     def create_documents(self, text, agent_id, source, full_path):
         log.debug("processsing %s", full_path)
         if full_path.lower().endswith(".html"):
@@ -139,6 +162,8 @@ class VectorStoreInterface:
 
         if not text:
             raise ValueError("no document text provided")
+
+        text = self.remove_large_code_blocks(text)
 
         documents = [
             Document(
