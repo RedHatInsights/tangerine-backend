@@ -43,11 +43,8 @@ class AgentsApi(Resource):
         agent = {
             "agent_name": request.form["name"],
             "description": request.form["description"],
-            "system_prompt": request.form["system_prompt"] or DEFAULT_SYSTEM_PROMPT,
+            "system_prompt": request.form.get("system_prompt") or DEFAULT_SYSTEM_PROMPT,
         }
-
-        if len(agent["agent_name"]) < 1:
-            return {"message": "agent_name is required."}, 400
 
         # Don't let them create the agent id and filenames
         agent.pop("id", None)
