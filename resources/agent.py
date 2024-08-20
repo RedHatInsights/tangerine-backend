@@ -54,12 +54,15 @@ class AgentsApi(Resource):
         agent.pop("filenames", None)
 
         try:
-            new_data = Agents(**agent)
-            db.session.add(new_data)
+            new_agent = Agents(**agent)
+            db.session.add(new_agent)
             db.session.commit()
+            db.session.refresh(new_agent)
         except Exception:
             log.exception("exception in AgentsApi POST")
             return {"message": "error inserting agent into DB"}, 500
+
+        agent["id"] = new_agent.id
 
         return agent, 201
 
