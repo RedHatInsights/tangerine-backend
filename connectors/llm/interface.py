@@ -58,8 +58,8 @@ class LLMInterface:
 
     def ask(self, system_prompt, previous_messages, question, agent_id, stream):
         results = vector_interface.search(question, agent_id)
-        # sort by score, highest score first
-        results = sorted(results, key=itemgetter(1), reverse=True)
+        # sort by score lowest to highest, lower is "less distance" which is better
+        results = sorted(results, key=itemgetter(1))
         # drop the score
         results = [result[0] for result in results]
 
