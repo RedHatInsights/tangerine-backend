@@ -28,8 +28,11 @@ def upload_files(source, directory_path, url, agent_id, html, bearer_token):
         start = i * batch_size
         end = (i + 1) * batch_size
         batch_files = files[start:end]
+        # skip 404.html files
         files_to_upload = [
-            ("file", (file_path, open(file_path, "rb"), "text/plain")) for file_path in batch_files
+            ("file", (file_path, open(file_path, "rb"), "text/plain"))
+            for file_path in batch_files
+            if not file_path.endswith("404.html")
         ]
 
         response = requests.post(

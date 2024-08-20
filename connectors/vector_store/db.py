@@ -2,6 +2,7 @@ import logging
 import pathlib
 import re
 import string
+from operator import itemgetter
 
 import html2text
 import mdformat
@@ -19,6 +20,19 @@ log = logging.getLogger("tangerine.db")
 db = SQLAlchemy()
 
 
+TXT_SEPARATORS = [
+    "\n\n## ",
+    "\n\n### ",
+    "\n\n#### ",
+    "\n\n##### ",
+    "\n\n###### ",
+    "\n\n",
+    "\n",
+    " ",
+    "",
+]
+
+
 class Agents(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     agent_name = db.Column(db.String(50), nullable=False)
@@ -33,8 +47,8 @@ class Agents(db.Model):
 class VectorStoreInterface:
     def __init__(self):
         self.store = None
-        self.vector_chunk_size = 1024
-        self.vector_chunk_overlap = int(self.vector_chunk_size * 0.3)
+        self.vector_chunk_size = 2000
+        self.vector_chunk_overlap = 0
 
         self.embeddings = OpenAIEmbeddings(
             model=cfg.EMBED_MODEL_NAME,
@@ -53,14 +67,74 @@ class VectorStoreInterface:
         except Exception:
             log.exception("error initializing vector store")
 
-    def split_docs_to_chunks(self, documents):
+    def combine_small_chunks(self, chunks):
+        """
+        Combine small chunks into the next chunk
+
+        Sometimes we see the text splitter create a chunk containing only a single line (like
+        a header), we will store these small chunks on the next chunk to avoid storing a
+        document with small context
+        """
+        for idx, chunk in enumerate(chunks):
+            if len(chunk) < 200:
+                # this chunk is less than 200 chars, move it to the next chunk
+                try:
+                    chunks[idx + 1] = f"{chunk}\n\n{chunks[idx + 1]}"
+                except IndexError:
+                    # we've reached the end and there is no 'next chunk', just give up
+                    break
+                # make note of its index and pop it later...
+                chunks[idx] = "<<removed>>"
+
+        chunks = list(filter(lambda val: val != "<<removed>>", chunks))
+
+        return chunks
+
+    def split_to_docs(self, text, metadata):
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.vector_chunk_size,
             chunk_overlap=self.vector_chunk_overlap,
-            length_function=len,
-            is_separator_regex=False,
+            separators=TXT_SEPARATORS,
         )
-        return text_splitter.split_documents(documents)
+
+        chunks = text_splitter.split_text(text)
+        chunks = self.combine_small_chunks(chunks)
+
+        # find title if possible and add to metadata
+        first_line_of_first_chunk = chunks[0].splitlines()[0]
+        if first_line_of_first_chunk.startswith("# "):
+            # we found the title header, add it to metadata
+            metadata["title"] = first_line_of_first_chunk.strip("# ")
+
+        documents = []
+        for chunk in chunks:
+            if cfg.EMBED_DOCUMENT_PREFIX:
+                chunk = f"{cfg.EMBED_DOCUMENT_PREFIX}: {chunk}"
+            documents.append(Document(page_content=chunk, metadata=metadata))
+
+        return documents
+
+    def remove_large_code_blocks(self, text):
+        lines = []
+        code_lines = []
+        in_code_block = False
+        for line in text.split("\n"):
+            if line.strip() == "```" and not in_code_block:
+                in_code_block = True
+                code_lines = []
+                code_lines.append(line)
+            elif line.strip() == "```" and in_code_block:
+                code_lines.append(line)
+                in_code_block = False
+                if len(code_lines) > 9:
+                    code_lines = ["```", "<large code block, visit documentation to view>", "```"]
+                lines.extend(code_lines)
+            elif in_code_block:
+                code_lines.append(line)
+            else:
+                lines.append(line)
+
+        return "\n".join(lines)
 
     def html_to_md(self, text):
         """
@@ -97,9 +171,10 @@ class VectorStoreInterface:
 
             md_lines = []
             in_code_block = False
+
             for line in html2text_output.split("\n"):
                 # remove non printable chars (like paragraph markers)
-                line = "".join(filter(lambda x: x in string.printable, line))
+                line = "".join(filter(lambda char: char in string.printable, line))
 
                 # replace html2text code block start/end with standard md
                 if "[code]" in line:
@@ -129,43 +204,73 @@ class VectorStoreInterface:
         else:
             log.error("no 'md-content' div found")
 
+        md = self.remove_large_code_blocks(md)
+
         return md
 
     def create_documents(self, text, agent_id, source, full_path):
-        log.debug("processsing %s", full_path)
+        log.debug("processing %s", full_path)
         if full_path.lower().endswith(".html"):
             text = self.html_to_md(text)
 
         if not text:
             raise ValueError("no document text provided")
 
-        documents = [
-            Document(
-                page_content=text,
-                metadata={
-                    "agent_id": str(agent_id),
-                    "source": source,
-                    "full_path": full_path,
-                    "filename": pathlib.Path(full_path).name,
-                },
-            )
-        ]
+        metadata = {
+            "agent_id": str(agent_id),
+            "source": source,
+            "full_path": full_path,
+            "filename": pathlib.Path(full_path).name,
+        }
 
-        chunked_docs = self.split_docs_to_chunks(documents)
+        chunked_docs = self.split_to_docs(text, metadata)
+
+        log.debug("document chunks: %s", chunked_docs)
+
         return chunked_docs
 
     def add_document(self, text, agent_id, source, full_path):
         try:
-            self.store.add_documents(self.create_documents(text, agent_id, source, full_path))
+            documents = self.create_documents(text, agent_id, source, full_path)
+            if documents:
+                self.store.add_documents(documents)
         except Exception:
             log.exception("error adding documents")
 
     def search(self, query, agent_id):
-        results = self.store.max_marginal_relevance_search(
-            query=query, filter={"agent_id": str(agent_id)}, k=6
+        filter = {"agent_id": str(agent_id)}
+        if cfg.EMBED_QUERY_PREFIX:
+            query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
+
+        # return 4 chunks using MMR
+        results = self.store.max_marginal_relevance_search_with_score(
+            query=query,
+            filter=filter,
+            lambda_mult=0.7,
+            k=4,
         )
 
-        return results
+        # return 2 chunks using sentence similarity
+        results.extend(self.store.similarity_search_with_score(query=query, filter=filter, k=2))
+
+        # sort by score lowest to highest, lower is "less distance" which is better
+        results = sorted(results, key=itemgetter(1))
+        # drop the score
+        results = [result[0] for result in results]
+
+        # de-dupe, 'Document' is unhashable so check page content
+        unique_results = []
+        for new_result in results:
+            present = False
+            for existing_result in unique_results:
+                if new_result.page_content == existing_result.page_content:
+                    # this one is already in the list, don't add it
+                    present = True
+                    break
+            if not present:
+                unique_results.append(new_result)
+
+        return unique_results
 
     def delete_documents(self, ids):
         self.store.delete(ids)

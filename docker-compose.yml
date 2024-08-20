@@ -67,6 +67,7 @@ services:
       - EMBED_BASE_URL=http://tangerine-text-embeddings-inference:8001/v1
       - LLM_MODEL_NAME=mistral
       - EMBED_MODEL_NAME=snowflake-arctic-embed-m-long
+      - EMBED_QUERY_PREFIX="Represent this sentence for searching relevant passages"
     healthcheck:
       test: curl --fail "http://localhost:5000/ping" || exit 1
       start_period: 10s

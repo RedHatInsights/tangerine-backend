@@ -17,3 +17,11 @@ LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", 0.7))
 EMBED_BASE_URL = os.getenv("EMBED_BASE_URL", "http://localhost:11434/v1")
 EMBED_API_KEY = os.getenv("EMBED_API_KEY", "EMPTY")
 EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME", "nomic-embed-text")
+
+# for nomic: 'search_query'
+# for snowflake-arctic-embed-m-long: 'Represent this sentence for searching relevant passages'
+EMBED_QUERY_PREFIX = os.getenv("EMBED_QUERY_PREFIX", "search_query")
+
+# for nomic: 'search_document'
+# for snowflake-arctic-embed-m-long: ''
+EMBED_DOCUMENT_PREFIX = os.getenv("EMBED_DOCUMENT_PREFIX", "")

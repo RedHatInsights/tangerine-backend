@@ -42,13 +42,14 @@ To run the UI in a development environment, see [tangerine-frontend](https://git
 
 
 ### Available API Paths
-| Path                               | Method   | Description              |
-| ---------------------------------- | -------- | ------------------------ |
-| `/api/agents`                      | `GET`    | Get a list of all agents |
-| `/api/agents`                      | `POST`   | Create a new agent       |
-| `/api/agents/<id>`                 | `GET`    | Get an agent             |
-| `/api/agents/<id>`                 | `PUT`    | Update an agent          |
-| `/api/agents/<id>`                 | `DELETE` | Delete an agent          |
-| `/api/agents/<id>/document_upload` | `POST`   | Agent document uploads   |
-| `/api/agents/<id>/chat`            | `POST`   | Chat with an agent       |
-| `/ping`                            | `GET`    | Health check             |
+| Path                               | Method   | Description                |
+| ---------------------------------- | -------- | -------------------------- |
+| `/api/agents`                      | `GET`    | Get a list of all agents   |
+| `/api/agents`                      | `POST`   | Create a new agent         |
+| `/api/agents/<id>`                 | `GET`    | Get an agent               |
+| `/api/agents/<id>`                 | `PUT`    | Update an agent            |
+| `/api/agents/<id>`                 | `DELETE` | Delete an agent            |
+| `/api/agents/<id>/document_upload` | `POST`   | Agent document uploads     |
+| `/api/agents/<id>/chat`            | `POST`   | Chat with an agent         |
+| `/api/agentDefaults`               | `GET`    | Get agent default settings |
+| `/ping`                            | `GET`    | Health check               |
