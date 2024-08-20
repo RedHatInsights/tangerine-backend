@@ -427,19 +427,19 @@
         },
         "langchain-core": {
             "hashes": [
-                "sha256:1f5584cf0034909e35ea17010a847d4079417e0ddcb5a9eb3fbb2bd55f3268c0",
-                "sha256:d82cdc350bbbe74261330d87056b7d9f1fb567828e9e03f708d23a48b941819e"
+                "sha256:c8de411336c13fa440b7a52895bfd1c064f04d315344855962988483902cc532",
+                "sha256:dd2659e0a560fc987b210107bf989aa14a6f4b67dd214c13a2c9669036cda975"
             ],
             "index": "pypi",
-            "version": "==0.2.32"
+            "version": "==0.2.33"
         },
         "langchain-openai": {
             "hashes": [
-                "sha256:2c65feaf12bb284eccf7bce35725fd06f3035fa751babad6aa84af2f99867f88",
-                "sha256:44420f0c84859ae236a80c8ac8754a16d5b660c24377c27ba98308145d346352"
+                "sha256:0cf93133f230a893e3b0cc2a792bbf2580950e879b577f6e8d4ff9963a7de44b",
+                "sha256:e184ab867a30f803dc210a388537186b1b670a33d910a7e0fa4e0329d3b6c654"
             ],
             "index": "pypi",
-            "version": "==0.1.21"
+            "version": "==0.1.22"
         },
         "langchain-postgres": {
             "hashes": [
@@ -743,11 +743,11 @@
         },
         "openai": {
             "hashes": [
-                "sha256:3ed4ddad48e0dde059c9b4d3dc240e47781beca2811e52ba449ddc4a471a2fd4",
-                "sha256:e225f830b946378e214c5b2cfa8df28ba2aeb7e9d44f738cb2a926fd971f5bc0"
+                "sha256:56fb04105263f79559aff3ceea2e1dd16f8c5385e8238cb66cf0e6888fa8bfcf",
+                "sha256:e38e376efd91e0d4db071e2a6517b6b4cac1c2a6fd63efdc5ec6be10c5967c1b"
             ],
             "markers": "python_full_version >= '3.7.1'",
-            "version": "==1.40.8"
+            "version": "==1.41.1"
         },
         "orjson": {
             "hashes": [
