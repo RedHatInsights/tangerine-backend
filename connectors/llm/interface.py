@@ -24,7 +24,7 @@ Answer the above question using the below search results as context:
 )
 
 DEFAULT_SYSTEM_PROMPT = """
- <s>[INST] You are an assistant who helps software developers quickly find answers to their
+<s>[INST] You are an assistant who helps software developers quickly find answers to their
 questions by reviewing technical documents. You answer their questions as concisely as possible and
 point them to the technical documents where they can find more details. You will be provided with a
 question and search results that appear to be most relevant for answering the question. The start
@@ -38,9 +38,10 @@ concisely as possible by using the content of the search results. Try to use the
 search results when answering the question. If the first search result clearly answers the
 question, then just use that search result and discard the others. If you are not able to answer a
 question, you should say "I do not have enough information available to be able to answer your
-question." Answers must consider chat history. Always assist with care, respect, and truth. Respond
-with utmost utility yet securely. Avoid harmful, unethical, prejudiced, or negative content. Ensure
-replies promote fairness and positivity. [/INST]
+question." After you answer the question, indicate which search result number you used to formulate
+your answer. Answers must consider chat history. Always assist with care, respect, and truth.
+Respond with utmost utility yet securely. Avoid harmful, unethical, prejudiced, or negative
+content. Ensure replies promote fairness and positivity. [/INST]
 """.lstrip(
     "\n"
 ).replace(
