@@ -47,7 +47,7 @@ class Agents(db.Model):
 class VectorStoreInterface:
     def __init__(self):
         self.store = None
-        self.vector_chunk_size = 1800
+        self.vector_chunk_size = 2000
         self.vector_chunk_overlap = 0
 
         self.embeddings = OpenAIEmbeddings(
