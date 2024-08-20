@@ -228,9 +228,7 @@ class VectorStoreInterface:
 
         chunked_docs = self.split_to_docs(text, metadata)
 
-        from pprint import pprint
-
-        pprint(chunked_docs)
+        log.debug("document chunks: %s", chunked_docs)
 
         return chunked_docs
 
