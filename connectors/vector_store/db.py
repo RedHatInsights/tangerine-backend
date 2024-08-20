@@ -74,7 +74,6 @@ class VectorStoreInterface:
         a header), we will store these small chunks on the next chunk to avoid storing a
         document with small context
         """
-        indices_to_pop = []
         for idx, chunk in enumerate(chunks):
             if len(chunk) < 200:
                 # this chunk is less than 200 chars, move it to the next chunk
@@ -84,12 +83,9 @@ class VectorStoreInterface:
                     # we've reached the end and there is no 'next chunk', just give up
                     break
                 # make note of its index and pop it later...
-                indices_to_pop.append(idx)
+                chunks[idx] = "<<removed>>"
 
-        # remove all the small chunks
-        for num, idx in enumerate(indices_to_pop):
-            # as we keep popping items, we need to lower the idx we pop from
-            chunks.pop(idx - num)
+        chunks = list(filter(lambda val: val != "<<removed>>", chunks))
 
         return chunks
 
@@ -177,7 +173,7 @@ class VectorStoreInterface:
 
             for line in html2text_output.split("\n"):
                 # remove non printable chars (like paragraph markers)
-                line = "".join(filter(lambda x: x in string.printable, line))
+                line = "".join(filter(lambda char: char in string.printable, line))
 
                 # replace html2text code block start/end with standard md
                 if "[code]" in line:
