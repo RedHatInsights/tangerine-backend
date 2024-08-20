@@ -19,9 +19,9 @@ EMBED_API_KEY = os.getenv("EMBED_API_KEY", "EMPTY")
 EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME", "nomic-embed-text")
 
 # for nomic: 'search_query'
-# for snowflake-arctic: 'Represent this sentence for searching relevant passages'
+# for snowflake-arctic-embed-m-long: 'Represent this sentence for searching relevant passages'
 EMBED_QUERY_PREFIX = os.getenv("EMBED_QUERY_PREFIX", "search_query")
 
 # for nomic: 'search_document'
-# for snowflake-arctic: ''
+# for snowflake-arctic-embed-m-long: ''
 EMBED_DOCUMENT_PREFIX = os.getenv("EMBED_DOCUMENT_PREFIX", "")

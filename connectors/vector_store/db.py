@@ -2,6 +2,7 @@ import logging
 import pathlib
 import re
 import string
+from operator import itemgetter
 
 import html2text
 import mdformat
@@ -46,7 +47,7 @@ class Agents(db.Model):
 class VectorStoreInterface:
     def __init__(self):
         self.store = None
-        self.vector_chunk_size = 2000
+        self.vector_chunk_size = 1800
         self.vector_chunk_overlap = 0
 
         self.embeddings = OpenAIEmbeddings(
@@ -237,13 +238,39 @@ class VectorStoreInterface:
             log.exception("error adding documents")
 
     def search(self, query, agent_id):
+        filter = {"agent_id": str(agent_id)}
         if cfg.EMBED_QUERY_PREFIX:
             query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
+
+        # return 4 chunks using MMR
         results = self.store.max_marginal_relevance_search_with_score(
-            query=query, filter={"agent_id": str(agent_id)}, k=4
+            query=query,
+            filter=filter,
+            lambda_mult=0.7,
+            k=4,
         )
 
-        return results
+        # return 2 chunks using sentence similarity
+        results.extend(self.store.similarity_search_with_score(query=query, filter=filter, k=2))
+
+        # sort by score lowest to highest, lower is "less distance" which is better
+        results = sorted(results, key=itemgetter(1))
+        # drop the score
+        results = [result[0] for result in results]
+
+        # de-dupe, 'Document' is unhashable so check page content
+        unique_results = []
+        for new_result in results:
+            present = False
+            for existing_result in unique_results:
+                if new_result.page_content == existing_result.page_content:
+                    # this one is already in the list, don't add it
+                    present = True
+                    break
+            if not present:
+                unique_results.append(new_result)
+
+        return unique_results
 
     def delete_documents(self, ids):
         self.store.delete(ids)

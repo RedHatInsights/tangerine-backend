@@ -1,6 +1,5 @@
 import json
 import logging
-from operator import itemgetter
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
@@ -40,9 +39,11 @@ for easy readability. Try to use the most relevant search results when answering
 the first search result clearly answers the question, then just use that search result and discard
 the others. If you are not able to answer a question, you should say "I do not have enough
 information available to be able to answer your question." After you answer the question, indicate
-which search result you used to formulate your answer. Answers must consider chat history.  Always
-assist with care, respect, and truth. Respond with utmost utility yet securely. Avoid harmful,
-unethical, prejudiced, or negative content. Ensure replies promote fairness and positivity. [/INST]
+which search result you used to formulate your answer and provide the name of the document title if
+it exists. Do not generate example URL links to the documents. Answers must consider chat history.
+Always assist with care, respect, and truth. Respond with utmost utility yet securely. Avoid
+harmful, unethical, prejudiced, or negative content. Ensure replies promote fairness and
+positivity. [/INST]
 """.lstrip(
     "\n"
 ).replace(
@@ -58,10 +59,6 @@ class LLMInterface:
 
     def ask(self, system_prompt, previous_messages, question, agent_id, stream):
         results = vector_interface.search(question, agent_id)
-        # sort by score lowest to highest, lower is "less distance" which is better
-        results = sorted(results, key=itemgetter(1))
-        # drop the score
-        results = [result[0] for result in results]
 
         prompt_params = {"question": question}
         prompt = ChatPromptTemplate.from_template("{question}")
