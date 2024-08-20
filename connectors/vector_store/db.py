@@ -239,7 +239,7 @@ class VectorStoreInterface:
     def search(self, query, agent_id):
         if cfg.EMBED_QUERY_PREFIX:
             query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
-        results = self.store.max_marginal_relevance_search(
+        results = self.store.max_marginal_relevance_search_with_score(
             query=query, filter={"agent_id": str(agent_id)}, k=4
         )
 
