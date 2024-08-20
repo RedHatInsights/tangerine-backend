@@ -10,7 +10,7 @@ from flask_sqlalchemy import SQLAlchemy
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
-from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 import connectors.config as cfg
 
@@ -34,7 +34,7 @@ class VectorStoreInterface:
     def __init__(self):
         self.store = None
         self.vector_chunk_size = 2000
-        self.vector_chunk_overlap = 200
+        self.vector_chunk_overlap = 0
 
         self.embeddings = OpenAIEmbeddings(
             model=cfg.EMBED_MODEL_NAME,
@@ -57,9 +57,18 @@ class VectorStoreInterface:
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.vector_chunk_size,
             chunk_overlap=self.vector_chunk_overlap,
-            separators=RecursiveCharacterTextSplitter.get_separators_for_language(
-                Language.MARKDOWN
-            ),
+            separators=[
+                "\n# ",
+                "\n## ",
+                "\n### ",
+                "\n#### ",
+                "\n##### ",
+                "\n###### ",
+                "\n\n",
+                "\n",
+                " ",
+                "",
+            ],
         )
         return text_splitter.split_documents(documents)
 
@@ -165,6 +174,9 @@ class VectorStoreInterface:
 
         text = self.remove_large_code_blocks(text)
 
+        if cfg.EMBED_DOCUMENT_PREFIX:
+            text = f"{cfg.EMBED_DOCUMENT_PREFIX}: {text}"
+
         documents = [
             Document(
                 page_content=text,
@@ -187,8 +199,10 @@ class VectorStoreInterface:
             log.exception("error adding documents")
 
     def search(self, query, agent_id):
+        if cfg.EMBED_QUERY_PREFIX:
+            query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
         results = self.store.max_marginal_relevance_search(
-            query=query, filter={"agent_id": str(agent_id)}, k=6
+            query=query, filter={"agent_id": str(agent_id)}, k=3
         )
 
         return results

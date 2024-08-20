@@ -314,6 +314,8 @@ objects:
                 value: ${LLM_MODEL_NAME}
               - name: EMBED_MODEL_NAME
                 value: ${EMBED_MODEL_NAME}
+              - name: EMBED_QUERY_PREFIX
+                value: ${EMBED_QUERY_PREFIX}
             securityContext:
               capabilities: {}
               privileged: false
@@ -359,5 +361,7 @@ parameters:
     value: mistralai/Mistral-7B-Instruct-v0.2
   - name: EMBED_MODEL_NAME
     value: Snowflake/snowflake-arctic-embed-m-long
+  - name: EMBED_QUERY_PREFIX
+    value: "Represent this sentence for searching relevant passages"
   - name: LLM_TEMPERATURE
     value: "0.3"
