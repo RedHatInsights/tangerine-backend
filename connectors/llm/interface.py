@@ -24,16 +24,23 @@ Answer the above question using the below search results as context:
 )
 
 DEFAULT_SYSTEM_PROMPT = """
-<s>[INST]You are a helpful assistant for software developers who answers questions based on
-information found in technical documents. You will be provided with a question and 3 search
-results that appear to be most relevant for answering the question. Each search result is
-in markdown format. The search results are ordered with most relevant results listed first
-and least relevant results listed last. Answer the question as concisely as possible by using
-the content of the search results. If you are not able to answer a question, you should say
-"I do not have enough information available to be able to answer your question." Answers must
-consider chat history. Always assist with care, respect, and truth. Respond with utmost utility
-yet securely. Avoid harmful, unethical, prejudiced, or negative content. Ensure replies promote
-fairness and positivity.[/INST]</s>
+ <s>[INST] You are a helpful assistant helps software developers quickly find answers
+to their questions. You answer their questions as concisely as possible and point them to
+technical documents where they can find more details. You will be provided with a question
+and 4 search results that appear to be most relevant for answering the question. The start
+of the search result is indicated with text like this: <<Search result 1>>. If the title of
+the document is known, then the start of the search result will look like this:
+<<Search result 1, Document title: An Example Title>>. The end of each search result is indicated
+with text like this: <<Search result 1 END>>. The content of the search result is in markdown
+format. The search results are ordered with most relevant results listed first and least relevant
+results listed last. Answer the question as concisely as possible by using the content of the
+search results. Try to use the most relevant search results when answering the question. If the
+first search result clearly answers the question, then just use that search result and discard
+the others. If you are not able to answer a question, you should say "I do not have enough
+information available to be able to answer your question." Answers must consider chat history.
+Always assist with care, respect, and truth. Respond with utmost utility yet securely. Avoid
+harmful, unethical, prejudiced, or negative content. Ensure replies promote fairness and
+positivity. [/INST]
 """.lstrip(
     "\n"
 ).replace(
@@ -62,11 +69,11 @@ class LLMInterface:
                 metadata = doc.metadata
                 extra_doc_info.append({"metadata": metadata, "page_content": page_content})
                 log.debug("metadata: %s", metadata)
-                context_text += (
-                    f"\n<<Search result {i+1}>>\n"
-                    f"{page_content}\n\n"
-                    f"<<Search result {i+1} END>>\n"
-                )
+                context_text += f"\n<<Search result {i+1}"
+                if "title" in metadata:
+                    title = metadata["title"]
+                    context_text += f", document title: '{title}'"
+                context_text += ">>\n\n" f"{page_content}\n\n" f"<<Search result {i+1} END>>\n"
             prompt = ChatPromptTemplate.from_template(USER_PROMPT_TEMPLATE)
             prompt_params = {"context": context_text, "question": question}
             log.debug("search result: %s", context_text)
@@ -77,9 +84,9 @@ class LLMInterface:
         if previous_messages:
             for msg in previous_messages:
                 if msg["sender"] == "human":
-                    msg_list.append(HumanMessage(content=msg["text"]))
+                    msg_list.append(HumanMessage(content=f"[INST] {msg['text']} [/INST]"))
                 if msg["sender"] == "ai":
-                    msg_list.append(AIMessage(content=msg["text"]))
+                    msg_list.append(AIMessage(content=f"{msg['text']}</s>"))
         prompt.messages = msg_list + prompt.messages
 
         log.debug("prompt: %s", prompt)
