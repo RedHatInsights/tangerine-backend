@@ -12,6 +12,7 @@ from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from sqlalchemy import text
 
 import connectors.config as cfg
 
@@ -271,6 +272,27 @@ class VectorStoreInterface:
                 unique_results.append(new_result)
 
         return unique_results
+
+    def delete_documents_by_metadata(self, metadata: dict) -> dict:
+        if not metadata:
+            raise ValueError("empty metadata")
+
+        where_stmt = "WHERE cmetadata ->>'{key}'='{value}'"
+        where_stmts = []
+        for key, value in metadata.items():
+            where_stmts.append(where_stmt.format(key=key, value=value))
+        filter_ = " AND ".join(where_stmts)
+
+        query = text(f"SELECT id, cmetadata FROM langchain_pg_embedding {filter_};")
+        results = db.session.execute(query).all()
+        metadatas = []
+        for result in results:
+            # add document id into returned metadata
+            result[1]["id"] = result[0]
+            metadatas.append(result[1])
+        vector_interface.delete_documents(m["id"] for m in metadatas)
+
+        return metadatas
 
     def delete_documents(self, ids):
         self.store.delete(ids)

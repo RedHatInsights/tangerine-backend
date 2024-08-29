@@ -22,7 +22,7 @@ def upload_files(source, directory_path, url, agent_id, html, bearer_token):
         print("Using bearer auth")
         headers = {"Authorization": f"Bearer {bearer_token}"}
 
-    url = f"{url}/{agent_id}/document_upload"
+    url = f"{url}/{agent_id}/documents"
 
     for i in range(num_batches):
         start = i * batch_size
