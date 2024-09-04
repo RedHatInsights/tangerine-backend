@@ -166,7 +166,7 @@ class AgentDocuments(Resource):
 
         return Response(generate_progress(), mimetype="application/json")
 
-    def _delete_from_agent(self, id: int, metadatas: List[dict]) -> None:
+    def _delete_from_agent(self, id: int, metadatas: List[dict]) -> List[str]:
         deleted_files = {
             _create_file_id(metadata["source"], metadata["full_path"]) for metadata in metadatas
         }
@@ -175,9 +175,11 @@ class AgentDocuments(Resource):
         new_full_paths = [file for file in agent.filenames.copy() if file not in deleted_files]
         agent.filenames = new_full_paths
         db.session.commit()
+        return list(deleted_files)
 
-    def delete(self, id, source):
+    def delete(self, id):
         agent_id = int(id)
+        source = request.json.get("source")
         full_path = request.json.get("full_path")
 
         metadata = {"agent_id": agent_id, "full_path": full_path, "source": source}
@@ -193,13 +195,13 @@ class AgentDocuments(Resource):
 
         # delete from agent DB
         try:
-            self._delete_from_agent(agent_id, metadatas)
+            deleted_files = self._delete_from_agent(agent_id, metadatas)
         except Exception:
             err = "Error deleting document(s) from agent DB"
             log.exception(err)
             return {"message": err}, 500
 
-        return {"message": "Document(s) deleted successfully."}, 200
+        return {"message": "Document(s) deleted successfully.", "deleted": deleted_files}, 200
 
 
 class AgentChatApi(Resource):
