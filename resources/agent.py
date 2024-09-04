@@ -66,8 +66,8 @@ class AgentsApi(Resource):
 
 class AgentApi(Resource):
     def get(self, id):
-        id = int(id)
-        agent = Agents.query.filter_by(id=id).first()
+        agent_id = int(id)
+        agent = Agents.query.filter_by(id=agent_id).first()
 
         if not agent:
             return {"message": "Agent not found"}, 404
@@ -81,8 +81,8 @@ class AgentApi(Resource):
         }, 200
 
     def put(self, id):
-        id = int(id)
-        agent = Agents.query.get(id)
+        agent_id = int(id)
+        agent = Agents.query.get(agent_id)
         if agent:
             data = request.get_json()
 
@@ -99,25 +99,25 @@ class AgentApi(Resource):
             return {"message": "Agent not found"}, 404
 
     def delete(self, id):
-        id = int(id)
-        agent = Agents.query.get(id)
+        agent_id = int(id)
+        agent = Agents.query.get(agent_id)
         if agent:
             db.session.delete(agent)
             db.session.commit()
-            vector_interface.delete_documents_by_metadata({"agent_id": id})
+            vector_interface.delete_documents_by_metadata({"agent_id": agent_id})
             return {"message": "Agent deleted successfully"}, 200
         else:
             return {"message": "Agent not found"}, 404
 
 
-def file_id(source, full_path):
+def _create_file_id(source, full_path):
     return f"{source}:{full_path}"
 
 
 class AgentDocuments(Resource):
     def post(self, id):
-        id = int(id)
-        agent = Agents.query.get(id)
+        agent_id = int(id)
+        agent = Agents.query.get(agent_id)
         if not agent:
             return {"message": "Agent not found"}, 404
 
@@ -131,10 +131,10 @@ class AgentDocuments(Resource):
         file_contents = []
         for file in files:
             full_path = file.filename
-            id = file_id(source, full_path)
+            file_id = _create_file_id(source, full_path)
             if not any(
                 [
-                    id.endswith(filetype)
+                    file_id.endswith(filetype)
                     for filetype in [".txt", ".pdf", ".md", ".rst", ".html"]
                 ]
             ):
@@ -142,7 +142,7 @@ class AgentDocuments(Resource):
 
             file_content = file.stream.read()
 
-            file_contents.append([id, full_path, file_content])
+            file_contents.append([file_id, full_path, file_content])
 
         # Add filenames to the DB
         new_full_paths = agent.filenames.copy()
@@ -159,7 +159,7 @@ class AgentDocuments(Resource):
 
                 # Only generate embeddings when there is actual texts
                 if len(extracted_text) > 0:
-                    vector_interface.add_document(extracted_text, id, source, full_path)
+                    vector_interface.add_document(extracted_text, agent_id, source, full_path)
                     yield json.dumps({"file": full_path, "step": "embedding_created"}) + "\n"
 
                 yield json.dumps({"file": full_path, "step": "end"}) + "\n"
@@ -168,7 +168,7 @@ class AgentDocuments(Resource):
 
     def _delete_from_agent(self, id: int, metadatas: List[dict]) -> None:
         deleted_files = {
-            file_id(metadata["source"], metadata["full_path"]) for metadata in metadatas
+            _create_file_id(metadata["source"], metadata["full_path"]) for metadata in metadatas
         }
 
         agent = Agents.query.get(id)
@@ -177,10 +177,10 @@ class AgentDocuments(Resource):
         db.session.commit()
 
     def delete(self, id, source):
-        id = int(id)
+        agent_id = int(id)
         full_path = request.json.get("full_path")
 
-        metadata = {"agent_id": id, "full_path": full_path, "source": source}
+        metadata = {"agent_id": agent_id, "full_path": full_path, "source": source}
         metadata = {key: val for key, val in metadata.items() if val}
 
         # delete from vector store
@@ -193,7 +193,7 @@ class AgentDocuments(Resource):
 
         # delete from agent DB
         try:
-            self._delete_from_agent(id, metadatas)
+            self._delete_from_agent(agent_id, metadatas)
         except Exception:
             err = "Error deleting document(s) from agent DB"
             log.exception(err)
@@ -204,8 +204,8 @@ class AgentDocuments(Resource):
 
 class AgentChatApi(Resource):
     def post(self, id):
-        id = int(id)
-        agent = Agents.query.filter_by(id=id).first()
+        agent_id = int(id)
+        agent = Agents.query.filter_by(id=agent_id).first()
         if not agent:
             return {"message": "Agent not found"}, 404
 
