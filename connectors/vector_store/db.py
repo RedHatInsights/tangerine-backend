@@ -277,13 +277,13 @@ class VectorStoreInterface:
         if not metadata:
             raise ValueError("empty metadata")
 
-        where_stmt = "WHERE cmetadata ->>'{key}'='{value}'"
-        where_stmts = []
+        filter_stmt = "cmetadata->>'{key}'='{value}'"
+        filter_stmts = []
         for key, value in metadata.items():
-            where_stmts.append(where_stmt.format(key=key, value=value))
-        filter_ = " AND ".join(where_stmts)
+            filter_stmts.append(filter_stmt.format(key=key, value=value))
+        filter_ = " AND ".join(filter_stmts)
 
-        query = text(f"SELECT id, cmetadata FROM langchain_pg_embedding {filter_};")
+        query = text(f"SELECT id, cmetadata FROM langchain_pg_embedding WHERE {filter_};")
         results = db.session.execute(query).all()
         metadatas = []
         for result in results:

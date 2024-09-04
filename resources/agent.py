@@ -179,11 +179,21 @@ class AgentDocuments(Resource):
 
     def delete(self, id):
         agent_id = int(id)
+        agent = Agents.query.get(agent_id)
+        if not agent:
+            return {"message": "Agent not found"}, 404
+
         source = request.json.get("source")
         full_path = request.json.get("full_path")
+        delete_all = bool(request.json.get("all", False))
 
-        metadata = {"agent_id": agent_id, "full_path": full_path, "source": source}
+        metadata = {"full_path": full_path, "source": source}
         metadata = {key: val for key, val in metadata.items() if val}
+
+        if not metadata and not delete_all:
+            return {"message": "'source' or 'full_path' required when not using 'all'"}, 400
+
+        metadata["agent_id"] = agent_id
 
         # delete from vector store
         try:
@@ -195,13 +205,14 @@ class AgentDocuments(Resource):
 
         # delete from agent DB
         try:
-            deleted_files = self._delete_from_agent(agent_id, metadatas)
+            deleted = self._delete_from_agent(agent_id, metadatas)
         except Exception:
             err = "Error deleting document(s) from agent DB"
             log.exception(err)
             return {"message": err}, 500
 
-        return {"message": "Document(s) deleted successfully.", "deleted": deleted_files}, 200
+        count = len(deleted)
+        return {"message": f"{count} document(s) deleted", "count": count, "deleted": deleted}, 200
 
 
 class AgentChatApi(Resource):
