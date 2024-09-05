@@ -277,22 +277,28 @@ class VectorStoreInterface:
         if not metadata:
             raise ValueError("empty metadata")
 
-        filter_stmt = "cmetadata->>'{key}'='{value}'"
         filter_stmts = []
-        for key, value in metadata.items():
-            filter_stmts.append(filter_stmt.format(key=key, value=value))
+
+        for key, val in metadata.items():
+            if not isinstance(val, str):
+                raise ValueError("metadata values must be of type 'str'")
+            # use parameterized query
+            filter_stmt = f"cmetadata->>'{key}' = :{key}"
+            filter_stmts.append(filter_stmt)
+
         filter_ = " AND ".join(filter_stmts)
 
         query = text(f"SELECT id, cmetadata FROM langchain_pg_embedding WHERE {filter_};")
-        results = db.session.execute(query).all()
-        metadatas = []
-        for result in results:
-            # add document id into returned metadata
-            result[1]["id"] = result[0]
-            metadatas.append(result[1])
-        vector_interface.delete_documents(m["id"] for m in metadatas)
+        results = db.session.execute(query, metadata).all()
 
-        return metadatas
+        matching_docs = []
+        for result in results:
+            # add document id into each result
+            result[1]["id"] = result[0]
+            matching_docs.append(result[1])
+        vector_interface.delete_documents(doc["id"] for doc in matching_docs)
+
+        return matching_docs
 
     def delete_documents(self, ids):
         self.store.delete(ids)

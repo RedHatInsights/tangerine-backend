@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import List
 
 from flask import Response, request
@@ -104,13 +105,28 @@ class AgentApi(Resource):
         if agent:
             db.session.delete(agent)
             db.session.commit()
-            vector_interface.delete_documents_by_metadata({"agent_id": agent_id})
+            vector_interface.delete_documents_by_metadata({"agent_id": str(agent_id)})
             return {"message": "Agent deleted successfully"}, 200
         else:
             return {"message": "Agent not found"}, 404
 
 
-def _create_file_id(source, full_path):
+def _validate_source(source: str) -> None:
+    source_regex = r"^[\w-]+$"
+    if not source or not source.strip() or not re.match(source_regex, source):
+        raise ValueError(f"source must match regex: {source_regex}")
+
+
+def _validate_file_path(full_path: str) -> None:
+    # intentionally more restrictive, matches a "typical" unix path and filename with extension
+    file_regex = r"^[\w\-.\/ ]+\/?\.[\w\-. ]+[^.]$"
+    if not full_path or not full_path.strip() or not re.match(file_regex, full_path):
+        raise ValueError(f"file path must match regex: {file_regex}")
+
+
+def _create_file_id(source: str, full_path: str) -> str:
+    _validate_source(source)
+    _validate_file_path(full_path)
     return f"{source}:{full_path}"
 
 
@@ -131,7 +147,11 @@ class AgentDocuments(Resource):
         file_contents = []
         for file in files:
             full_path = file.filename
-            file_id = _create_file_id(source, full_path)
+            try:
+                file_id = _create_file_id(source, full_path)
+            except ValueError as err:
+                return {"message": str(err)}, 400
+
             if not any(
                 [
                     file_id.endswith(filetype)
@@ -187,13 +207,22 @@ class AgentDocuments(Resource):
         full_path = request.json.get("full_path")
         delete_all = bool(request.json.get("all", False))
 
-        metadata = {"full_path": full_path, "source": source}
-        metadata = {key: val for key, val in metadata.items() if val}
+        metadata = {}
+
+        try:
+            if full_path:
+                _validate_file_path(full_path)
+                metadata["full_path"] = full_path
+            if source:
+                _validate_source(source)
+                metadata["source"] = source
+        except ValueError as err:
+            return {"message": err}, 400
 
         if not metadata and not delete_all:
             return {"message": "'source' or 'full_path' required when not using 'all'"}, 400
 
-        metadata["agent_id"] = agent_id
+        metadata["agent_id"] = str(agent_id)
 
         # delete from vector store
         try:
