@@ -49,7 +49,8 @@ To run the UI in a development environment, see [tangerine-frontend](https://git
 | `/api/agents/<id>`                 | `GET`    | Get an agent               |
 | `/api/agents/<id>`                 | `PUT`    | Update an agent            |
 | `/api/agents/<id>`                 | `DELETE` | Delete an agent            |
-| `/api/agents/<id>/document_upload` | `POST`   | Agent document uploads     |
 | `/api/agents/<id>/chat`            | `POST`   | Chat with an agent         |
+| `/api/agents/<id>/documents`       | `POST`   | Agent document uploads     |
+| `/api/agents/<id>/documents`       | `DELETE` | Delete agent documents     |
 | `/api/agentDefaults`               | `GET`    | Get agent default settings |
 | `/ping`                            | `GET`    | Health check               |

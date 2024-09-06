@@ -12,6 +12,7 @@ from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from sqlalchemy import text
 
 import connectors.config as cfg
 
@@ -34,7 +35,7 @@ TXT_SEPARATORS = [
 
 
 class Agents(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     agent_name = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=False)
     system_prompt = db.Column(db.Text, nullable=True)
@@ -271,6 +272,33 @@ class VectorStoreInterface:
                 unique_results.append(new_result)
 
         return unique_results
+
+    def delete_documents_by_metadata(self, metadata: dict) -> dict:
+        if not metadata:
+            raise ValueError("empty metadata")
+
+        filter_stmts = []
+
+        for key, val in metadata.items():
+            if not isinstance(val, str):
+                raise ValueError("metadata values must be of type 'str'")
+            # use parameterized query
+            filter_stmt = f"cmetadata->>'{key}' = :{key}"
+            filter_stmts.append(filter_stmt)
+
+        filter_ = " AND ".join(filter_stmts)
+
+        query = text(f"SELECT id, cmetadata FROM langchain_pg_embedding WHERE {filter_};")
+        results = db.session.execute(query, metadata).all()
+
+        matching_docs = []
+        for result in results:
+            # add document id into each result
+            result[1]["id"] = result[0]
+            matching_docs.append(result[1])
+        vector_interface.delete_documents(doc["id"] for doc in matching_docs)
+
+        return matching_docs
 
     def delete_documents(self, ids):
         self.store.delete(ids)

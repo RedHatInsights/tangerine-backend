@@ -1,9 +1,10 @@
 import json
 import logging
+import re
+from typing import List
 
 from flask import Response, request
 from flask_restful import Resource
-from sqlalchemy import text
 
 from connectors.llm.interface import DEFAULT_SYSTEM_PROMPT, llm
 from connectors.vector_store.db import Agents, db, vector_interface
@@ -66,8 +67,8 @@ class AgentsApi(Resource):
 
 class AgentApi(Resource):
     def get(self, id):
-        id = int(id)
-        agent = Agents.query.filter_by(id=id).first()
+        agent_id = int(id)
+        agent = Agents.query.filter_by(id=agent_id).first()
 
         if not agent:
             return {"message": "Agent not found"}, 404
@@ -81,8 +82,8 @@ class AgentApi(Resource):
         }, 200
 
     def put(self, id):
-        id = int(id)
-        agent = Agents.query.get(id)
+        agent_id = int(id)
+        agent = Agents.query.get(agent_id)
         if agent:
             data = request.get_json()
 
@@ -99,25 +100,40 @@ class AgentApi(Resource):
             return {"message": "Agent not found"}, 404
 
     def delete(self, id):
-        id = int(id)
-        agent = Agents.query.get(id)
+        agent_id = int(id)
+        agent = Agents.query.get(agent_id)
         if agent:
             db.session.delete(agent)
             db.session.commit()
+            vector_interface.delete_documents_by_metadata({"agent_id": str(agent_id)})
             return {"message": "Agent deleted successfully"}, 200
         else:
             return {"message": "Agent not found"}, 404
 
-        # TODO: delete agent documents from vector store
+
+def _validate_source(source: str) -> None:
+    source_regex = r"^[\w-]+$"
+    if not source or not source.strip() or not re.match(source_regex, source):
+        raise ValueError(f"source must match regex: {source_regex}")
 
 
-class AgentDocUpload(Resource):
-    def get_file_id(self, source, full_path):
-        return f"{source}:{full_path}"
+def _validate_file_path(full_path: str) -> None:
+    # intentionally more restrictive, matches a "typical" unix path and filename with extension
+    file_regex = r"^[\w\-.\/ ]+\/?\.[\w\-. ]+[^.]$"
+    if not full_path or not full_path.strip() or not re.match(file_regex, full_path):
+        raise ValueError(f"file path must match regex: {file_regex}")
 
+
+def _create_file_id(source: str, full_path: str) -> str:
+    _validate_source(source)
+    _validate_file_path(full_path)
+    return f"{source}:{full_path}"
+
+
+class AgentDocuments(Resource):
     def post(self, id):
-        id = int(id)
-        agent = Agents.query.get(id)
+        agent_id = int(id)
+        agent = Agents.query.get(agent_id)
         if not agent:
             return {"message": "Agent not found"}, 404
 
@@ -131,7 +147,11 @@ class AgentDocUpload(Resource):
         file_contents = []
         for file in files:
             full_path = file.filename
-            file_id = self.get_file_id(source, full_path)
+            try:
+                file_id = _create_file_id(source, full_path)
+            except ValueError as err:
+                return {"message": str(err)}, 400
+
             if not any(
                 [
                     file_id.endswith(filetype)
@@ -159,90 +179,75 @@ class AgentDocUpload(Resource):
 
                 # Only generate embeddings when there is actual texts
                 if len(extracted_text) > 0:
-                    vector_interface.add_document(extracted_text, id, source, full_path)
+                    vector_interface.add_document(extracted_text, agent_id, source, full_path)
                     yield json.dumps({"file": full_path, "step": "embedding_created"}) + "\n"
 
                 yield json.dumps({"file": full_path, "step": "end"}) + "\n"
 
         return Response(generate_progress(), mimetype="application/json")
 
+    def _delete_from_agent(self, id: int, metadatas: List[dict]) -> List[str]:
+        deleted_files = {
+            _create_file_id(metadata["source"], metadata["full_path"]) for metadata in metadatas
+        }
+
+        agent = Agents.query.get(id)
+        new_full_paths = [file for file in agent.filenames.copy() if file not in deleted_files]
+        agent.filenames = new_full_paths
+        db.session.commit()
+        return list(deleted_files)
+
     def delete(self, id):
-        full_path = request.json.get("full_path", None)
+        agent_id = int(id)
+        agent = Agents.query.get(agent_id)
+        if not agent:
+            return {"message": "Agent not found"}, 404
+
         source = request.json.get("source")
+        full_path = request.json.get("full_path")
+        delete_all = bool(request.json.get("all", False))
 
-        # delete single file
-        if full_path:
-            query = text(
-                f"SELECT id FROM langchain_pg_embedding WHERE cmetadata->>'source'='{source}'"
-                f" AND cmetadata->>'agent_id'='{id}'"
-                f" AND cmetadata->>'full_path'='{full_path}';"
-            )
-            try:
-                # delete documents from vector store
-                documents = db.session.execute(query).all()
-                if len(documents) == 0:
-                    return {"message": f"File {full_path} not found."}, 400
-                vector_interface.delete_documents([document[0] for document in documents])
+        metadata = {}
 
-            except Exception as e:
-                return {"message": f"Error deleting {full_path} from vector store. {e}"}, 400
+        try:
+            if full_path:
+                _validate_file_path(full_path)
+                metadata["full_path"] = full_path
+            if source:
+                _validate_source(source)
+                metadata["source"] = source
+        except ValueError as err:
+            return {"message": err}, 400
 
-            # delete documents from agent
-            try:
-                id = int(id)
-                agent = Agents.query.get(id)
-                file_id = self.get_file_id(source, full_path)
-                new_full_paths = [file for file in agent.filenames.copy() if file != file_id]
-                agent.filenames = new_full_paths
-                db.session.commit()
-            except Exception as e:
-                return {"message": f"Error deleting {full_path} from Agent {id}. {e}"}, 400
+        if not metadata and not delete_all:
+            return {"message": "'source' or 'full_path' required when not using 'all'"}, 400
 
-            return {"message": f"File {full_path} deleted successfully."}, 200
+        metadata["agent_id"] = str(agent_id)
 
-        # delete all files from a source
-        else:
-            query = text(
-                "SELECT id, cmetadata FROM langchain_pg_embedding"
-                f" WHERE cmetadata->>'source'='{source}'"
-                f" AND cmetadata->>'agent_id'='{id}';"
-            )
-            try:
-                # delete documents from vector store
-                documents = db.session.execute(query).all()
-                if len(documents) == 0:
-                    return {"message": f"No files from the source {source} found."}, 400
-                vector_interface.delete_documents([document[0] for document in documents])
+        # delete from vector store
+        try:
+            metadatas = vector_interface.delete_documents_by_metadata(metadata)
+        except Exception:
+            err = "Error deleting document(s) from vector store"
+            log.exception(err)
+            return {"message": err}, 500
 
-            except Exception as e:
-                return {
-                    "message": f"Error deleting files from source {source} from vector store. {e}"
-                }, 400
+        # delete from agent DB
+        try:
+            deleted = self._delete_from_agent(agent_id, metadatas)
+        except Exception:
+            err = "Error deleting document(s) from agent DB"
+            log.exception(err)
+            return {"message": err}, 500
 
-            # delete documents from agent
-            try:
-                id = int(id)
-                agent = Agents.query.get(id)
-                paths_to_remove = {
-                    self.get_file_id(source, document[1]["full_path"]) for document in documents
-                }
-                new_full_paths = [
-                    file for file in agent.filenames.copy() if file not in paths_to_remove
-                ]
-                agent.filenames = new_full_paths
-                db.session.commit()
-            except Exception as e:
-                return {
-                    "message": f"Error deleting files from source {source} from Agent {id}. {e}"
-                }, 400
-
-            return {"message": f"Files from source {source} deleted successfully."}, 200
+        count = len(deleted)
+        return {"message": f"{count} document(s) deleted", "count": count, "deleted": deleted}, 200
 
 
 class AgentChatApi(Resource):
     def post(self, id):
-        id = int(id)
-        agent = Agents.query.filter_by(id=id).first()
+        agent_id = int(id)
+        agent = Agents.query.filter_by(id=agent_id).first()
         if not agent:
             return {"message": "Agent not found"}, 404
 
