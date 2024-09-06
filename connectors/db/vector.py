@@ -7,7 +7,6 @@ from operator import itemgetter
 import html2text
 import mdformat
 from bs4 import BeautifulSoup
-from flask_sqlalchemy import SQLAlchemy
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
@@ -16,9 +15,9 @@ from sqlalchemy import text
 
 import connectors.config as cfg
 
-log = logging.getLogger("tangerine.db")
+from .common import db
 
-db = SQLAlchemy()
+log = logging.getLogger("tangerine.db.vector")
 
 
 TXT_SEPARATORS = [
@@ -32,17 +31,6 @@ TXT_SEPARATORS = [
     " ",
     "",
 ]
-
-
-class Agents(db.Model):
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    agent_name = db.Column(db.String(50), nullable=False)
-    description = db.Column(db.Text, nullable=False)
-    system_prompt = db.Column(db.Text, nullable=True)
-    filenames = db.Column(db.ARRAY(db.String), default=[], nullable=True)
-
-    def __repr__(self):
-        return f"<Agents {self.id}>"
 
 
 class VectorStoreInterface:

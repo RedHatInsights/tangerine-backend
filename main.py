@@ -5,7 +5,7 @@ from flask_cors import CORS
 from flask_restful import Api
 
 import connectors.config as cfg
-from connectors.vector_store.db import db, vector_interface
+from connectors.db.vector import db, vector_interface
 from resources.routes import initialize_routes
 
 app = Flask("tangerine")

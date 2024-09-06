@@ -6,8 +6,10 @@ from typing import List
 from flask import Response, request
 from flask_restful import Resource
 
-from connectors.llm.interface import DEFAULT_SYSTEM_PROMPT, llm
-from connectors.vector_store.db import Agents, db, vector_interface
+from connectors.config import DEFAULT_SYSTEM_PROMPT
+from connectors.db.agent import Agent, create_agent, db, get_all_agents
+from connectors.db.vector import vector_interface
+from connectors.llm.interface import llm
 from utils.processors import text_extractor
 
 log = logging.getLogger("tangerine.agent")
@@ -21,54 +23,29 @@ class AgentDefaultsApi(Resource):
 class AgentsApi(Resource):
     def get(self):
         try:
-            all_agents = Agents.query.all()
+            all_agents = get_all_agents()
         except Exception:
-            log.exception("exception in AgentsApi GET")
-            return {"message": "error fetching agents from DB"}, 500
+            log.exception("error getting agents")
+            return {"message": "error getting agents"}, 500
 
-        agents_list = []
-
-        for agent in all_agents:
-            agents_list.append(
-                {
-                    "id": agent.id,
-                    "agent_name": agent.agent_name,
-                    "description": agent.description,
-                    "system_prompt": agent.system_prompt,
-                    "filenames": agent.filenames,
-                }
-            )
-        return {"data": agents_list}, 200
+        return {"data": [agent.to_dict() for agent in all_agents]}, 200
 
     def post(self):
-        agent = {
-            "agent_name": request.form["name"],
-            "description": request.form["description"],
-            "system_prompt": request.form.get("system_prompt") or DEFAULT_SYSTEM_PROMPT,
-        }
-
-        # Don't let them create the agent id and filenames
-        agent.pop("id", None)
-        agent.pop("filenames", None)
-
         try:
-            new_agent = Agents(**agent)
-            db.session.add(new_agent)
-            db.session.commit()
-            db.session.refresh(new_agent)
+            agent = create_agent(
+                request.form["name"], request.form["description"], request.form.get("system_prompt")
+            )
         except Exception:
-            log.exception("exception in AgentsApi POST")
-            return {"message": "error inserting agent into DB"}, 500
+            log.exception("error creating agent")
+            return {"message": "error creating agent"}, 500
 
-        agent["id"] = new_agent.id
-
-        return agent, 201
+        return agent.to_dict(), 201
 
 
 class AgentApi(Resource):
     def get(self, id):
         agent_id = int(id)
-        agent = Agents.query.filter_by(id=agent_id).first()
+        agent = Agent.query.filter_by(id=agent_id).first()
 
         if not agent:
             return {"message": "Agent not found"}, 404
@@ -83,7 +60,7 @@ class AgentApi(Resource):
 
     def put(self, id):
         agent_id = int(id)
-        agent = Agents.query.get(agent_id)
+        agent = Agent.query.get(agent_id)
         if agent:
             data = request.get_json()
 
@@ -101,7 +78,7 @@ class AgentApi(Resource):
 
     def delete(self, id):
         agent_id = int(id)
-        agent = Agents.query.get(agent_id)
+        agent = Agent.query.get(agent_id)
         if agent:
             db.session.delete(agent)
             db.session.commit()
@@ -133,7 +110,7 @@ def _create_file_id(source: str, full_path: str) -> str:
 class AgentDocuments(Resource):
     def post(self, id):
         agent_id = int(id)
-        agent = Agents.query.get(agent_id)
+        agent = Agent.query.get(agent_id)
         if not agent:
             return {"message": "Agent not found"}, 404
 
@@ -191,7 +168,7 @@ class AgentDocuments(Resource):
             _create_file_id(metadata["source"], metadata["full_path"]) for metadata in metadatas
         }
 
-        agent = Agents.query.get(id)
+        agent = Agent.query.get(id)
         new_full_paths = [file for file in agent.filenames.copy() if file not in deleted_files]
         agent.filenames = new_full_paths
         db.session.commit()
@@ -199,7 +176,7 @@ class AgentDocuments(Resource):
 
     def delete(self, id):
         agent_id = int(id)
-        agent = Agents.query.get(agent_id)
+        agent = Agent.query.get(agent_id)
         if not agent:
             return {"message": "Agent not found"}, 404
 
@@ -247,7 +224,7 @@ class AgentDocuments(Resource):
 class AgentChatApi(Resource):
     def post(self, id):
         agent_id = int(id)
-        agent = Agents.query.filter_by(id=agent_id).first()
+        agent = Agent.query.filter_by(id=agent_id).first()
         if not agent:
             return {"message": "Agent not found"}, 404
 

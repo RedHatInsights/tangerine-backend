@@ -21,11 +21,14 @@ lxml = "*"
 bs4 = "*"
 html2text = "*"
 mdformat = "*"
+boto3 = "*"
+pydantic = "*"
 
 [dev-packages]
 black = "*"
 isort = "*"
 flake8 = "*"
+ipython = "*"
 
 [requires]
 python_version = "3.11"
