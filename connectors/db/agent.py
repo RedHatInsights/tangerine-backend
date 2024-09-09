@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import List, Optional, Self
 
 from connectors.config import DEFAULT_SYSTEM_PROMPT
 
@@ -21,19 +21,49 @@ class Agent(db.Model):
     def __repr__(self):
         return f"<Agent {self.id}>"
 
+    @classmethod
+    def create(cls, name: str, description: str, system_prompt: str = None) -> Self:
+        new_agent = cls(
+            agent_name=name,
+            description=description,
+            system_prompt=system_prompt or DEFAULT_SYSTEM_PROMPT,
+        )
+        db.session.add(new_agent)
+        db.session.commit()
+        db.session.refresh(new_agent)
 
-def create_agent(name: str, description: str, system_prompt: str = None) -> Agent:
-    new_agent = Agent(
-        agent_name=name,
-        description=description,
-        system_prompt=system_prompt or DEFAULT_SYSTEM_PROMPT,
-    )
-    db.session.add(new_agent)
-    db.session.commit()
-    db.session.refresh(new_agent)
+        return new_agent
 
-    return new_agent
+    @classmethod
+    def list(cls) -> List[Self]:
+        return cls.query.all()
 
+    @classmethod
+    def get(cls, id: int) -> Optional[Self]:
+        agent_id = int(id)
+        agent = cls.query.filter_by(id=agent_id).first()
+        return agent or None
 
-def get_all_agents() -> List[Agent]:
-    return Agent.query.all()
+    def refresh(self) -> Self:
+        return db.session.refresh(self)
+
+    def update(self, **kwargs) -> Self:
+        for key, val in kwargs.items():
+            setattr(self, key, val)
+        db.session.commit()
+        self.refresh()
+        return self
+
+    def add_files(self, file_display_names: List[str]) -> Self:
+        new_names = self.filenames.copy()
+        for name in file_display_names:
+            new_names.append(name)
+        return self.update(filenames=new_names)
+
+    def remove_files(self, file_display_names: List[str]) -> Self:
+        new_names = [name for name in self.filenames.copy() if name not in file_display_names]
+        return self.update(filesnames=new_names)
+
+    def delete(self) -> None:
+        db.session.delete(self)
+        db.session.commit()

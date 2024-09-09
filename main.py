@@ -5,7 +5,7 @@ from flask_cors import CORS
 from flask_restful import Api
 
 import connectors.config as cfg
-from connectors.db.vector import db, vector_interface
+from connectors.db.vector import db, vector_db
 from resources.routes import initialize_routes
 
 app = Flask("tangerine")
@@ -30,7 +30,7 @@ if __name__ == "__main__":
         db.create_all()
         app.logger.info("db tables initiated.")
 
-        vector_interface.init_vector_store()
+        vector_db.init_vector_store()
         app.logger.info("vector store initiated.")
 
     app.run(host="0.0.0.0", debug=True)

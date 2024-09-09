@@ -284,7 +284,7 @@ class VectorStoreInterface:
             # add document id into each result
             result[1]["id"] = result[0]
             matching_docs.append(result[1])
-        vector_interface.delete_documents(doc["id"] for doc in matching_docs)
+        vector_db.delete_documents(doc["id"] for doc in matching_docs)
 
         return matching_docs
 
@@ -292,4 +292,4 @@ class VectorStoreInterface:
         self.store.delete(ids)
 
 
-vector_interface = VectorStoreInterface()
+vector_db = VectorStoreInterface()

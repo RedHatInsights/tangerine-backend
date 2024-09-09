@@ -7,8 +7,8 @@ from flask import Response, request
 from flask_restful import Resource
 
 from connectors.config import DEFAULT_SYSTEM_PROMPT
-from connectors.db.agent import Agent, create_agent, db, get_all_agents
-from connectors.db.vector import vector_interface
+from connectors.db.agent import Agent
+from connectors.db.vector import vector_db
 from connectors.llm.interface import llm
 from utils.processors import text_extractor
 
@@ -23,7 +23,7 @@ class AgentDefaultsApi(Resource):
 class AgentsApi(Resource):
     def get(self):
         try:
-            all_agents = get_all_agents()
+            all_agents = Agent.list()
         except Exception:
             log.exception("error getting agents")
             return {"message": "error getting agents"}, 500
@@ -32,7 +32,7 @@ class AgentsApi(Resource):
 
     def post(self):
         try:
-            agent = create_agent(
+            agent = Agent.create(
                 request.form["name"], request.form["description"], request.form.get("system_prompt")
             )
         except Exception:
@@ -44,48 +44,33 @@ class AgentsApi(Resource):
 
 class AgentApi(Resource):
     def get(self, id):
-        agent_id = int(id)
-        agent = Agent.query.filter_by(id=agent_id).first()
-
+        agent = Agent.get(id)
         if not agent:
             return {"message": "Agent not found"}, 404
 
-        return {
-            "id": agent.id,
-            "agent_name": agent.agent_name,
-            "description": agent.description,
-            "system_prompt": agent.system_prompt,
-            "filenames": agent.filenames,
-        }, 200
+        return agent.to_dict(), 200
 
     def put(self, id):
-        agent_id = int(id)
-        agent = Agent.query.get(agent_id)
-        if agent:
-            data = request.get_json()
-
-            # Don't let them update the agent id and filenames
-            data.pop("id", None)
-            data.pop("filenames", None)
-
-            for key, value in data.items():
-                # Update each field if it exists in the request data
-                setattr(agent, key, value)
-            db.session.commit()
-            return {"message": "Agent updated successfully"}, 200
-        else:
+        data = request.get_json()
+        id = data.pop("id", None)
+        agent = Agent.get(id)
+        if not agent:
             return {"message": "Agent not found"}, 404
+
+        # do not allow filenames to be updated via PUT
+        data.pop("filenames", None)
+        agent.update(**data)
+
+        return {"message": "Agent updated successfully"}, 200
 
     def delete(self, id):
-        agent_id = int(id)
-        agent = Agent.query.get(agent_id)
-        if agent:
-            db.session.delete(agent)
-            db.session.commit()
-            vector_interface.delete_documents_by_metadata({"agent_id": str(agent_id)})
-            return {"message": "Agent deleted successfully"}, 200
-        else:
+        agent = Agent.get(id)
+        if not agent:
             return {"message": "Agent not found"}, 404
+
+        agent.delete()
+        vector_db.delete_documents_by_metadata({"agent_id": str(agent.id)})
+        return {"message": "Agent deleted successfully"}, 200
 
 
 def _validate_source(source: str) -> None:
@@ -101,7 +86,7 @@ def _validate_file_path(full_path: str) -> None:
         raise ValueError(f"file path must match regex: {file_regex}")
 
 
-def _create_file_id(source: str, full_path: str) -> str:
+def _create_file_display_name(source: str, full_path: str) -> str:
     _validate_source(source)
     _validate_file_path(full_path)
     return f"{source}:{full_path}"
@@ -109,8 +94,7 @@ def _create_file_id(source: str, full_path: str) -> str:
 
 class AgentDocuments(Resource):
     def post(self, id):
-        agent_id = int(id)
-        agent = Agent.query.get(agent_id)
+        agent = Agent.get(id)
         if not agent:
             return {"message": "Agent not found"}, 404
 
@@ -121,17 +105,17 @@ class AgentDocuments(Resource):
         files = request.files.getlist("file")
         source = request.form.get("source", "default")
 
-        file_contents = []
+        file_data = []
         for file in files:
             full_path = file.filename
             try:
-                file_id = _create_file_id(source, full_path)
+                file_display_name = _create_file_display_name(source, full_path)
             except ValueError as err:
                 return {"message": str(err)}, 400
 
             if not any(
                 [
-                    file_id.endswith(filetype)
+                    file_display_name.endswith(filetype)
                     for filetype in [".txt", ".pdf", ".md", ".rst", ".html"]
                 ]
             ):
@@ -139,44 +123,36 @@ class AgentDocuments(Resource):
 
             file_content = file.stream.read()
 
-            file_contents.append([file_id, full_path, file_content])
-
-        # Add filenames to the DB
-        new_full_paths = agent.filenames.copy()
-        for fileinfo in file_contents:
-            new_full_paths.append(fileinfo[0])
-        agent.filenames = new_full_paths
-        db.session.commit()
+            file_data.append([file_display_name, full_path, file_content])
 
         def generate_progress():
-            for _, full_path, file_content in file_contents:
+            for file_display_name, full_path, file_content in file_data:
                 yield json.dumps({"file": full_path, "step": "start"}) + "\n"
                 extracted_text = text_extractor(full_path, file_content)
                 yield json.dumps({"file": full_path, "step": "text_extracted"}) + "\n"
 
                 # Only generate embeddings when there is actual texts
                 if len(extracted_text) > 0:
-                    vector_interface.add_document(extracted_text, agent_id, source, full_path)
+                    vector_db.add_document(extracted_text, agent.id, source, full_path)
+                    agent.add_files([file_display_name])
                     yield json.dumps({"file": full_path, "step": "embedding_created"}) + "\n"
 
                 yield json.dumps({"file": full_path, "step": "end"}) + "\n"
 
         return Response(generate_progress(), mimetype="application/json")
 
-    def _delete_from_agent(self, id: int, metadatas: List[dict]) -> List[str]:
-        deleted_files = {
-            _create_file_id(metadata["source"], metadata["full_path"]) for metadata in metadatas
+    def _delete_from_agent(self, agent: Agent, metadatas: List[dict]) -> List[str]:
+        files_to_delete = {
+            _create_file_display_name(metadata["source"], metadata["full_path"])
+            for metadata in metadatas
         }
 
-        agent = Agent.query.get(id)
-        new_full_paths = [file for file in agent.filenames.copy() if file not in deleted_files]
-        agent.filenames = new_full_paths
-        db.session.commit()
-        return list(deleted_files)
+        agent.delete_files(files_to_delete)
+
+        return list(files_to_delete)
 
     def delete(self, id):
-        agent_id = int(id)
-        agent = Agent.query.get(agent_id)
+        agent = Agent.get(id)
         if not agent:
             return {"message": "Agent not found"}, 404
 
@@ -199,11 +175,11 @@ class AgentDocuments(Resource):
         if not metadata and not delete_all:
             return {"message": "'source' or 'full_path' required when not using 'all'"}, 400
 
-        metadata["agent_id"] = str(agent_id)
+        metadata["agent_id"] = str(agent.id)
 
         # delete from vector store
         try:
-            metadatas = vector_interface.delete_documents_by_metadata(metadata)
+            metadatas = vector_db.delete_documents_by_metadata(metadata)
         except Exception:
             err = "Error deleting document(s) from vector store"
             log.exception(err)
@@ -211,7 +187,7 @@ class AgentDocuments(Resource):
 
         # delete from agent DB
         try:
-            deleted = self._delete_from_agent(agent_id, metadatas)
+            deleted = self._delete_from_agent(agent, metadatas)
         except Exception:
             err = "Error deleting document(s) from agent DB"
             log.exception(err)
@@ -223,8 +199,7 @@ class AgentDocuments(Resource):
 
 class AgentChatApi(Resource):
     def post(self, id):
-        agent_id = int(id)
-        agent = Agent.query.filter_by(id=agent_id).first()
+        agent = Agent.get(id)
         if not agent:
             return {"message": "Agent not found"}, 404
 

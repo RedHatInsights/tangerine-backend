@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 import connectors.config as cfg
 import connectors.db.agent as db
-from connectors.db.vector import vector_interface
+from connectors.db.vector import vector_db
 
 s3 = boto3.client("s3")
 

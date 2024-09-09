@@ -7,7 +7,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 import connectors.config as cfg
-from connectors.db.vector import vector_interface
+from connectors.db.vector import vector_db
 
 log = logging.getLogger("tangerine.llm")
 
@@ -17,7 +17,7 @@ class LLMInterface:
         pass
 
     def ask(self, system_prompt, previous_messages, question, agent_id, stream):
-        results = vector_interface.search(question, agent_id)
+        results = vector_db.search(question, agent_id)
 
         prompt_params = {"question": question}
         prompt = ChatPromptTemplate.from_template("{question}")
