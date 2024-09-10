@@ -15,7 +15,7 @@ from sqlalchemy import text
 
 import connectors.config as cfg
 
-from .common import db
+from .agent import db
 
 log = logging.getLogger("tangerine.db.vector")
 

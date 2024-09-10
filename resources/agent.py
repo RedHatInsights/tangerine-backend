@@ -1,16 +1,14 @@
 import json
 import logging
-import re
-from typing import List
 
-from flask import Response, request
+from flask import Response, request, stream_with_context
 from flask_restful import Resource
 
 from connectors.config import DEFAULT_SYSTEM_PROMPT
 from connectors.db.agent import Agent
+from connectors.db.common import File, add_file, remove_files
 from connectors.db.vector import vector_db
 from connectors.llm.interface import llm
-from utils.processors import text_extractor
 
 log = logging.getLogger("tangerine.agent")
 
@@ -51,14 +49,14 @@ class AgentApi(Resource):
         return agent.to_dict(), 200
 
     def put(self, id):
-        data = request.get_json()
-        id = data.pop("id", None)
         agent = Agent.get(id)
         if not agent:
             return {"message": "Agent not found"}, 404
 
-        # do not allow filenames to be updated via PUT
+        data = request.get_json()
+        # ignore 'id' or 'filenames' if provided in JSON payload
         data.pop("filenames", None)
+        data.pop("id", None)
         agent.update(**data)
 
         return {"message": "Agent updated successfully"}, 200
@@ -73,25 +71,6 @@ class AgentApi(Resource):
         return {"message": "Agent deleted successfully"}, 200
 
 
-def _validate_source(source: str) -> None:
-    source_regex = r"^[\w-]+$"
-    if not source or not source.strip() or not re.match(source_regex, source):
-        raise ValueError(f"source must match regex: {source_regex}")
-
-
-def _validate_file_path(full_path: str) -> None:
-    # intentionally more restrictive, matches a "typical" unix path and filename with extension
-    file_regex = r"^[\w\-.\/ ]+\/?\.[\w\-. ]+[^.]$"
-    if not full_path or not full_path.strip() or not re.match(file_regex, full_path):
-        raise ValueError(f"file path must match regex: {file_regex}")
-
-
-def _create_file_display_name(source: str, full_path: str) -> str:
-    _validate_source(source)
-    _validate_file_path(full_path)
-    return f"{source}:{full_path}"
-
-
 class AgentDocuments(Resource):
     def post(self, id):
         agent = Agent.get(id)
@@ -102,54 +81,25 @@ class AgentDocuments(Resource):
         if "file" not in request.files:
             return {"message": "No file part"}, 400
 
-        files = request.files.getlist("file")
-        source = request.form.get("source", "default")
+        request_source = request.form.get("source", "default")
 
-        file_data = []
-        for file in files:
-            full_path = file.filename
+        files = []
+        for file in request.files.getlist("file"):
+            content = file.stream.read()
+            new_file = File(source=request_source, full_path=file.filename, content=content)
             try:
-                file_display_name = _create_file_display_name(source, full_path)
+                new_file.validate()
             except ValueError as err:
-                return {"message": str(err)}, 400
-
-            if not any(
-                [
-                    file_display_name.endswith(filetype)
-                    for filetype in [".txt", ".pdf", ".md", ".rst", ".html"]
-                ]
-            ):
-                return {"message": "Unsupported file type uploaded"}, 400
-
-            file_content = file.stream.read()
-
-            file_data.append([file_display_name, full_path, file_content])
+                return {"message": f"validation failed for {file.filename}: {str(err)}"}, 400
+            files.append(new_file)
 
         def generate_progress():
-            for file_display_name, full_path, file_content in file_data:
-                yield json.dumps({"file": full_path, "step": "start"}) + "\n"
-                extracted_text = text_extractor(full_path, file_content)
-                yield json.dumps({"file": full_path, "step": "text_extracted"}) + "\n"
+            for file in files:
+                yield json.dumps({"file": file.display_name, "step": "start"}) + "\n"
+                add_file(file, agent)
+                yield json.dumps({"file": file.display_name, "step": "end"}) + "\n"
 
-                # Only generate embeddings when there is actual texts
-                if len(extracted_text) > 0:
-                    vector_db.add_document(extracted_text, agent.id, source, full_path)
-                    agent.add_files([file_display_name])
-                    yield json.dumps({"file": full_path, "step": "embedding_created"}) + "\n"
-
-                yield json.dumps({"file": full_path, "step": "end"}) + "\n"
-
-        return Response(generate_progress(), mimetype="application/json")
-
-    def _delete_from_agent(self, agent: Agent, metadatas: List[dict]) -> List[str]:
-        files_to_delete = {
-            _create_file_display_name(metadata["source"], metadata["full_path"])
-            for metadata in metadatas
-        }
-
-        agent.delete_files(files_to_delete)
-
-        return list(files_to_delete)
+        return Response(stream_with_context(generate_progress()), mimetype="application/json")
 
     def delete(self, id):
         agent = Agent.get(id)
@@ -160,36 +110,21 @@ class AgentDocuments(Resource):
         full_path = request.json.get("full_path")
         delete_all = bool(request.json.get("all", False))
 
-        metadata = {}
-
-        try:
-            if full_path:
-                _validate_file_path(full_path)
-                metadata["full_path"] = full_path
-            if source:
-                _validate_source(source)
-                metadata["source"] = source
-        except ValueError as err:
-            return {"message": err}, 400
-
-        if not metadata and not delete_all:
+        if not source and not full_path and not delete_all:
             return {"message": "'source' or 'full_path' required when not using 'all'"}, 400
 
-        metadata["agent_id"] = str(agent.id)
+        metadata = {}
+        if source:
+            metadata["source"] = source
+        if full_path:
+            metadata["full_path"] = full_path
 
-        # delete from vector store
         try:
-            metadatas = vector_db.delete_documents_by_metadata(metadata)
+            deleted = remove_files(agent, metadata)
+        except ValueError as err:
+            return {"message": str(err)}, 400
         except Exception:
-            err = "Error deleting document(s) from vector store"
-            log.exception(err)
-            return {"message": err}, 500
-
-        # delete from agent DB
-        try:
-            deleted = self._delete_from_agent(agent, metadatas)
-        except Exception:
-            err = "Error deleting document(s) from agent DB"
+            err = "unexpected error deleting document(s) from DB"
             log.exception(err)
             return {"message": err}, 500
 

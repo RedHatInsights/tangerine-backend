@@ -1,9 +1,11 @@
 import logging
 from typing import List, Optional, Self
 
+from flask_sqlalchemy import SQLAlchemy
+
 from connectors.config import DEFAULT_SYSTEM_PROMPT
 
-from .common import db
+db = SQLAlchemy()
 
 log = logging.getLogger("tangerine.db.agent")
 
@@ -41,7 +43,7 @@ class Agent(db.Model):
     @classmethod
     def get(cls, id: int) -> Optional[Self]:
         agent_id = int(id)
-        agent = cls.query.filter_by(id=agent_id).first()
+        agent = cls.query.session.get(cls, agent_id)
         return agent or None
 
     def refresh(self) -> Self:
@@ -49,6 +51,9 @@ class Agent(db.Model):
 
     def update(self, **kwargs) -> Self:
         for key, val in kwargs.items():
+            if key == "id":
+                # do not allow updating of id
+                continue
             setattr(self, key, val)
         db.session.commit()
         self.refresh()

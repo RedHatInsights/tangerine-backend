@@ -45,7 +45,6 @@ USER 1001
 
 ADD connectors ./connectors
 ADD resources ./resources
-ADD utils ./utils
 ADD main.py .
 
 EXPOSE 5000

@@ -34,6 +34,9 @@ def get_all_objects(bucket: str, prefix: str) -> List:
     return objects
 
 
+# TODO: implement sync logic ...
+
+
 def get_sync_config() -> SyncConfig:
     with open(cfg.S3_SYNC_CONFIG_FILE) as fp:
         data = yaml.safe_load(fp)
