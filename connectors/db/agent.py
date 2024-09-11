@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Self
+from typing import Iterable, List, Optional, Self
 
 from flask_sqlalchemy import SQLAlchemy
 
@@ -59,13 +59,13 @@ class Agent(db.Model):
         self.refresh()
         return self
 
-    def add_files(self, file_display_names: List[str]) -> Self:
+    def add_files(self, file_display_names: Iterable[str]) -> Self:
         new_names = self.filenames.copy()
         for name in file_display_names:
             new_names.append(name)
         return self.update(filenames=new_names)
 
-    def remove_files(self, file_display_names: List[str]) -> Self:
+    def remove_files(self, file_display_names: Iterable[str]) -> Self:
         new_names = [name for name in self.filenames.copy() if name not in file_display_names]
         return self.update(filesnames=new_names)
 

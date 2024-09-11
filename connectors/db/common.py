@@ -8,36 +8,36 @@ from .agent import Agent
 from .vector import vector_db
 
 
+def validate_file_path(full_path: str) -> None:
+    # intentionally more restrictive, matches a "typical" unix path and filename with extension
+    file_regex = r"^[\w\-.\/ ]+\/?\.[\w\-. ]+[^.]$"
+    if not full_path or not full_path.strip() or not re.match(file_regex, full_path):
+        raise ValueError(f"file path must match regex: {file_regex}")
+
+
+def validate_source(source: str) -> None:
+    source_regex = r"^[\w-]+$"
+    if not source or not source.strip() or not re.match(source_regex, source):
+        raise ValueError(f"source must match regex: {source_regex}")
+
+
+def validate_file_type(full_path: str) -> None:
+    if not any(
+        [full_path.endswith(filetype) for filetype in [".txt", ".pdf", ".md", ".rst", ".html"]]
+    ):
+        raise ValueError("unsupported file type")
+
+
 class File:
-    @staticmethod
-    def validate_file_path(full_path: str) -> None:
-        # intentionally more restrictive, matches a "typical" unix path and filename with extension
-        file_regex = r"^[\w\-.\/ ]+\/?\.[\w\-. ]+[^.]$"
-        if not full_path or not full_path.strip() or not re.match(file_regex, full_path):
-            raise ValueError(f"file path must match regex: {file_regex}")
-
-    @staticmethod
-    def validate_source(source: str) -> None:
-        source_regex = r"^[\w-]+$"
-        if not source or not source.strip() or not re.match(source_regex, source):
-            raise ValueError(f"source must match regex: {source_regex}")
-
-    @staticmethod
-    def validate_file_type(full_path: str) -> None:
-        if not any(
-            [full_path.endswith(filetype) for filetype in [".txt", ".pdf", ".md", ".rst", ".html"]]
-        ):
-            raise ValueError("unsupported file type")
-
     def __init__(self, source: str, full_path: str, content: Optional[str] = ""):
         self.source = source
         self.full_path = full_path
         self.content = content
 
     def validate(self):
-        self.validate_file_path(self.full_path)
-        self.validate_file_type(self.full_path)
-        self.validate_source(self.source)
+        validate_file_path(self.full_path)
+        validate_file_type(self.full_path)
+        validate_source(self.source)
 
     @property
     def display_name(self) -> str:
@@ -74,18 +74,20 @@ def add_file(file: File, agent: Agent) -> None:
 def remove_files(agent: Agent, metadata: dict) -> List[str]:
     metadata["agent_id"] = str(agent.id)
     if "full_path" in metadata:
-        File.validate_file_path(metadata["full_path"])
+        validate_file_path(metadata["full_path"])
     if "source" in metadata:
-        File.validate_source(metadata["source"])
+        validate_source(metadata["source"])
 
-    # delete from vector store
+    # first delete docs from vector store, get metadata back for deleted files
     deleted_doc_metadatas = vector_db.delete_documents_by_metadata(metadata)
 
     # delete from agent DB
-    files = [
-        File(source=metadata["source"], full_path=metadata["full_path"]).display_name
-        for metadata in deleted_doc_metadatas
-    ]
-    agent.remove_files(files)
+    file_display_names = set(
+        [
+            File(source=metadata["source"], full_path=metadata["full_path"]).display_name
+            for metadata in deleted_doc_metadatas
+        ]
+    )
+    agent.remove_files(file_display_names)
 
-    return files
+    return file_display_names
