@@ -223,6 +223,12 @@ class VectorStoreInterface:
             documents = self.create_documents(text, agent_id, source, full_path)
             if documents:
                 self.store.add_documents(documents)
+                log.debug(
+                    "added %d documents to agent %d from source %s",
+                    len(documents),
+                    agent_id,
+                    source,
+                )
         except Exception:
             log.exception("error adding documents")
 
@@ -284,11 +290,17 @@ class VectorStoreInterface:
             # add document id into each result
             result[1]["id"] = result[0]
             matching_docs.append(result[1])
-        vector_db.delete_documents(doc["id"] for doc in matching_docs)
+
+        log.debug(
+            "found %d doc(s) from vector DB matching filter: %s", len(matching_docs), metadata
+        )
+
+        self.delete_documents([doc["id"] for doc in matching_docs])
 
         return matching_docs
 
     def delete_documents(self, ids):
+        log.debug("deleting %d doc(s) from vector store", len(ids))
         self.store.delete(ids)
 
 

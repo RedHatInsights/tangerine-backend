@@ -90,4 +90,4 @@ def remove_files(agent: Agent, metadata: dict) -> List[str]:
     )
     agent.remove_files(file_display_names)
 
-    return file_display_names
+    return list(file_display_names)
