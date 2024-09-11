@@ -34,6 +34,8 @@ class Agent(db.Model):
         db.session.commit()
         db.session.refresh(new_agent)
 
+        log.debug("agent %d created", new_agent.id)
+
         return new_agent
 
     @classmethod
@@ -44,31 +46,50 @@ class Agent(db.Model):
     def get(cls, id: int) -> Optional[Self]:
         agent_id = int(id)
         agent = cls.query.session.get(cls, agent_id)
-        return agent or None
+        result = agent or None
+        log.debug("get agent by id %d result: %s", agent_id, result)
+        return result
 
     def refresh(self) -> Self:
         return db.session.refresh(self)
 
     def update(self, **kwargs) -> Self:
+        updated_keys = []
         for key, val in kwargs.items():
             if key == "id":
                 # do not allow updating of id
                 continue
             setattr(self, key, val)
+            updated_keys.append(key)
         db.session.commit()
         self.refresh()
+        log.debug("updating attributes %s of agent %d", updated_keys, self.id)
         return self
 
     def add_files(self, file_display_names: Iterable[str]) -> Self:
         new_names = self.filenames.copy()
         for name in file_display_names:
             new_names.append(name)
+        log.debug("adding %d files to agent %d", len(new_names), self.id)
         return self.update(filenames=new_names)
 
     def remove_files(self, file_display_names: Iterable[str]) -> Self:
         new_names = [name for name in self.filenames.copy() if name not in file_display_names]
-        return self.update(filesnames=new_names)
+        old_count = len(self.filenames)
+        new_count = len(new_names)
+        diff = old_count - new_count
+        log.debug(
+            "removing %d files from agent %d, old count %d, new count %d",
+            diff,
+            self.id,
+            old_count,
+            new_count,
+        )
+        if diff > 0:
+            return self.update(filesnames=new_names)
+        return self
 
     def delete(self) -> None:
         db.session.delete(self)
         db.session.commit()
+        log.debug("agent with id %d deleted", self.id)
