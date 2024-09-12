@@ -5,7 +5,7 @@ import yaml
 from pydantic import BaseModel
 
 import connectors.config as cfg
-import connectors.db.agent as db
+from connectors.db.agent import Agent
 from connectors.db.vector import vector_db
 
 s3 = boto3.client("s3")
@@ -45,8 +45,8 @@ def get_sync_config() -> SyncConfig:
     return sync_config
 
 
-def create_agent(agent_config: AgentConfig) -> db.Agent:
-    return db.create_agent(dict(agent_config))
+def create_agent(agent_config: AgentConfig) -> Agent:
+    return Agent.create(name=agent_config.name, description=agent_config.description, system_prompt=agent_config.system_prompt)
 
 
 def create_agents() -> None:

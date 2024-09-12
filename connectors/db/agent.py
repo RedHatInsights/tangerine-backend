@@ -24,7 +24,7 @@ class Agent(db.Model):
         return f"<Agent {self.id}>"
 
     @classmethod
-    def create(cls, name: str, description: str, system_prompt: str = None) -> Self:
+    def create(cls, name: str, description: str, system_prompt: str = None, **kwargs) -> Self:
         new_agent = cls(
             agent_name=name,
             description=description,
