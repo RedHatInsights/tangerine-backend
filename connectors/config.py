@@ -1,5 +1,7 @@
 import os
 
+LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG").upper()
+
 DB_USERNAME = os.getenv("DB_USERNAME", "citrus")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "citrus")
 DB_NAME = os.getenv("DB_NAME", "citrus")

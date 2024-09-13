@@ -17,10 +17,11 @@ class AgentConfig(BaseModel):
     system_prompt: Optional[str] = None
     bucket: str
     prefix: str
-    file_types: List[str]
+    file_types: Optional[List[str]]
 
 
 class SyncConfig(BaseModel):
+    default_file_types: List[str]
     agents: List[AgentConfig]
 
 
@@ -34,9 +35,6 @@ def get_all_objects(bucket: str, prefix: str) -> List:
     return objects
 
 
-# TODO: implement sync logic ...
-
-
 def get_sync_config() -> SyncConfig:
     with open(cfg.S3_SYNC_CONFIG_FILE) as fp:
         data = yaml.safe_load(fp)
@@ -46,10 +44,20 @@ def get_sync_config() -> SyncConfig:
 
 
 def create_agent(agent_config: AgentConfig) -> Agent:
-    return Agent.create(name=agent_config.name, description=agent_config.description, system_prompt=agent_config.system_prompt)
+    Agent.create(**agent_config)
+
+
+def sync_agent(agent: Agent, agent_config: AgentConfig) -> Agent:
+    agent.update(**agent_config)
 
 
 def create_agents() -> None:
     sync_config = get_sync_config()
     for agent_config in sync_config.agents:
-        create_agent(agent_config)
+        agent = Agent.get_by_name(agent_config.name)
+        if agent:
+            sync_agent(agent, agent_config)
+            # sync docs...
+        else:
+            create_agent(agent_config)
+            # upload docs...

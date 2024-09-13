@@ -45,10 +45,10 @@ USER 1001
 
 ADD connectors ./connectors
 ADD resources ./resources
-ADD main.py .
+ADD app.py .
 
 EXPOSE 5000
 
 ENV PATH="$APP_ROOT/.venv/bin:$PATH"
-CMD ["python", "./main.py"]
+CMD ["flask", "run"]
 
