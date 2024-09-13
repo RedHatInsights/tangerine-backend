@@ -46,16 +46,14 @@ class Agent(db.Model):
     def get(cls, id: int) -> Optional[Self]:
         agent_id = int(id)
         agent = cls.query.session.get(cls, agent_id)
-        result = agent or None
-        log.debug("get agent by id %d result: %s", agent_id, result)
-        return result
+        log.debug("get agent by id %d result: %s", agent_id, agent)
+        return agent
 
     @classmethod
     def get_by_name(cls, name: str) -> Optional[Self]:
-        agent = cls.query.session.query(cls).filter_by(agent_name=name)
-        result = agent or None
-        log.debug("get agent by name '%s' result: %s", name, result)
-        return result
+        agent = cls.query.session.query(cls).filter_by(agent_name=name).first()
+        log.debug("get agent by name '%s' result: %s", name, agent)
+        return agent
 
     def refresh(self) -> Self:
         return db.session.refresh(self)

@@ -50,5 +50,5 @@ ADD app.py .
 EXPOSE 5000
 
 ENV PATH="$APP_ROOT/.venv/bin:$PATH"
-CMD ["flask", "run"]
+CMD ["flask", "run", "--host=0.0.0.0"]
 
