@@ -68,6 +68,7 @@ services:
       - LLM_MODEL_NAME=mistral
       - EMBED_MODEL_NAME=snowflake-arctic-embed-m-long
       - EMBED_QUERY_PREFIX="Represent this sentence for searching relevant passages"
+    env_file: ".env"  # store aws s3 env vars here
     healthcheck:
       test: curl --fail "http://localhost:5000/ping" || exit 1
       start_period: 10s

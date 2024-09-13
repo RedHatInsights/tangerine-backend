@@ -12,12 +12,16 @@ from pydantic import BaseModel
 
 import connectors.config as cfg
 from connectors.db.agent import Agent
-from connectors.db.vector import vector_db
+from connectors.db.common import File, add_file
 
 s3 = boto3.client("s3")
 
 
 log = logging.getLogger(__name__)
+
+
+DOWNLOAD_SUCCESS = "download success"
+FILE_ADDED = "file added to agent"
 
 
 class AgentConfig(BaseModel):
@@ -71,7 +75,7 @@ def download_obj(bucket, obj_key, dest_dir):
     log.debug("downloading %s to %s", obj_key, download_path)
     s3.download_file(bucket, obj_key, str(download_path))
 
-    return "download success"
+    return DOWNLOAD_SUCCESS
 
 
 def download_objs(bucket, s3_objects, dest_dir):
@@ -89,10 +93,40 @@ def download_objs(bucket, s3_objects, dest_dir):
                 yield key, exception
 
 
-def add_all_docs_to_agent(agent_config: AgentConfig):
+def add_file_to_agent(bucket, s3_object, tmpdir, agent):
+    """Adds an s3 object stored locally to agent"""
+    file_path = s3_object["Key"]
+    path_on_disk = Path(tmpdir) / Path(s3_object["Key"])
+
+    with open(path_on_disk, "r") as fp:
+        f = File(source=f"s3-{bucket}", full_path=file_path, content=fp.read())
+    add_file(f, agent)
+
+    return FILE_ADDED
+
+
+def add_files_to_agent(bucket, s3_objects, tmpdir, agent):
+    with ProcessPoolExecutor() as executor:
+        key_for_future = {
+            executor.submit(add_file_to_agent, bucket, s3_object, tmpdir, agent): s3_object["Key"]
+            for s3_object in s3_objects
+        }
+
+        for future in futures.as_completed(key_for_future):
+            key = key_for_future[future]
+            exception = future.exception()
+
+            if not exception:
+                yield key, future.result()
+            else:
+                yield key, exception
+
+
+def add_all_docs_to_agent(agent_config: AgentConfig, agent: Agent):
     bucket = agent_config.bucket
     prefix = agent_config.prefix
     s3_objects = get_all_s3_objects(bucket, prefix)
+    log.debug("%d objects found in bucket %s at prefix %s", len(s3_objects), bucket, prefix)
     extensions = agent_config.file_types
 
     def _filter(file_data):
@@ -100,9 +134,13 @@ def add_all_docs_to_agent(agent_config: AgentConfig):
 
     s3_objects = filter(_filter, s3_objects)
 
+    log.debug("%d objects to download after filtering for file type extensions %s", extensions)
+
     with tempfile.TemporaryDirectory() as tmpdir:
         for key, result in download_objs(bucket, s3_objects, tmpdir):
             log.debug("%s: %s", key, result)
+        for key, result in add_files_to_agent(bucket, s3_objects, tmpdir, agent):
+            log.debug("%s: %s"), key, result
 
 
 def run() -> None:
@@ -116,5 +154,5 @@ def run() -> None:
             sync_agent(agent, agent_config)
             # sync docs...
         else:
-            create_agent(agent_config)
-            add_all_docs_to_agent(agent_config)
+            agent = create_agent(agent_config)
+            add_all_docs_to_agent(agent_config, agent)
