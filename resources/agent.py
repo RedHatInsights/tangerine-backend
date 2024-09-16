@@ -86,7 +86,9 @@ class AgentDocuments(Resource):
         files = []
         for file in request.files.getlist("file"):
             content = file.stream.read()
-            new_file = File(source=request_source, full_path=file.filename, content=content)
+            new_file = File(
+                source=request_source, full_path=file.filename, content=content.decode("utf-8")
+            )
             try:
                 new_file.validate()
             except ValueError as err:

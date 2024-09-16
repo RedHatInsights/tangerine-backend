@@ -1,13 +1,14 @@
 import logging
 import tempfile
 from concurrent import futures
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import List, Optional
 
 import boto3
 import boto3.session
 import yaml
+from flask import current_app
 from pydantic import BaseModel
 
 import connectors.config as cfg
@@ -18,10 +19,6 @@ s3 = boto3.client("s3")
 
 
 log = logging.getLogger(__name__)
-
-
-DOWNLOAD_SUCCESS = "download success"
-FILE_ADDED = "file added to agent"
 
 
 class AgentConfig(BaseModel):
@@ -75,26 +72,29 @@ def download_obj(bucket, obj_key, dest_dir):
     log.debug("downloading %s to %s", obj_key, download_path)
     s3.download_file(bucket, obj_key, str(download_path))
 
-    return DOWNLOAD_SUCCESS
+    return "success"
 
 
 def download_objs(bucket, s3_objects, dest_dir):
     keys = [obj["Key"] for obj in s3_objects]
-    with ProcessPoolExecutor() as executor:
+    with ThreadPoolExecutor() as executor:
         key_for_future = {executor.submit(download_obj, bucket, key, dest_dir): key for key in keys}
 
         for future in futures.as_completed(key_for_future):
             key = key_for_future[future]
-            exception = future.exception()
-
-            if not exception:
+            try:
                 yield key, future.result()
-            else:
-                yield key, exception
+            except Exception as err:
+                log.exception(f"hit error downloading {key}")
+                yield key, str(err)
 
 
-def add_file_to_agent(bucket, s3_object, tmpdir, agent):
+def add_file_to_agent(app_context, bucket, s3_object, tmpdir, agent_id):
     """Adds an s3 object stored locally to agent"""
+    app_context.push()
+
+    agent = Agent.get(agent_id)
+
     file_path = s3_object["Key"]
     path_on_disk = Path(tmpdir) / Path(s3_object["Key"])
 
@@ -102,27 +102,28 @@ def add_file_to_agent(bucket, s3_object, tmpdir, agent):
         f = File(source=f"s3-{bucket}", full_path=file_path, content=fp.read())
     add_file(f, agent)
 
-    return FILE_ADDED
+    return "success"
 
 
-def add_files_to_agent(bucket, s3_objects, tmpdir, agent):
-    with ProcessPoolExecutor() as executor:
+def add_files_to_agent(bucket, s3_objects, tmpdir, agent_id):
+    with ThreadPoolExecutor() as executor:
         key_for_future = {
-            executor.submit(add_file_to_agent, bucket, s3_object, tmpdir, agent): s3_object["Key"]
+            executor.submit(
+                add_file_to_agent, current_app.app_context(), bucket, s3_object, tmpdir, agent_id
+            ): s3_object["Key"]
             for s3_object in s3_objects
         }
 
         for future in futures.as_completed(key_for_future):
             key = key_for_future[future]
-            exception = future.exception()
-
-            if not exception:
+            try:
                 yield key, future.result()
-            else:
-                yield key, exception
+            except Exception as err:
+                log.exception(f"hit error adding {key} to agent")
+                yield key, str(err)
 
 
-def add_all_docs_to_agent(agent_config: AgentConfig, agent: Agent):
+def add_all_docs_to_agent(agent_config: AgentConfig, agent_id: int):
     bucket = agent_config.bucket
     prefix = agent_config.prefix
     s3_objects = get_all_s3_objects(bucket, prefix)
@@ -132,15 +133,19 @@ def add_all_docs_to_agent(agent_config: AgentConfig, agent: Agent):
     def _filter(file_data):
         return any([file_data["Key"].endswith(f".{extension}") for extension in extensions])
 
-    s3_objects = filter(_filter, s3_objects)
+    s3_objects = list(filter(_filter, s3_objects))
 
-    log.debug("%d objects to download after filtering for file type extensions %s", extensions)
+    log.debug(
+        "%d objects to download after filtering for file type extensions %s",
+        len(s3_objects),
+        extensions,
+    )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         for key, result in download_objs(bucket, s3_objects, tmpdir):
-            log.debug("%s: %s", key, result)
-        for key, result in add_files_to_agent(bucket, s3_objects, tmpdir, agent):
-            log.debug("%s: %s"), key, result
+            log.debug("download %s: %s", key, result)
+        for key, result in add_files_to_agent(bucket, s3_objects, tmpdir, agent_id):
+            log.debug("store %s: %s", key, result)
 
 
 def run() -> None:
@@ -155,4 +160,5 @@ def run() -> None:
             # sync docs...
         else:
             agent = create_agent(agent_config)
-            add_all_docs_to_agent(agent_config, agent)
+        # todo: indent this
+        add_all_docs_to_agent(agent_config, agent.id)

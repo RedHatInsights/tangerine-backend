@@ -14,6 +14,8 @@ from resources.routes import initialize_routes
 
 
 def create_app():
+    logging.basicConfig(level=getattr(logging, cfg.LOG_LEVEL))
+
     app = Flask("tangerine")
 
     app.config["CORS_HEADERS"] = "Content-Type"
@@ -28,8 +30,6 @@ def create_app():
 
     app.cli.add_command(s3sync)
 
-    app.logger.setLevel(getattr(logging, cfg.LOG_LEVEL))
-
     with app.app_context():
         db.session.commit()
         db.create_all()
@@ -41,7 +41,7 @@ def create_app():
     return app
 
 
-@click.command()
+@click.command("s3sync")
 @with_appcontext
 def s3sync():
     current_app.logger.info("running s3sync")

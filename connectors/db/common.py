@@ -1,5 +1,5 @@
 import re
-from io import BytesIO
+from io import StringIO
 from typing import List, Optional
 
 import PyPDF2
@@ -45,7 +45,7 @@ class File:
 
     def extract_text(self):
         if self.full_path.endswith(".pdf"):
-            pdf_reader = PyPDF2.PdfReader(BytesIO(self.content))
+            pdf_reader = PyPDF2.PdfReader(StringIO(self.content))
 
             text_content = ""
             # iterate through each page in the PDF and extract text
@@ -56,8 +56,7 @@ class File:
             return text_content
 
         if self.full_path.endswith((".md", ".txt", ".rst", ".html")):
-            text_content = self.content.decode("utf-8")
-            return text_content
+            return self.content
 
         return ""
 
