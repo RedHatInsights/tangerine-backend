@@ -77,8 +77,10 @@ class Agent(db.Model):
 
     def add_files(self, file_display_names: Iterable[str]) -> Self:
         filenames = self.filenames.copy()
+        file_display_names = set(file_display_names)
         for name in file_display_names:
-            filenames.append(name)
+            if name not in filenames:
+                filenames.append(name)
         log.debug(
             "adding %d files to agent %d, total files now %d",
             len(file_display_names),

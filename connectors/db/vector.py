@@ -1,5 +1,5 @@
+import json
 import logging
-import pathlib
 import re
 import string
 from operator import itemgetter
@@ -16,6 +16,7 @@ from sqlalchemy import text
 import connectors.config as cfg
 
 from .agent import db
+from .file import File
 
 log = logging.getLogger("tangerine.db.vector")
 
@@ -79,7 +80,7 @@ class VectorStoreInterface:
 
         return chunks
 
-    def split_to_docs(self, text, metadata):
+    def split_to_document_chunks(self, text, metadata):
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.vector_chunk_size,
             chunk_overlap=self.vector_chunk_overlap,
@@ -197,43 +198,44 @@ class VectorStoreInterface:
 
         return md
 
-    def create_documents(self, text, agent_id, source, full_path):
-        log.debug("processing %s", full_path)
-        if full_path.lower().endswith(".html"):
+    def create_document_chunks(self, file: File, agent_id: int):
+        log.debug("processing %s", file)
+
+        text = file.extract_text()
+
+        if file.full_path.lower().endswith(".html"):
             text = self.html_to_md(text)
 
         if not text:
-            raise ValueError("no document text provided")
+            log.error("file %s: empty text", file)
+            return []
 
         metadata = {
             "agent_id": str(agent_id),
-            "source": source,
-            "full_path": full_path,
-            "filename": pathlib.Path(full_path).name,
         }
+        metadata.update(file.metadata)
 
-        chunked_docs = self.split_to_docs(text, metadata)
+        chunks = self.split_to_document_chunks(text, metadata)
 
-        log.debug("document chunks: %s", chunked_docs)
+        log.debug("document chunks: %s", chunks)
 
-        return chunked_docs
+        return chunks
 
-    def add_document(self, text, agent_id, source, full_path):
+    def add_file(self, file: File, agent_id: int):
         try:
-            documents = self.create_documents(text, agent_id, source, full_path)
-            if documents:
-                self.store.add_documents(documents)
+            chunks = self.create_document_chunks(file, agent_id)
+            if chunks:
+                self.store.add_documents(chunks)
                 log.debug(
-                    "added %d documents to agent %d from source %s",
-                    len(documents),
+                    "added %d document chunks to agent %s",
+                    len(chunks),
                     agent_id,
-                    source,
                 )
         except Exception:
             log.exception("error adding documents")
 
-    def search(self, query, agent_id):
-        filter = {"agent_id": str(agent_id)}
+    def search(self, query, agent_id: int):
+        filter = {"agent_id": str(agent_id), "state": "active"}
         if cfg.EMBED_QUERY_PREFIX:
             query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
 
@@ -267,23 +269,31 @@ class VectorStoreInterface:
 
         return unique_results
 
-    def delete_documents_by_metadata(self, metadata: dict) -> dict:
-        if not metadata:
-            raise ValueError("empty metadata")
-
+    def _build_metadata_filter(self, metadata):
         filter_stmts = []
 
-        for key, val in metadata.items():
-            if not isinstance(val, str):
-                raise ValueError("metadata values must be of type 'str'")
+        metadata_as_str = {key: str(val) for key, val in metadata.items()}
+
+        for key, val in metadata_as_str.items():
             # use parameterized query
             filter_stmt = f"cmetadata->>'{key}' = :{key}"
             filter_stmts.append(filter_stmt)
 
         filter_ = " AND ".join(filter_stmts)
 
-        query = text(f"SELECT id, cmetadata FROM langchain_pg_embedding WHERE {filter_};")
-        results = db.session.execute(query, metadata).all()
+        return metadata_as_str, filter_
+
+    def delete_document_chunks_by_id(self, ids):
+        log.debug("deleting %d document chunks from vector store", len(ids))
+        self.store.delete(ids)
+
+    def delete_document_chunks(self, filter: dict) -> dict:
+        if not filter:
+            raise ValueError("empty metadata")
+
+        metadata_as_str, filter_ = self._build_metadata_filter(filter)
+        query = text(f"SELECT id, cmetadata FROM langchain_pg_embedding WHERE {filter_}")
+        results = db.session.execute(query, metadata_as_str).all()
 
         matching_docs = []
         for result in results:
@@ -291,17 +301,22 @@ class VectorStoreInterface:
             result[1]["id"] = result[0]
             matching_docs.append(result[1])
 
-        log.debug(
-            "found %d doc(s) from vector DB matching filter: %s", len(matching_docs), metadata
-        )
+        log.debug("found %d doc(s) from vector DB matching filter: %s", len(matching_docs), filter)
 
-        self.delete_documents([doc["id"] for doc in matching_docs])
+        self.delete_document_chunks_by_id([doc["id"] for doc in matching_docs])
 
         return matching_docs
 
-    def delete_documents(self, ids):
-        log.debug("deleting %d doc(s) from vector store", len(ids))
-        self.store.delete(ids)
+    def set_doc_states(self, active: bool, pending_removal: bool, filter: dict):
+        metadata_as_str, filter_ = self._build_metadata_filter(filter)
+        data = {"active": str(active), "pending_removal": str(pending_removal)}
+        update = (
+            "UPDATE langchain_pg_embedding "
+            f"SET cmetadata = cmetadata || '{json.dumps(data)}' "
+            f"WHERE {filter_}"
+        )
+        db.session.execute(text(update), metadata_as_str)
+        db.session.commit()
 
 
 vector_db = VectorStoreInterface()

@@ -13,7 +13,8 @@ from pydantic import BaseModel
 
 import connectors.config as cfg
 from connectors.db.agent import Agent
-from connectors.db.common import File, add_files_to_agent, embed_files
+from connectors.db.common import File, embed_files
+from connectors.db.vector import vector_db
 
 s3 = boto3.client("s3")
 
@@ -50,14 +51,6 @@ def get_sync_config() -> SyncConfig:
         sync_config = SyncConfig(**data)
 
     return sync_config
-
-
-def create_agent(agent_config: AgentConfig) -> Agent:
-    return Agent.create(**dict(agent_config))
-
-
-def sync_agent(agent: Agent, agent_config: AgentConfig) -> Agent:
-    agent.update(**dict(agent_config))
 
 
 def download_obj(bucket, obj_key, dest_dir):
@@ -98,7 +91,14 @@ def embed_file(app_context, bucket, s3_object, tmpdir, agent_id):
     path_on_disk = Path(tmpdir) / Path(s3_object["Key"])
 
     with open(path_on_disk, "r") as fp:
-        file = File(source=f"s3-{bucket}", full_path=file_path, content=fp.read())
+        # add new files as active=False until all embedding was successful
+        file = File(
+            source=f"s3-{bucket}",
+            full_path=file_path,
+            active=False,
+            pending_removal=False,
+            content=fp.read(),
+        )
 
     embed_files([file], agent)
 
@@ -126,7 +126,7 @@ def embed_files_concurrent(bucket, s3_objects, tmpdir, agent_id):
                 yield None
 
 
-def add_all_docs_to_agent(agent_config: AgentConfig, agent: Agent):
+def download_s3_files_and_embed(agent_config: AgentConfig, agent: Agent):
     bucket = agent_config.bucket
     prefix = agent_config.prefix
     s3_objects = get_all_s3_objects(bucket, prefix)
@@ -144,31 +144,56 @@ def add_all_docs_to_agent(agent_config: AgentConfig, agent: Agent):
         extensions,
     )
 
+    files = []
+
     with tempfile.TemporaryDirectory() as tmpdir:
         for download_success in download_objs_concurrent(bucket, s3_objects, tmpdir):
             if not download_success:
                 raise Exception("hit errors during download, aborting")
 
-        files = []
         for file in embed_files_concurrent(bucket, s3_objects, tmpdir, agent.id):
             if not file:
                 raise Exception("hit errors creating embeddings, aborting")
             files.append(file)
 
-        add_files_to_agent(files, agent)
+    return files
 
 
 def run() -> None:
     sync_config = get_sync_config()
+
+    # remove any lingering inactive documents
+    vector_db.delete_document_chunks({"active": False})
+
     for agent_config in sync_config.agents:
         if not agent_config.file_types:
             agent_config.file_types = sync_config.default_file_types
 
+        # check to see if agent already exists... if so, update... if not, create
         agent = Agent.get_by_name(agent_config.name)
         if agent:
-            sync_agent(agent, agent_config)
-            # sync docs...
+            agent.update(**dict(agent_config))
         else:
-            agent = create_agent(agent_config)
-        # todo: indent this
-        add_all_docs_to_agent(agent_config, agent)
+            agent = Agent.create(**dict(agent_config))
+
+        # set existing doc chunks to state pending_removal=True
+        metadata = {"agent_id": agent.id}
+        vector_db.set_doc_states(active=True, pending_removal=True, filter=metadata)
+
+        # download docs for this agent and embed in vector DB
+        files = download_s3_files_and_embed(agent_config, agent)
+
+        # set new doc chunks to active
+        metadata = {"agent_id": agent.id, "active": False, "pending_removal": False}
+        vector_db.set_doc_states(active=True, pending_removal=False, filter=metadata)
+
+        # set old doc chunks to inactive
+        metadata = {"agent_id": agent.id, "pending_removal": True}
+        vector_db.set_doc_states(active=False, pending_removal=True, filter=metadata)
+
+        # delete old doc chunks
+        metadata = {"agent_id": agent.id, "active": False}
+        vector_db.delete_document_chunks(metadata)
+
+        # update list of filenames in agent DB
+        agent.update(filenames=[file.display_name for file in files])
