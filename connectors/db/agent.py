@@ -3,8 +3,7 @@ from typing import Iterable, List, Optional, Self
 
 from flask_sqlalchemy import SQLAlchemy
 
-from connectors.config import (DEFAULT_SYSTEM_PROMPT, SQLALCHEMY_MAX_OVERFLOW,
-                               SQLALCHEMY_POOL_SIZE)
+from connectors.config import DEFAULT_SYSTEM_PROMPT, SQLALCHEMY_MAX_OVERFLOW, SQLALCHEMY_POOL_SIZE
 
 db = SQLAlchemy(
     engine_options={"pool_size": SQLALCHEMY_POOL_SIZE, "max_overflow": SQLALCHEMY_MAX_OVERFLOW}
