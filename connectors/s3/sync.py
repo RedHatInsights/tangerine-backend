@@ -13,10 +13,9 @@ from pydantic import BaseModel
 
 import connectors.config as cfg
 from connectors.db.agent import Agent
-from connectors.db.common import File, add_file
+from connectors.db.common import File, add_files_to_agent, embed_files
 
 s3 = boto3.client("s3")
-
 
 log = logging.getLogger(__name__)
 
@@ -54,7 +53,7 @@ def get_sync_config() -> SyncConfig:
 
 
 def create_agent(agent_config: AgentConfig) -> Agent:
-    Agent.create(**dict(agent_config))
+    return Agent.create(**dict(agent_config))
 
 
 def sync_agent(agent: Agent, agent_config: AgentConfig) -> Agent:
@@ -72,10 +71,8 @@ def download_obj(bucket, obj_key, dest_dir):
     log.debug("downloading %s to %s", obj_key, download_path)
     s3.download_file(bucket, obj_key, str(download_path))
 
-    return "success"
 
-
-def download_objs(bucket, s3_objects, dest_dir):
+def download_objs_concurrent(bucket, s3_objects, dest_dir):
     keys = [obj["Key"] for obj in s3_objects]
     with ThreadPoolExecutor() as executor:
         key_for_future = {executor.submit(download_obj, bucket, key, dest_dir): key for key in keys}
@@ -83,13 +80,15 @@ def download_objs(bucket, s3_objects, dest_dir):
         for future in futures.as_completed(key_for_future):
             key = key_for_future[future]
             try:
-                yield key, future.result()
+                future.result()
+                log.info("download for %s: success", key)
+                yield True
             except Exception as err:
-                log.exception(f"hit error downloading {key}")
-                yield key, str(err)
+                log.error("download for %s hit error: %s", key, err)
+                yield False
 
 
-def add_file_to_agent(app_context, bucket, s3_object, tmpdir, agent_id):
+def embed_file(app_context, bucket, s3_object, tmpdir, agent_id):
     """Adds an s3 object stored locally to agent"""
     app_context.push()
 
@@ -99,17 +98,19 @@ def add_file_to_agent(app_context, bucket, s3_object, tmpdir, agent_id):
     path_on_disk = Path(tmpdir) / Path(s3_object["Key"])
 
     with open(path_on_disk, "r") as fp:
-        f = File(source=f"s3-{bucket}", full_path=file_path, content=fp.read())
-    add_file(f, agent)
+        file = File(source=f"s3-{bucket}", full_path=file_path, content=fp.read())
 
-    return "success"
+    embed_files([file], agent)
+
+    return file
 
 
-def add_files_to_agent(bucket, s3_objects, tmpdir, agent_id):
-    with ThreadPoolExecutor() as executor:
+def embed_files_concurrent(bucket, s3_objects, tmpdir, agent_id):
+    max_workers = int(cfg.SQLALCHEMY_POOL_SIZE / 2)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         key_for_future = {
             executor.submit(
-                add_file_to_agent, current_app.app_context(), bucket, s3_object, tmpdir, agent_id
+                embed_file, current_app.app_context(), bucket, s3_object, tmpdir, agent_id
             ): s3_object["Key"]
             for s3_object in s3_objects
         }
@@ -117,13 +118,15 @@ def add_files_to_agent(bucket, s3_objects, tmpdir, agent_id):
         for future in futures.as_completed(key_for_future):
             key = key_for_future[future]
             try:
-                yield key, future.result()
+                file = future.result()
+                log.info("create embeddings for %s: success", key)
+                yield file
             except Exception as err:
-                log.exception(f"hit error adding {key} to agent")
-                yield key, str(err)
+                log.error("hit error creating embeddings for %s: %s", key, err)
+                yield None
 
 
-def add_all_docs_to_agent(agent_config: AgentConfig, agent_id: int):
+def add_all_docs_to_agent(agent_config: AgentConfig, agent: Agent):
     bucket = agent_config.bucket
     prefix = agent_config.prefix
     s3_objects = get_all_s3_objects(bucket, prefix)
@@ -142,10 +145,17 @@ def add_all_docs_to_agent(agent_config: AgentConfig, agent_id: int):
     )
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        for key, result in download_objs(bucket, s3_objects, tmpdir):
-            log.debug("download %s: %s", key, result)
-        for key, result in add_files_to_agent(bucket, s3_objects, tmpdir, agent_id):
-            log.debug("store %s: %s", key, result)
+        for download_success in download_objs_concurrent(bucket, s3_objects, tmpdir):
+            if not download_success:
+                raise Exception("hit errors during download, aborting")
+
+        files = []
+        for file in embed_files_concurrent(bucket, s3_objects, tmpdir, agent.id):
+            if not file:
+                raise Exception("hit errors creating embeddings, aborting")
+            files.append(file)
+
+        add_files_to_agent(files, agent)
 
 
 def run() -> None:
@@ -161,4 +171,4 @@ def run() -> None:
         else:
             agent = create_agent(agent_config)
         # todo: indent this
-        add_all_docs_to_agent(agent_config, agent.id)
+        add_all_docs_to_agent(agent_config, agent)

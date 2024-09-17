@@ -61,13 +61,17 @@ class File:
         return ""
 
 
-def add_file(file: File, agent: Agent) -> None:
-    file.validate()
-    extracted_text = file.extract_text()
-    # Only generate embeddings when there is actual text
-    if len(extracted_text) > 0:
-        vector_db.add_document(extracted_text, agent.id, file.source, file.full_path)
-    agent.add_files([file.display_name])
+def embed_files(files: List[File], agent: Agent) -> None:
+    for file in files:
+        file.validate()
+        extracted_text = file.extract_text()
+        # Only generate embeddings when there is actual text
+        if len(extracted_text) > 0:
+            vector_db.add_document(extracted_text, agent.id, file.source, file.full_path)
+
+
+def add_files_to_agent(files: List[File], agent: Agent) -> None:
+    agent.add_files([file.display_name for file in files])
 
 
 def remove_files(agent: Agent, metadata: dict) -> List[str]:

@@ -3,9 +3,12 @@ from typing import Iterable, List, Optional, Self
 
 from flask_sqlalchemy import SQLAlchemy
 
-from connectors.config import DEFAULT_SYSTEM_PROMPT
+from connectors.config import (DEFAULT_SYSTEM_PROMPT, SQLALCHEMY_MAX_OVERFLOW,
+                               SQLALCHEMY_POOL_SIZE)
 
-db = SQLAlchemy()
+db = SQLAlchemy(
+    engine_options={"pool_size": SQLALCHEMY_POOL_SIZE, "max_overflow": SQLALCHEMY_MAX_OVERFLOW}
+)
 
 log = logging.getLogger("tangerine.db.agent")
 
@@ -66,17 +69,23 @@ class Agent(db.Model):
                 continue
             setattr(self, key, val)
             updated_keys.append(key)
+        db.session.add(self)
         db.session.commit()
         self.refresh()
-        log.debug("updating attributes %s of agent %d", updated_keys, self.id)
+        log.debug("updated attributes %s of agent %d", updated_keys, self.id)
         return self
 
     def add_files(self, file_display_names: Iterable[str]) -> Self:
-        new_names = self.filenames.copy()
+        filenames = self.filenames.copy()
         for name in file_display_names:
-            new_names.append(name)
-        log.debug("adding %d files to agent %d", len(new_names), self.id)
-        return self.update(filenames=new_names)
+            filenames.append(name)
+        log.debug(
+            "adding %d files to agent %d, total files now %d",
+            len(file_display_names),
+            self.id,
+            len(filenames),
+        )
+        return self.update(filenames=filenames)
 
     def remove_files(self, file_display_names: Iterable[str]) -> Self:
         new_names = [name for name in self.filenames.copy() if name not in file_display_names]

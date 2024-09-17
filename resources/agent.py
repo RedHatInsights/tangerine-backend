@@ -6,7 +6,8 @@ from flask_restful import Resource
 
 from connectors.config import DEFAULT_SYSTEM_PROMPT
 from connectors.db.agent import Agent
-from connectors.db.common import File, add_file, remove_files
+from connectors.db.common import (File, add_files_to_agent, embed_files,
+                                  remove_files)
 from connectors.db.vector import vector_db
 from connectors.llm.interface import llm
 
@@ -98,7 +99,8 @@ class AgentDocuments(Resource):
         def generate_progress():
             for file in files:
                 yield json.dumps({"file": file.display_name, "step": "start"}) + "\n"
-                add_file(file, agent)
+                embed_files(file, agent)
+                add_files_to_agent(file, agent)
                 yield json.dumps({"file": file.display_name, "step": "end"}) + "\n"
 
         return Response(stream_with_context(generate_progress()), mimetype="application/json")
