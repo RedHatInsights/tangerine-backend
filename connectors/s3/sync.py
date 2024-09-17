@@ -18,7 +18,7 @@ from connectors.db.vector import vector_db
 
 s3 = boto3.client("s3")
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("tangerine.s3sync")
 
 
 class AgentConfig(BaseModel):

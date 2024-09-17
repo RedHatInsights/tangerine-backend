@@ -1,12 +1,7 @@
 import json
 import logging
-import re
-import string
 from operator import itemgetter
 
-import html2text
-import mdformat
-from bs4 import BeautifulSoup
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
@@ -104,107 +99,10 @@ class VectorStoreInterface:
 
         return documents
 
-    def remove_large_code_blocks(self, text):
-        lines = []
-        code_lines = []
-        in_code_block = False
-        for line in text.split("\n"):
-            if line.strip() == "```" and not in_code_block:
-                in_code_block = True
-                code_lines = []
-                code_lines.append(line)
-            elif line.strip() == "```" and in_code_block:
-                code_lines.append(line)
-                in_code_block = False
-                if len(code_lines) > 9:
-                    code_lines = ["```", "<large code block, visit documentation to view>", "```"]
-                lines.extend(code_lines)
-            elif in_code_block:
-                code_lines.append(line)
-            else:
-                lines.append(line)
-
-        return "\n".join(lines)
-
-    def html_to_md(self, text):
-        """
-        Parse a .html page that has been composed with mkdocs
-
-        It is assumed that the page contains 'md-content' which was compiled based on .md
-
-        TODO: possibly handle html pages not built with mkdocs
-        """
-        md = ""
-        soup = BeautifulSoup(text, "lxml")
-        # extract 'md-content', this ignores nav/header/footer/etc.
-        md_content = soup.find("div", class_="md-content")
-        if md_content:
-            # remove "Edit this page" button
-            edit_button = md_content.find("a", title="Edit this page")
-            if edit_button:
-                edit_button.decompose()
-
-            # remove line numbers from code blocks
-            linenos_columns = md_content.find_all("td", class_="linenos")
-            for linenos_column in linenos_columns:
-                linenos_column.decompose()
-
-            h = html2text.HTML2Text()
-            h.ignore_images = True
-            h.mark_code = True
-            h.body_width = 0
-            h.ignore_emphasis = True
-            h.wrap_links = False
-            h.ignore_tables = True
-
-            html2text_output = h.handle(str(md_content))
-
-            md_lines = []
-            in_code_block = False
-
-            for line in html2text_output.split("\n"):
-                # remove non printable chars (like paragraph markers)
-                line = "".join(filter(lambda char: char in string.printable, line))
-
-                # replace html2text code block start/end with standard md
-                if "[code]" in line:
-                    in_code_block = True
-                    line = line.replace("[code]", "```")
-                elif "[/code]" in line:
-                    in_code_block = False
-                    line = line.replace("[/code]", "```")
-                if in_code_block:
-                    # also fix indent, html2text indents all code content by 4 spaces
-                    if line.startswith("```"):
-                        # start of code block and the txt may be on the same line...
-                        #   eg: ```    <text>
-                        line = f"```\n{line[8:]}"
-                    else:
-                        line = line[4:]
-                md_lines.append(line)
-
-            md = "\n".join(md_lines)
-
-            # strip empty newlines before end of code blocks
-            md = re.sub(r"\n\n+```", "\n```", md)
-            # strip empty newlines after the start of a code block
-            md = re.sub(r"```\n\n+", "```\n", md)
-            # finally, use opinionated formatter
-            md = mdformat.text(md)
-        else:
-            log.error("no 'md-content' div found")
-
-        md = self.remove_large_code_blocks(md)
-
-        return md
-
     def create_document_chunks(self, file: File, agent_id: int):
         log.debug("processing %s", file)
 
         text = file.extract_text()
-
-        if file.full_path.lower().endswith(".html"):
-            text = self.html_to_md(text)
 
         if not text:
             log.error("file %s: empty text", file)
@@ -235,7 +133,7 @@ class VectorStoreInterface:
             log.exception("error adding documents")
 
     def search(self, query, agent_id: int):
-        filter = {"agent_id": str(agent_id), "state": "active"}
+        filter = {"agent_id": str(agent_id), "active": "True"}
         if cfg.EMBED_QUERY_PREFIX:
             query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
 
