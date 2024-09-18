@@ -4,11 +4,12 @@ import logging
 from flask import Response, request, stream_with_context
 from flask_restful import Resource
 
-from connectors.config import DEFAULT_SYSTEM_PROMPT
+from connectors.config import DEFAULT_SYSTEM_PROMPT, LLM_MODEL_NAME, MAX_TOKENS_QUESTION
 from connectors.db.agent import Agent
 from connectors.db.common import File, add_filenames_to_agent, embed_files, remove_files
 from connectors.db.vector import vector_db
 from connectors.llm.interface import llm
+import tiktoken
 
 log = logging.getLogger("tangerine.agent")
 
@@ -141,7 +142,18 @@ class AgentChatApi(Resource):
         if not agent:
             return {"message": "Agent not found"}, 404
 
+        # If tiktoken doesn't support our model, default to gpt2
+        try:
+            text_splitter = tiktoken.encoding_for_model(LLM_MODEL_NAME)
+        except KeyError:
+            text_splitter = tiktoken.encoding_for_model('gpt2')
+
         query = request.json.get("query")
+
+        if len(text_splitter.encode(query)) > MAX_TOKENS_QUESTION:
+            log.debug("Question too big, truncating...")
+            query = text_splitter.decode(text_splitter.encode(query)[:MAX_TOKENS_QUESTION])
+
         stream = request.json.get("stream") == "true"
         previous_messages = request.json.get("prevMsgs")
 

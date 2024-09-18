@@ -23,6 +23,7 @@ html2text = "*"
 mdformat = "*"
 boto3 = "*"
 pydantic = "*"
+tiktoken = "*"
 
 [dev-packages]
 black = "*"

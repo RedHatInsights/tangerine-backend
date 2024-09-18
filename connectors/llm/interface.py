@@ -5,6 +5,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
+import tiktoken
 
 import connectors.config as cfg
 from connectors.db.vector import vector_db
@@ -44,15 +45,31 @@ class LLMInterface:
         prompt_params = {"context": context_text, "question": question}
         log.debug("search result: %s", context_text)
 
+        # If tiktoken doesn't support our model, default to gpt2
+        try:
+            text_splitter = tiktoken.encoding_for_model(cfg.LLM_MODEL_NAME)
+        except KeyError:
+            text_splitter = tiktoken.encoding_for_model('gpt2')
+
         # Adding system prompt and memory
         msg_list = []
         msg_list.append(SystemMessage(content=system_prompt or cfg.DEFAULT_SYSTEM_PROMPT))
+        total_tokens=len(text_splitter.encode(question)) + len(text_splitter.encode(msg_list[0].content))
         if previous_messages:
-            for msg in previous_messages:
+            # Reverse list so most recent msgs are in context
+            for msg in reversed(previous_messages):
+                token_list = text_splitter.encode(msg['text'])
+                if len(token_list) + total_tokens >= cfg.MAX_TOKENS_CONTEXT:
+                    log.debug("Too many tokens, trimming context...")
+                    break
+
+                total_tokens+=len(token_list)
+
                 if msg["sender"] == "human":
                     msg_list.append(HumanMessage(content=f"[INST] {msg['text']} [/INST]"))
                 if msg["sender"] == "ai":
                     msg_list.append(AIMessage(content=f"{msg['text']}</s>"))
+
         prompt.messages = msg_list + prompt.messages
 
         log.debug("prompt: %s", prompt)
