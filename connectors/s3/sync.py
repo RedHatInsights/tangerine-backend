@@ -12,7 +12,7 @@ from flask import current_app
 from pydantic import BaseModel
 
 import connectors.config as cfg
-from connectors.db.agent import Agent
+from connectors.db.agent import Agent, db
 from connectors.db.common import File, embed_files
 from connectors.db.vector import vector_db
 
@@ -85,24 +85,25 @@ def embed_file(app_context, bucket, s3_object, tmpdir, agent_id):
     """Adds an s3 object stored locally to agent"""
     app_context.push()
 
-    agent = Agent.get(agent_id)
+    with db.session():
+        agent = Agent.get(agent_id)
 
-    file_path = s3_object["Key"]
-    path_on_disk = Path(tmpdir) / Path(s3_object["Key"])
+        file_path = s3_object["Key"]
+        path_on_disk = Path(tmpdir) / Path(s3_object["Key"])
 
-    with open(path_on_disk, "r") as fp:
-        # add new files as active=False until all embedding was successful
-        file = File(
-            source=f"s3-{bucket}",
-            full_path=file_path,
-            active=False,
-            pending_removal=False,
-            content=fp.read(),
-        )
+        with open(path_on_disk, "r") as fp:
+            # add new files as active=False until all embedding was successful
+            file = File(
+                source=f"s3-{bucket}",
+                full_path=file_path,
+                active=False,
+                pending_removal=False,
+                content=fp.read(),
+            )
 
-    embed_files([file], agent)
+        embed_files([file], agent)
 
-    return file
+        return file
 
 
 def embed_files_concurrent(bucket, s3_objects, tmpdir, agent_id):
