@@ -42,23 +42,20 @@ class Agent(db.Model):
 
     @classmethod
     def list(cls) -> List[Self]:
-        return cls.query.all()
+        return db.session.scalars(db.select(cls)).all()
 
     @classmethod
     def get(cls, id: int) -> Optional[Self]:
         agent_id = int(id)
-        agent = cls.query.session.get(cls, agent_id)
+        agent = db.session.get(cls, agent_id)
         log.debug("get agent by id %d result: %s", agent_id, agent)
         return agent
 
     @classmethod
     def get_by_name(cls, name: str) -> Optional[Self]:
-        agent = cls.query.session.query(cls).filter_by(agent_name=name).first()
+        agent = db.session.scalar(db.select(cls).filter_by(agent_name=name))
         log.debug("get agent by name '%s' result: %s", name, agent)
         return agent
-
-    def refresh(self) -> Self:
-        return db.session.refresh(self)
 
     def update(self, **kwargs) -> Self:
         updated_keys = []
@@ -70,7 +67,7 @@ class Agent(db.Model):
             updated_keys.append(key)
         db.session.add(self)
         db.session.commit()
-        self.refresh()
+        db.session.refresh(self)
         log.debug("updated attributes %s of agent %d", updated_keys, self.id)
         return self
 
