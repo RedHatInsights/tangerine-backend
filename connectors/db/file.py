@@ -136,12 +136,15 @@ class File:
         active: bool = True,
         pending_removal: bool = False,
         content: Optional[str] = "",
+        hash: Optional[str] = "",
+        **kwargs,
     ):
         self.source = source
         self.full_path = full_path
         self.content = content
         self.active = active
         self.pending_removal = pending_removal
+        self.hash = hash
 
     def validate(self):
         validate_file_path(self.full_path)
@@ -155,6 +158,7 @@ class File:
             "full_path": self.full_path,
             "active": self.active,
             "pending_removal": self.pending_removal,
+            "hash": self.hash,
         }
         return {key: str(val) for key, val in metadata.items()}
 

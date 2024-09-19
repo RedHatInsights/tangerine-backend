@@ -26,7 +26,7 @@ class AgentConfig(BaseModel):
     description: str
     system_prompt: Optional[str] = None
     bucket: str
-    prefix: str
+    prefixes: List[str]
     file_types: Optional[List[str]] = None
 
 
@@ -99,6 +99,7 @@ def embed_file(app_context, bucket, s3_object, tmpdir, agent_id):
                 active=False,
                 pending_removal=False,
                 content=fp.read(),
+                hash=s3_object["ETag"],
             )
 
         embed_files([file], agent)
@@ -127,23 +128,79 @@ def embed_files_concurrent(bucket, s3_objects, tmpdir, agent_id):
                 yield None
 
 
-def download_s3_files_and_embed(agent_config: AgentConfig, agent: Agent):
+def compare_files(agent_config: AgentConfig, agent: Agent):
+    # fetch all objects from the s3 bucket at 'prefix'
     bucket = agent_config.bucket
-    prefix = agent_config.prefix
-    s3_objects = get_all_s3_objects(bucket, prefix)
-    log.debug("%d objects found in bucket %s at prefix %s", len(s3_objects), bucket, prefix)
+    prefixes = agent_config.prefixes
+    s3_objects = []
+    for prefix in prefixes:
+        new_objects = get_all_s3_objects(bucket, prefix)
+        s3_objects.extend(new_objects)
+        log.debug("%d objects found in bucket %s at prefix %s", len(new_objects), bucket, prefix)
+
+    # filter by desired extensions
     extensions = agent_config.file_types
 
     def _filter(file_data):
         return any([file_data["Key"].endswith(f".{extension}") for extension in extensions])
 
     s3_objects = list(filter(_filter, s3_objects))
+    log.debug("%d total s3 objects after filtering for extensions %s", len(s3_objects), extensions)
 
-    log.debug(
-        "%d objects to download after filtering for file type extensions %s",
-        len(s3_objects),
-        extensions,
-    )
+    # collect all unique file objects stored on the agent
+    agent_objects = vector_db.get_distinct_cmetadata(filter={"agent_id": agent.id})
+
+    # group by keys for easier comparisons
+    s3_objects_by_key = {obj["Key"]: obj for obj in s3_objects}
+    agent_objects_by_path = {obj["full_path"]: obj for obj in agent_objects}
+
+    agent_objects_to_delete = []
+    s3_objects_to_insert = []
+
+    num_to_add = 0
+    num_to_delete = 0
+    num_to_update = 0
+
+    for agent_object in agent_objects:
+        full_path = agent_object["full_path"]
+
+        # check if remote file has been updated
+        if full_path in s3_objects_by_key:
+            hash = agent_object.get("hash")
+            etag = s3_objects_by_key[full_path]["ETag"]
+            if hash != etag:
+                log.debug("%s hash changed, will update file", full_path)
+                s3_objects_to_insert.append(s3_objects_by_key[full_path])
+                agent_objects_to_delete.append(agent_object)
+                num_to_update += 1
+
+        # check if remote file has been removed
+        if full_path not in s3_objects_by_key:
+            # stored file is not present in s3, mark for deletion
+            log.debug("%s no longer present in s3, will remove file", full_path)
+            agent_objects_to_delete.append(agent_object)
+            num_to_delete += 1
+
+    # check if there's a new remote file to add
+    for key, s3_object in s3_objects_by_key.items():
+        if key not in agent_objects_by_path:
+            log.debug("%s is new in s3, will add file", key)
+            s3_objects_to_insert.append(s3_object)
+            num_to_add += 1
+
+    for obj in agent_objects_to_delete:
+        # remove active and pending_removal from the metadata so we don't use
+        # these values as metadata filters
+        if "active" in obj:
+            del obj["active"]
+        if "pending_removal" in obj:
+            del obj["pending_removal"]
+
+    return agent_objects_to_delete, s3_objects_to_insert, num_to_add, num_to_delete, num_to_update
+
+
+def download_s3_files_and_embed(bucket, s3_objects, agent_id):
+    log.debug("%d objects to download", len(s3_objects))
 
     files = []
 
@@ -152,7 +209,7 @@ def download_s3_files_and_embed(agent_config: AgentConfig, agent: Agent):
             if not download_success:
                 raise Exception("hit errors during download, aborting")
 
-        for file in embed_files_concurrent(bucket, s3_objects, tmpdir, agent.id):
+        for file in embed_files_concurrent(bucket, s3_objects, tmpdir, agent_id):
             if not file:
                 raise Exception("hit errors creating embeddings, aborting")
             files.append(file)
@@ -177,24 +234,37 @@ def run() -> None:
         else:
             agent = Agent.create(**dict(agent_config))
 
-        # set existing doc chunks to state pending_removal=True
-        metadata = {"agent_id": agent.id}
-        vector_db.set_doc_states(active=True, pending_removal=True, filter=metadata)
+        # determine what changes need to be made
+        agent_objects_to_delete, s3_objects_to_insert, num_adding, num_deleting, num_updating = (
+            compare_files(agent_config, agent)
+        )
 
-        # download docs for this agent and embed in vector DB
-        files = download_s3_files_and_embed(agent_config, agent)
+        log.info(
+            "s3 sync: adding %d, deleting %d, updating %d", num_adding, num_deleting, num_updating
+        )
 
-        # set new doc chunks to active
-        metadata = {"agent_id": agent.id, "active": False, "pending_removal": False}
-        vector_db.set_doc_states(active=True, pending_removal=False, filter=metadata)
+        if agent_objects_to_delete or s3_objects_to_insert:
+            # set docs which will be removed to state pending_removal=True
+            for metadata in agent_objects_to_delete:
+                vector_db.set_doc_states(active=True, pending_removal=True, filter=metadata)
 
-        # set old doc chunks to inactive
-        metadata = {"agent_id": agent.id, "pending_removal": True}
-        vector_db.set_doc_states(active=False, pending_removal=True, filter=metadata)
+            # download new docs for this agent and embed in vector DB
+            download_s3_files_and_embed(agent_config.bucket, s3_objects_to_insert, agent.id)
 
-        # delete old doc chunks
-        metadata = {"agent_id": agent.id, "active": False}
-        vector_db.delete_document_chunks(metadata)
+            # set new doc chunks to active
+            # all new docs will have state active=False, pending_removal=False
+            metadata = {"agent_id": agent.id, "active": False, "pending_removal": False}
+            vector_db.set_doc_states(active=True, pending_removal=False, filter=metadata)
 
-        # update list of filenames in agent DB
-        agent.update(filenames=[file.display_name for file in files])
+            # set any old docs with state pending_removal=True to inactive
+            metadata = {"agent_id": agent.id, "pending_removal": True}
+            vector_db.set_doc_states(active=False, pending_removal=True, filter=metadata)
+
+            # delete the now-inactive document chunks
+            metadata = {"agent_id": agent.id, "active": False}
+            vector_db.delete_document_chunks(metadata)
+
+        # update list of filenames associated with the agent
+        agent_objects = vector_db.get_distinct_cmetadata(filter={"agent_id": agent.id})
+        agent_files = [File(**obj) for obj in agent_objects]
+        agent.update(filenames=[file.display_name for file in agent_files])

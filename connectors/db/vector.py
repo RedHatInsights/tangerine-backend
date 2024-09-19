@@ -181,11 +181,19 @@ class VectorStoreInterface:
 
         return metadata_as_str, filter_
 
-    def delete_document_chunks_by_id(self, ids):
-        log.debug("deleting %d document chunks from vector store", len(ids))
-        self.store.delete(ids)
+    def get_distinct_cmetadata(self, filter):
+        if not filter:
+            raise ValueError("empty metadata")
 
-    def delete_document_chunks(self, filter: dict) -> dict:
+        metadata_as_str, filter_ = self._build_metadata_filter(filter)
+        query = text(
+            f"SELECT distinct on (cmetadata) cmetadata from langchain_pg_embedding where {filter_}"
+        )
+        results = db.session.execute(query, metadata_as_str).all()
+
+        return [row.cmetadata for row in results]
+
+    def get_ids_and_cmetadata(self, filter):
         if not filter:
             raise ValueError("empty metadata")
 
@@ -193,11 +201,20 @@ class VectorStoreInterface:
         query = text(f"SELECT id, cmetadata FROM langchain_pg_embedding WHERE {filter_}")
         results = db.session.execute(query, metadata_as_str).all()
 
+        return results
+
+    def delete_document_chunks_by_id(self, ids):
+        log.debug("deleting %d document chunks from vector store", len(ids))
+        self.store.delete(ids)
+
+    def delete_document_chunks(self, filter: dict) -> dict:
+        results = self.get_ids_and_cmetadata(filter)
+
         matching_docs = []
         for result in results:
             # add document id into each result
-            result[1]["id"] = result[0]
-            matching_docs.append(result[1])
+            result.cmetadata["id"] = result.id
+            matching_docs.append(result.cmetadata)
 
         log.debug("found %d doc(s) from vector DB matching filter: %s", len(matching_docs), filter)
 
