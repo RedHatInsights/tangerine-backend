@@ -6,9 +6,11 @@ agents:
   - name: agent1
     description: Agent One
     bucket: mybucket
-    prefix: path/in/bucket
+    prefixes:
+      - path/in/bucket
 
   - name: agent2
     description: Agent Two
     bucket: mybucket
-    prefix: other/path/in/bucket
+    prefixes:
+      - other/path/in/bucket
