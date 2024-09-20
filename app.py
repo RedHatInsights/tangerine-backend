@@ -14,7 +14,8 @@ from resources.routes import initialize_routes
 
 
 def create_app():
-    logging.basicConfig(level=getattr(logging, cfg.LOG_LEVEL))
+    logging.basicConfig(level=getattr(logging, cfg.LOG_LEVEL_GLOBAL))
+    logging.getLogger("tangerine").setLevel(cfg.LOG_LEVEL_APP)
 
     app = Flask("tangerine")
 
