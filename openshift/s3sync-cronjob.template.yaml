@@ -4,6 +4,30 @@ apiVersion: template.openshift.io/v1
 metadata:
   name: tangerine-backend-s3sync
 
+parameters:
+  - name: AWS_S3_SECRET_NAME
+    value: s3-credentials
+  - name: S3_SYNC_SUSPEND
+    value: "false"
+  - name: EMBED_BASE_URL
+    value: http://text-embeddings-inference:3000/v1
+  - name: EMBED_MODEL_NAME
+    value: Snowflake/snowflake-arctic-embed-m-long
+  - name: EMBED_QUERY_PREFIX
+    value: "Represent this sentence for searching relevant passages"
+  - name: CPU_LIMIT
+    value: 1000m
+  - name: MEMORY_LIMIT
+    value: 1Gi
+  - name: CPU_REQUEST
+    value: 1000m
+  - name: MEMORY_REQUEST
+    value: 1Gi
+  - name: IMAGE
+    value: quay.io/tangerine/tangerine-backend
+  - name: IMAGE_TAG
+    value: latest
+
 objects:
 - kind: Secret
   apiVersion: v1
@@ -63,11 +87,11 @@ objects:
                     mountPath: /s3sync-config
                 resources:
                   requests:
-                    memory: 256Mi
-                    cpu: 250m
+                    memory: ${MEMORY_REQUEST}
+                    cpu: ${CPU_REQUEST}
                   limits:
-                    memory: 512Mi
-                    cpu: 500m
+                    memory: ${MEMORY_LIMIT}
+                    cpu: ${CPU_LIMIT}
                 env:
                   - name: S3_SYNC_CONFIG_FILE
                     value: /s3sync-config/s3.yaml
@@ -122,18 +146,11 @@ objects:
                     value: ${EMBED_MODEL_NAME}
                   - name: EMBED_QUERY_PREFIX
                     value: ${EMBED_QUERY_PREFIX}
-                imagePullPolicy: Always  # TODO: change to "IfNotPresent" when project stabilizes
-                image: 'quay.io/tangerine/tangerine-backend:latest'
+                  - name: EMBED_API_KEY
+                    valueFrom:
+                      secretKeyRef:
+                        name: embed-api-key
+                        key: api_key
+                imagePullPolicy: IfNotPresent
+                image: ${IMAGE}:${IMAGE_TAG}
             restartPolicy: Never
-
-parameters:
-  - name: AWS_S3_SECRET_NAME
-    value: s3-credentials
-  - name: S3_SYNC_SUSPEND
-    value: "false"
-  - name: EMBED_BASE_URL
-    value: http://text-embeddings-inference:3000/v1
-  - name: EMBED_MODEL_NAME
-    value: Snowflake/snowflake-arctic-embed-m-long
-  - name: EMBED_QUERY_PREFIX
-    value: "Represent this sentence for searching relevant passages"

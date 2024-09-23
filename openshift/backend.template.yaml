@@ -40,6 +40,14 @@ objects:
     api_key: yourApiKey
   type: Opaque
 
+- kind: Secret
+  apiVersion: v1
+  metadata:
+    name: embed-api-key
+  stringData:
+    api_key: yourApiKey
+  type: Opaque
+
 - kind: Deployment
   apiVersion: apps/v1
   metadata:
@@ -129,6 +137,11 @@ objects:
                 value: ${EMBED_MODEL_NAME}
               - name: EMBED_QUERY_PREFIX
                 value: ${EMBED_QUERY_PREFIX}
+              - name: EMBED_API_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: embed-api-key
+                    key: api_key
             securityContext:
               capabilities: {}
               privileged: false
