@@ -5,6 +5,40 @@ metadata:
   name: tangerine-backend-s3sync
 
 objects:
+- kind: Secret
+  apiVersion: v1
+  metadata:
+    name: s3-credentials
+  stringData:
+    aws_access_key_id: your_key_id
+    aws_secret_access_key: your_access_key
+    aws_region: your_aws_region
+    endpoint: your_s3_endpoint
+  type: Opaque
+
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: s3sync-config
+  data:
+    # example config
+    s3.yaml: |
+      default_file_types:
+        - html
+        - md
+
+      agents:
+        - name: agent1
+          description: Agent One
+          bucket: mybucket
+          prefix: path/in/bucket
+
+        - name: agent2
+          description: Agent Two
+          bucket: mybucket
+          prefix: other/path/in/bucket
+
+
 - kind: CronJob
   apiVersion: batch/v1
   metadata:

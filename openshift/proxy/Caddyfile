@@ -1,8 +1,0 @@
-{
-    auto_https off
-}
-http://:8000 {
-    reverse_proxy /api/* {env.BACKEND_SERVICE}:{env.BACKEND_PORT}
-
-    reverse_proxy {env.FRONTEND_SERVICE}:{env.FRONTEND_PORT}
-}
