@@ -1,11 +1,15 @@
 import json
 import logging
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage as LangchainSystemMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-import tiktoken
+from mistral_common.protocol.instruct.messages import UserMessage
+from mistral_common.protocol.instruct.messages import SystemMessage as MistralSystemMessage
+from mistral_common.protocol.instruct.request import ChatCompletionRequest
+from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
+from pydantic import SecretStr
 
 import connectors.config as cfg
 from connectors.db.vector import vector_db
@@ -39,44 +43,55 @@ class LLMInterface:
                 if "title" in metadata:
                     title = metadata["title"]
                     context_text += f", document title: '{title}'"
-                context_text += ">>\n\n" f"{page_content}\n\n" f"<<Search result {i+1} END>>\n"
+                context_text += (">>\n\n" f"{page_content}\n\n" f"<<Search result {i+1} END>>\n")
 
         prompt = ChatPromptTemplate.from_template(cfg.USER_PROMPT_TEMPLATE)
         prompt_params = {"context": context_text, "question": question}
         log.debug("search result: %s", context_text)
 
-        # If tiktoken doesn't support our model, default to gpt2
-        try:
-            text_splitter = tiktoken.encoding_for_model(cfg.LLM_MODEL_NAME)
-        except KeyError:
-            text_splitter = tiktoken.encoding_for_model('gpt2')
+        text_splitter = MistralTokenizer.v3(is_tekken=True)
 
         # Adding system prompt and memory
         msg_list = []
-        msg_list.append(SystemMessage(content=system_prompt or cfg.DEFAULT_SYSTEM_PROMPT))
-        total_tokens=len(text_splitter.encode(question)) + len(text_splitter.encode(msg_list[0].content))
+        msg_list.append(
+            LangchainSystemMessage(content=system_prompt or cfg.DEFAULT_SYSTEM_PROMPT)
+        )
+
+        prompt_content = MistralSystemMessage(content=msg_list[0].content)
+        total_tokens = len(text_splitter.encode_chat_completion(ChatCompletionRequest(messages=[prompt_content])).tokens)
         if previous_messages:
             # Reverse list so most recent msgs are in context
             for msg in reversed(previous_messages):
-                token_list = text_splitter.encode(msg['text'])
-                if len(token_list) + total_tokens >= cfg.MAX_TOKENS_CONTEXT:
+                # Declare before if to avoid 'unbound' errors
+                m = HumanMessage(content=f"")
+                token_list = 0
+
+                if msg["sender"] == "human":
+                    token_list = len(text_splitter.encode_chat_completion(ChatCompletionRequest(messages=[UserMessage(content=msg["text"])])).tokens)
+                    m = HumanMessage(content=f"[INST] {msg['text']} [/INST]")
+                if msg["sender"] == "ai":
+                    # The tokenizer requires that every request begins with a
+                    # SystemMessage or a UserMessage, so we tokenize the AI
+                    # response as a UserMessage, but append to the list as an
+                    # AIMessage.
+                    token_list = len(text_splitter.encode_chat_completion(ChatCompletionRequest(messages=[UserMessage(content=f"{msg['text']}</s>")])).tokens)
+                    m = AIMessage(content=f"{msg['text']}</s>")
+
+                total_tokens += token_list
+                if token_list + total_tokens >= cfg.MAX_TOKENS_CONTEXT:
+                    print()
                     log.debug("Too many tokens, trimming context...")
                     break
 
-                total_tokens+=len(token_list)
-
-                if msg["sender"] == "human":
-                    msg_list.append(HumanMessage(content=f"[INST] {msg['text']} [/INST]"))
-                if msg["sender"] == "ai":
-                    msg_list.append(AIMessage(content=f"{msg['text']}</s>"))
+                msg_list.append(m)
 
         prompt.messages = msg_list + prompt.messages
 
         log.debug("prompt: %s", prompt)
         model = ChatOpenAI(
             model=cfg.LLM_MODEL_NAME,
-            openai_api_base=cfg.LLM_BASE_URL,
-            openai_api_key=cfg.LLM_API_KEY,
+            base_url=cfg.LLM_BASE_URL,
+            api_key=SecretStr(cfg.LLM_API_KEY),
             temperature=cfg.LLM_TEMPERATURE,
         )
 

@@ -69,5 +69,5 @@ information available to be able to answer your question." Answers must consider
     "\n", " "
 )
 
-MAX_TOKENS_QUESTION = os.getenv("MAX_TOKENS_QUESTION", 2048)
-MAX_TOKENS_CONTEXT = os.getenv("MAX_TOKENS_CONTEXT", 2048)
+MAX_TOKENS_QUESTION = int(os.getenv("MAX_TOKENS_QUESTION", 2048))
+MAX_TOKENS_CONTEXT = int(os.getenv("MAX_TOKENS_CONTEXT", 2048))
