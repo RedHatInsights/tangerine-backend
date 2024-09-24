@@ -1,0 +1,16 @@
+default_file_types:
+  - html
+  - md
+
+agents:
+  - name: agent1
+    description: Agent One
+    bucket: mybucket
+    prefixes:
+      - path/in/bucket
+
+  - name: agent2
+    description: Agent Two
+    bucket: mybucket
+    prefixes:
+      - other/path/in/bucket

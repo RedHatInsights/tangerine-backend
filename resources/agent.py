@@ -6,7 +6,7 @@ from flask_restful import Resource
 
 from connectors.config import DEFAULT_SYSTEM_PROMPT
 from connectors.db.agent import Agent
-from connectors.db.common import File, add_file, remove_files
+from connectors.db.common import File, add_filenames_to_agent, embed_files, remove_files
 from connectors.db.vector import vector_db
 from connectors.llm.interface import llm
 
@@ -67,7 +67,7 @@ class AgentApi(Resource):
             return {"message": "Agent not found"}, 404
 
         agent.delete()
-        vector_db.delete_documents_by_metadata({"agent_id": str(agent.id)})
+        vector_db.delete_document_chunks({"agent_id": agent.id})
         return {"message": "Agent deleted successfully"}, 200
 
 
@@ -86,7 +86,9 @@ class AgentDocuments(Resource):
         files = []
         for file in request.files.getlist("file"):
             content = file.stream.read()
-            new_file = File(source=request_source, full_path=file.filename, content=content)
+            new_file = File(
+                source=request_source, full_path=file.filename, content=content.decode("utf-8")
+            )
             try:
                 new_file.validate()
             except ValueError as err:
@@ -96,7 +98,8 @@ class AgentDocuments(Resource):
         def generate_progress():
             for file in files:
                 yield json.dumps({"file": file.display_name, "step": "start"}) + "\n"
-                add_file(file, agent)
+                embed_files([file], agent)
+                add_filenames_to_agent([file], agent)
                 yield json.dumps({"file": file.display_name, "step": "end"}) + "\n"
 
         return Response(stream_with_context(generate_progress()), mimetype="application/json")

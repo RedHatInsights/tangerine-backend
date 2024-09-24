@@ -1,0 +1,111 @@
+---
+kind: Template
+apiVersion: template.openshift.io/v1
+metadata:
+  name: text-embeddings-inference
+
+objects:
+# huggingface text-embeddings-interface, used to host embedding model
+- kind: PersistentVolumeClaim
+  apiVersion: v1
+  metadata:
+    name: embedding-models
+  spec:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: ${EMBEDDINGS_VOLUME_SIZE}
+    volumeMode: Filesystem
+
+- kind: Deployment
+  apiVersion: apps/v1
+  metadata:
+    name: text-embeddings-inference
+  spec:
+    strategy:
+      type: Recreate
+      recreateParams:
+        timeoutSeconds: 600
+      resources: {}
+      activeDeadlineSeconds: 21600
+    replicas: 1
+    selector:
+      matchLabels:
+        app: text-embeddings-inference
+    template:
+      metadata:
+        labels:
+          app: text-embeddings-inference
+      spec:
+        volumes:
+          - name: embedding-models-data
+            persistentVolumeClaim:
+              claimName: embedding-models
+        containers:
+          - resources:
+              requests:
+                memory: 2Gi
+                cpu: 2
+              limits:
+                memory: 2Gi
+                cpu: 16
+            readinessProbe:
+              tcpSocket:
+                port: 3000
+              initialDelaySeconds: 30
+              timeoutSeconds: 1
+              periodSeconds: 10
+              successThreshold: 1
+              failureThreshold: 3
+            terminationMessagePath: /dev/termination-log
+            name: text-embeddings-inference
+            livenessProbe:
+              tcpSocket:
+                port: 3000
+              initialDelaySeconds: 120
+              timeoutSeconds: 10
+              periodSeconds: 10
+              successThreshold: 1
+              failureThreshold: 3
+            env:
+              - name: HUGGINGFACE_HUB_CACHE
+                value: "/data"
+              - name: MODEL_ID
+                value: Snowflake/snowflake-arctic-embed-m-long
+              - name: PORT
+                value: "3000"
+            securityContext:
+              capabilities: {}
+              privileged: false
+            ports:
+              - containerPort: 3000
+                protocol: TCP
+            imagePullPolicy: IfNotPresent
+            volumeMounts:
+              - name: embedding-models-data
+                mountPath: /data
+            terminationMessagePolicy: File
+            image: 'ghcr.io/huggingface/text-embeddings-inference:cpu-1.5'
+        restartPolicy: Always
+        terminationGracePeriodSeconds: 30
+        dnsPolicy: ClusterFirst
+        securityContext: {}
+        schedulerName: default-scheduler
+
+- kind: Service
+  apiVersion: v1
+  metadata:
+    name: text-embeddings-inference
+  spec:
+    selector:
+      app: text-embeddings-inference
+    ports:
+      - name: text-embeddings-inference
+        protocol: TCP
+        port: 3000
+        targetPort: 3000
+
+parameters:
+  - name: EMBEDDINGS_VOLUME_SIZE
+    value: "5Gi"

@@ -1,12 +1,7 @@
+import json
 import logging
-import pathlib
-import re
-import string
 from operator import itemgetter
 
-import html2text
-import mdformat
-from bs4 import BeautifulSoup
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
@@ -16,6 +11,7 @@ from sqlalchemy import text
 import connectors.config as cfg
 
 from .agent import db
+from .file import File
 
 log = logging.getLogger("tangerine.db.vector")
 
@@ -79,7 +75,7 @@ class VectorStoreInterface:
 
         return chunks
 
-    def split_to_docs(self, text, metadata):
+    def split_to_document_chunks(self, text, metadata):
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.vector_chunk_size,
             chunk_overlap=self.vector_chunk_overlap,
@@ -103,137 +99,41 @@ class VectorStoreInterface:
 
         return documents
 
-    def remove_large_code_blocks(self, text):
-        lines = []
-        code_lines = []
-        in_code_block = False
-        for line in text.split("\n"):
-            if line.strip() == "```" and not in_code_block:
-                in_code_block = True
-                code_lines = []
-                code_lines.append(line)
-            elif line.strip() == "```" and in_code_block:
-                code_lines.append(line)
-                in_code_block = False
-                if len(code_lines) > 9:
-                    code_lines = ["```", "<large code block, visit documentation to view>", "```"]
-                lines.extend(code_lines)
-            elif in_code_block:
-                code_lines.append(line)
-            else:
-                lines.append(line)
+    def create_document_chunks(self, file: File, agent_id: int):
+        log.debug("processing %s", file)
 
-        return "\n".join(lines)
-
-    def html_to_md(self, text):
-        """
-        Parse a .html page that has been composed with mkdocs
-
-        It is assumed that the page contains 'md-content' which was compiled based on .md
-
-        TODO: possibly handle html pages not built with mkdocs
-        """
-        md = ""
-        soup = BeautifulSoup(text, "lxml")
-        # extract 'md-content', this ignores nav/header/footer/etc.
-        md_content = soup.find("div", class_="md-content")
-        if md_content:
-            # remove "Edit this page" button
-            edit_button = md_content.find("a", title="Edit this page")
-            if edit_button:
-                edit_button.decompose()
-
-            # remove line numbers from code blocks
-            linenos_columns = md_content.find_all("td", class_="linenos")
-            for linenos_column in linenos_columns:
-                linenos_column.decompose()
-
-            h = html2text.HTML2Text()
-            h.ignore_images = True
-            h.mark_code = True
-            h.body_width = 0
-            h.ignore_emphasis = True
-            h.wrap_links = False
-            h.ignore_tables = True
-
-            html2text_output = h.handle(str(md_content))
-
-            md_lines = []
-            in_code_block = False
-
-            for line in html2text_output.split("\n"):
-                # remove non printable chars (like paragraph markers)
-                line = "".join(filter(lambda char: char in string.printable, line))
-
-                # replace html2text code block start/end with standard md
-                if "[code]" in line:
-                    in_code_block = True
-                    line = line.replace("[code]", "```")
-                elif "[/code]" in line:
-                    in_code_block = False
-                    line = line.replace("[/code]", "```")
-                if in_code_block:
-                    # also fix indent, html2text indents all code content by 4 spaces
-                    if line.startswith("```"):
-                        # start of code block and the txt may be on the same line...
-                        #   eg: ```    <text>
-                        line = f"```\n{line[8:]}"
-                    else:
-                        line = line[4:]
-                md_lines.append(line)
-
-            md = "\n".join(md_lines)
-
-            # strip empty newlines before end of code blocks
-            md = re.sub(r"\n\n+```", "\n```", md)
-            # strip empty newlines after the start of a code block
-            md = re.sub(r"```\n\n+", "```\n", md)
-            # finally, use opinionated formatter
-            md = mdformat.text(md)
-        else:
-            log.error("no 'md-content' div found")
-
-        md = self.remove_large_code_blocks(md)
-
-        return md
-
-    def create_documents(self, text, agent_id, source, full_path):
-        log.debug("processing %s", full_path)
-        if full_path.lower().endswith(".html"):
-            text = self.html_to_md(text)
+        text = file.extract_text()
 
         if not text:
-            raise ValueError("no document text provided")
+            log.error("file %s: empty text", file)
+            return []
 
         metadata = {
             "agent_id": str(agent_id),
-            "source": source,
-            "full_path": full_path,
-            "filename": pathlib.Path(full_path).name,
         }
+        metadata.update(file.metadata)
 
-        chunked_docs = self.split_to_docs(text, metadata)
+        chunks = self.split_to_document_chunks(text, metadata)
 
-        log.debug("document chunks: %s", chunked_docs)
+        log.debug("document chunks: %s", chunks)
 
-        return chunked_docs
+        return chunks
 
-    def add_document(self, text, agent_id, source, full_path):
+    def add_file(self, file: File, agent_id: int):
         try:
-            documents = self.create_documents(text, agent_id, source, full_path)
-            if documents:
-                self.store.add_documents(documents)
+            chunks = self.create_document_chunks(file, agent_id)
+            if chunks:
+                self.store.add_documents(chunks)
                 log.debug(
-                    "added %d documents to agent %d from source %s",
-                    len(documents),
+                    "added %d document chunks to agent %s",
+                    len(chunks),
                     agent_id,
-                    source,
                 )
         except Exception:
             log.exception("error adding documents")
 
-    def search(self, query, agent_id):
-        filter = {"agent_id": str(agent_id)}
+    def search(self, query, agent_id: int):
+        filter = {"agent_id": str(agent_id), "active": "True"}
         if cfg.EMBED_QUERY_PREFIX:
             query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
 
@@ -267,41 +167,71 @@ class VectorStoreInterface:
 
         return unique_results
 
-    def delete_documents_by_metadata(self, metadata: dict) -> dict:
-        if not metadata:
-            raise ValueError("empty metadata")
-
+    def _build_metadata_filter(self, metadata):
         filter_stmts = []
 
-        for key, val in metadata.items():
-            if not isinstance(val, str):
-                raise ValueError("metadata values must be of type 'str'")
+        metadata_as_str = {key: str(val) for key, val in metadata.items()}
+
+        for key, val in metadata_as_str.items():
             # use parameterized query
             filter_stmt = f"cmetadata->>'{key}' = :{key}"
             filter_stmts.append(filter_stmt)
 
         filter_ = " AND ".join(filter_stmts)
 
-        query = text(f"SELECT id, cmetadata FROM langchain_pg_embedding WHERE {filter_};")
-        results = db.session.execute(query, metadata).all()
+        return metadata_as_str, filter_
+
+    def get_distinct_cmetadata(self, filter):
+        if not filter:
+            raise ValueError("empty metadata")
+
+        metadata_as_str, filter_ = self._build_metadata_filter(filter)
+        query = text(
+            f"SELECT distinct on (cmetadata) cmetadata from langchain_pg_embedding where {filter_}"
+        )
+        results = db.session.execute(query, metadata_as_str).all()
+
+        return [row.cmetadata for row in results]
+
+    def get_ids_and_cmetadata(self, filter):
+        if not filter:
+            raise ValueError("empty metadata")
+
+        metadata_as_str, filter_ = self._build_metadata_filter(filter)
+        query = text(f"SELECT id, cmetadata FROM langchain_pg_embedding WHERE {filter_}")
+        results = db.session.execute(query, metadata_as_str).all()
+
+        return results
+
+    def delete_document_chunks_by_id(self, ids):
+        log.debug("deleting %d document chunks from vector store", len(ids))
+        self.store.delete(ids)
+
+    def delete_document_chunks(self, filter: dict) -> dict:
+        results = self.get_ids_and_cmetadata(filter)
 
         matching_docs = []
         for result in results:
             # add document id into each result
-            result[1]["id"] = result[0]
-            matching_docs.append(result[1])
+            result.cmetadata["id"] = result.id
+            matching_docs.append(result.cmetadata)
 
-        log.debug(
-            "found %d doc(s) from vector DB matching filter: %s", len(matching_docs), metadata
-        )
+        log.debug("found %d doc(s) from vector DB matching filter: %s", len(matching_docs), filter)
 
-        self.delete_documents([doc["id"] for doc in matching_docs])
+        self.delete_document_chunks_by_id([doc["id"] for doc in matching_docs])
 
         return matching_docs
 
-    def delete_documents(self, ids):
-        log.debug("deleting %d doc(s) from vector store", len(ids))
-        self.store.delete(ids)
+    def set_doc_states(self, active: bool, pending_removal: bool, filter: dict):
+        metadata_as_str, filter_ = self._build_metadata_filter(filter)
+        data = {"active": str(active), "pending_removal": str(pending_removal)}
+        update = (
+            "UPDATE langchain_pg_embedding "
+            f"SET cmetadata = cmetadata || '{json.dumps(data)}' "
+            f"WHERE {filter_}"
+        )
+        db.session.execute(text(update), metadata_as_str)
+        db.session.commit()
 
 
 vector_db = VectorStoreInterface()
