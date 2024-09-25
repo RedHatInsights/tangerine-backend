@@ -43,7 +43,7 @@ objects:
 - apiVersion: v1
   kind: ConfigMap
   metadata:
-    name: s3sync-config
+    name: tangerine-s3sync
   data:
     # example config
     s3.yaml: |
@@ -78,7 +78,7 @@ objects:
             volumes:
               - name: s3sync-config
                 configMap:
-                  name: s3sync-config
+                  name: tangerine-s3sync
             containers:
               - name: tangerine-s3sync
                 command: ["flask", "s3sync"]
