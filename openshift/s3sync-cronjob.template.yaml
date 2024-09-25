@@ -37,7 +37,6 @@ objects:
     aws_access_key_id: your_key_id
     aws_secret_access_key: your_access_key
     aws_region: your_aws_region
-    endpoint: your_s3_endpoint
   type: Opaque
 
 - apiVersion: v1
@@ -111,11 +110,6 @@ objects:
                       secretKeyRef:
                         name: ${AWS_S3_SECRET_NAME}
                         key: aws_region
-                  - name: AWS_ENDPOINT_URL_S3
-                    valueFrom:
-                      secretKeyRef:
-                        name: ${AWS_S3_SECRET_NAME}
-                        key: endpoint
                   - name: DB_USERNAME
                     valueFrom:
                       secretKeyRef:
