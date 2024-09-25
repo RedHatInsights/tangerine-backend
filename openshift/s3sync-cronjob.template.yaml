@@ -71,6 +71,7 @@ objects:
     suspend: ${{S3_SYNC_SUSPEND}}
     schedule: "*/30 * * * *"
     concurrencyPolicy: "Forbid"
+    startingDeadlineSeconds: 300
     jobTemplate:
       spec:
         template:
