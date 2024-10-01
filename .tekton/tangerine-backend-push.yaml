@@ -441,6 +441,10 @@ spec:
         value: $(params.dockerfile)
       - name: CONTEXT
         value: $(params.path-context)
+      - name: ADDITIONAL_TAGS
+        value:
+          - $(tasks.clone-repository.results.short-commit)
+          - "latest"
       runAfter:
       - build-image-index
       taskRef:
