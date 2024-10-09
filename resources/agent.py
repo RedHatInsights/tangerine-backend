@@ -4,11 +4,14 @@ import logging
 from flask import Response, request, stream_with_context
 from flask_restful import Resource
 
-from connectors.config import DEFAULT_SYSTEM_PROMPT
+from connectors.config import DEFAULT_SYSTEM_PROMPT, LLM_MODEL_NAME, MAX_TOKENS_QUESTION
 from connectors.db.agent import Agent
 from connectors.db.common import File, add_filenames_to_agent, embed_files, remove_files
 from connectors.db.vector import vector_db
 from connectors.llm.interface import llm
+from mistral_common.protocol.instruct.messages import UserMessage
+from mistral_common.protocol.instruct.request import ChatCompletionRequest
+from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
 
 log = logging.getLogger("tangerine.agent")
 
@@ -141,7 +144,18 @@ class AgentChatApi(Resource):
         if not agent:
             return {"message": "Agent not found"}, 404
 
+        text_splitter = MistralTokenizer.v3(is_tekken=True)
+
         query = request.json.get("query")
+
+        tokens_question = text_splitter.encode_chat_completion(ChatCompletionRequest(messages=[UserMessage(content=query)])).tokens
+
+        # Tokenizer doesn't like including the first two tokens when
+        # decoding...
+        if len(tokens_question) > MAX_TOKENS_QUESTION+2:
+            log.debug("Question too big, truncating...")
+            query = text_splitter.decode(tokens_question[2:MAX_TOKENS_QUESTION])
+
         stream = request.json.get("stream") == "true"
         previous_messages = request.json.get("prevMsgs")
 
