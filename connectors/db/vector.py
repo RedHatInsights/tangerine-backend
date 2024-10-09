@@ -80,7 +80,7 @@ class VectorStoreInterface:
         for line in text.splitlines():
             if line.startswith("# "):
                 # we found a title header, add it to metadata
-                metadata["title"] = line.strip("# ")
+                metadata["title"] = line.lstrip("# ").strip()
                 break
         else:
             metadata["title"] = metadata["full_path"]
