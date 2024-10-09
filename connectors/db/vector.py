@@ -82,14 +82,15 @@ class VectorStoreInterface:
             separators=TXT_SEPARATORS,
         )
 
+        # find title if possible and add to metadata
+        for line in text.splitlines():
+            if line.startswith("# "):
+                # we found a title header, add it to metadata
+                metadata["title"] = line.strip("# ")
+                break
+
         chunks = text_splitter.split_text(text)
         chunks = self.combine_small_chunks(chunks)
-
-        # find title if possible and add to metadata
-        first_line_of_first_chunk = chunks[0].splitlines()[0]
-        if first_line_of_first_chunk.startswith("# "):
-            # we found the title header, add it to metadata
-            metadata["title"] = first_line_of_first_chunk.strip("# ")
 
         documents = []
         for chunk in chunks:
