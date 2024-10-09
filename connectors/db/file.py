@@ -95,6 +95,10 @@ def _html_to_md(text):
             # remove non printable chars (like paragraph markers)
             line = "".join(filter(lambda char: char in string.printable, line))
 
+            # remove trailing "#" from header lines
+            if re.match(r"#+ \S+", line):
+                line = line.rstrip("\\\\#")
+
             # replace html2text code block start/end with standard md
             if "[code]" in line:
                 in_code_block = True
