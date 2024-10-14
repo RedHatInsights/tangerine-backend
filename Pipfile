@@ -23,6 +23,7 @@ html2text = "*"
 mdformat = "*"
 boto3 = "*"
 pydantic = "*"
+mistral-common = "*"
 
 [dev-packages]
 black = "*"
