@@ -181,6 +181,12 @@ def compare_files(agent_config: AgentConfig, agent: Agent):
             agent_objects_to_delete.append(agent_object)
             num_to_delete += 1
 
+        # check if an entire prefix is no longer defined in the agent config
+        if not any([full_path.startswith(prefix) for prefix in prefixes]):
+            log.debug("%s uses prefix not found in agent config, will remove file", full_path)
+            agent_objects_to_delete.append(agent_object)
+            num_to_delete += 1
+
     # check if there's a new remote file to add
     for key, s3_object in s3_objects_by_key.items():
         if key not in agent_objects_by_path:
