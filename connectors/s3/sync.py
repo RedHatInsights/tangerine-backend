@@ -164,8 +164,21 @@ def compare_files(agent_config: AgentConfig, agent: Agent):
     for agent_object in agent_objects:
         full_path = agent_object["full_path"]
 
+        # check if the entire prefix is no longer defined in the agent config
+        if not any([full_path.startswith(prefix) for prefix in prefixes]):
+            log.debug("%s uses prefix not found in agent config, will remove file", full_path)
+            agent_objects_to_delete.append(agent_object)
+            num_to_delete += 1
+
+        # check if remote file has been removed
+        elif full_path not in s3_objects_by_key:
+            # stored file is not present in s3, mark for deletion
+            log.debug("%s no longer present in s3, will remove file", full_path)
+            agent_objects_to_delete.append(agent_object)
+            num_to_delete += 1
+
         # check if remote file has been updated
-        if full_path in s3_objects_by_key:
+        elif full_path in s3_objects_by_key:
             hash = agent_object.get("hash")
             etag = s3_objects_by_key[full_path]["ETag"]
             if hash != etag:
@@ -173,13 +186,6 @@ def compare_files(agent_config: AgentConfig, agent: Agent):
                 s3_objects_to_insert.append(s3_objects_by_key[full_path])
                 agent_objects_to_delete.append(agent_object)
                 num_to_update += 1
-
-        # check if remote file has been removed
-        if full_path not in s3_objects_by_key:
-            # stored file is not present in s3, mark for deletion
-            log.debug("%s no longer present in s3, will remove file", full_path)
-            agent_objects_to_delete.append(agent_object)
-            num_to_delete += 1
 
     # check if there's a new remote file to add
     for key, s3_object in s3_objects_by_key.items():
