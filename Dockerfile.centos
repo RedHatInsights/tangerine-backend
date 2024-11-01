@@ -12,6 +12,11 @@ USER root
 ENV APP_ROOT=/opt/app-root/src
 WORKDIR $APP_ROOT
 
+# install postgres from centos repos when not building on a RHEL subscribed host
+RUN rpm -Uvh http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/centos-stream-repos-9.0-26.el9.noarch.rpm \
+    http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/centos-gpg-keys-9.0-26.el9.noarch.rpm && \
+    sed -i 's/^\(enabled.*\)/\1\npriority=200/;' /etc/yum.repos.d/centos*.repo
+
 RUN microdnf -y module enable postgresql:16 && \
     microdnf -y upgrade && \
     microdnf -y install --setopt=install_weak_deps=0 --setopt=tsflags=nodocs python311 python3.11-pip which postgresql libpq && \

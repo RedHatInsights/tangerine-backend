@@ -55,7 +55,7 @@ services:
     container_name: tangerine-backend
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.centos
     ports:
       - "5000:5000"
     environment:
