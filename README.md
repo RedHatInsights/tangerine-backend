@@ -66,13 +66,26 @@ ollama pull mistral
 ollama pull nomic-embed-text
 ```
 
-3. Start the Vector database
+4. Install the C API for Postgres (libpq)
+
+```sh
+brew install libpq
+```
+
+> [!TIP]
+> For Apple Silicon Macs, you'll need to export the following environment variable to avoid the issues with ligpg c library errors:
+> export PATH="/opt/homebrew/opt/libpq/bin:$PATH"
+> export LDFLAGS="-L/opt/homebrew/opt/libpq/lib"
+> export CPPFLAGS="-I/opt/homebrew/opt/libpq/include"
+
+
+5. Start the Vector database
 
 ```sh
 docker run -e POSTGRES_PASSWORD="citrus" -e POSTGRES_USER="citrus" -e POSTGRES_DB="citrus" -e POSTGRES_HOST_AUTH_METHOD=trust -p 5432:5432 pgvector/pgvector:pg16
 ```
 
-4. Prepare the Python virtual environment:
+6. Prepare the Python virtual environment:
 
 ```sh
 pipenv --python=3.11
@@ -80,9 +93,12 @@ pipenv install
 pipenv shell
 ```
 
-5. Start Tangerine Backend
+7. Start Tangerine Backend
 
-**Note:* The default tangerine port, 5000, is already claimed by Bonjour on Macs, so we need to use a different port instead.*
+> [!NOTE]
+> The default tangerine port, 5000, is already claimed by Bonjour on Macs, so we need to use a different port instead.
+
+
 ```sh
 flask run --host=127.0.0.1 --port=8000
 ```
