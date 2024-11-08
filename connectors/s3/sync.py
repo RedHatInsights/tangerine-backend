@@ -67,7 +67,7 @@ def download_obj(bucket, obj_key, dest_dir):
 
 def download_objs_concurrent(bucket, s3_objects, dest_dir):
     keys = [obj["Key"] for obj in s3_objects]
-    log.debug("downloading %d files from s3 bucket '%s' to %d", len(keys), bucket, dest_dir)
+    log.debug("downloading %d files from s3 bucket '%s' to %s", len(keys), bucket, dest_dir)
     with ThreadPoolExecutor() as executor:
         key_for_future = {executor.submit(download_obj, bucket, key, dest_dir): key for key in keys}
 

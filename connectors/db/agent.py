@@ -48,7 +48,6 @@ class Agent(db.Model):
     def get(cls, id: int) -> Optional[Self]:
         agent_id = int(id)
         agent = db.session.get(cls, agent_id)
-        log.debug("get agent by id %d result: %s", agent_id, agent)
         return agent
 
     @classmethod

@@ -13,10 +13,16 @@ log = logging.getLogger("tangerine.file")
 
 
 def validate_file_path(full_path: str) -> None:
-    # intentionally more restrictive, matches a "typical" unix path and filename with extension
-    file_regex = r"^[\w\-.\/ ]+\/?\.[\w\-. ]+[^.]$"
-    if not full_path or not full_path.strip() or not re.match(file_regex, full_path):
-        raise ValueError(f"file path must match regex: {file_regex}")
+    if not isinstance(full_path, str):
+        raise TypeError(f"file path must be a string, not {type(full_path)}")
+    elif not full_path.strip():
+        raise ValueError("file path cannot be empty string")
+    else:
+        # https://stackoverflow.com/a/73659000
+        invalid_chars = '\?%*:|"<>'  # noqa: W605
+        for char in set(invalid_chars):
+            if char in full_path:
+                raise ValueError(f"file path cannot contain characters: {invalid_chars}")
 
 
 def validate_source(source: str) -> None:
