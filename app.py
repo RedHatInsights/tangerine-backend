@@ -1,4 +1,5 @@
 import logging
+import sys
 
 import click
 from flask import Flask, current_app
@@ -46,4 +47,5 @@ def create_app():
 @with_appcontext
 def s3sync():
     current_app.logger.info("running s3sync")
-    connectors.s3.sync.run()
+    exit_code = connectors.s3.sync.run()
+    sys.exit(exit_code)

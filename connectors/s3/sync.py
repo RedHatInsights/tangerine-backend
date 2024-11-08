@@ -67,6 +67,7 @@ def download_obj(bucket, obj_key, dest_dir):
 
 def download_objs_concurrent(bucket, s3_objects, dest_dir):
     keys = [obj["Key"] for obj in s3_objects]
+    log.debug("downloading %d files from s3 bucket '%s' to %d", len(keys), bucket, dest_dir)
     with ThreadPoolExecutor() as executor:
         key_for_future = {executor.submit(download_obj, bucket, key, dest_dir): key for key in keys}
 
@@ -85,10 +86,12 @@ def embed_file(app_context, bucket, s3_object, tmpdir, agent_id):
     """Adds an s3 object stored locally to agent"""
     app_context.push()
 
+    file_path = s3_object["Key"]
+
+    log.debug("embedding file %s", file_path)
+
     with db.session():
         agent = Agent.get(agent_id)
-
-        file_path = s3_object["Key"]
         path_on_disk = Path(tmpdir) / Path(s3_object["Key"])
 
         with open(path_on_disk, "r") as fp:
@@ -103,7 +106,6 @@ def embed_file(app_context, bucket, s3_object, tmpdir, agent_id):
             )
 
         embed_files([file], agent)
-
         return file
 
 
@@ -208,26 +210,33 @@ def compare_files(agent_config: AgentConfig, agent: Agent):
 def download_s3_files_and_embed(bucket, s3_objects, agent_id):
     log.debug("%d objects to download", len(s3_objects))
 
-    files = []
+    completed_files = []
+
+    download_errors = 0
+    embed_errors = 0
 
     with tempfile.TemporaryDirectory() as tmpdir:
         for download_success in download_objs_concurrent(bucket, s3_objects, tmpdir):
             if not download_success:
-                raise Exception("hit errors during download, aborting")
+                download_errors += 1
 
         for file in embed_files_concurrent(bucket, s3_objects, tmpdir, agent_id):
-            if not file:
-                raise Exception("hit errors creating embeddings, aborting")
-            files.append(file)
+            if file:
+                completed_files.append(file)
+            else:
+                embed_errors += 1
 
-    return files
+    return completed_files, download_errors, embed_errors
 
 
-def run() -> None:
+def run() -> int:
     sync_config = get_sync_config()
 
     # remove any lingering inactive documents
     vector_db.delete_document_chunks({"active": False})
+
+    download_errors_for_agent = {}
+    embed_errors_for_agent = {}
 
     for agent_config in sync_config.agents:
         if not agent_config.file_types:
@@ -255,7 +264,12 @@ def run() -> None:
                 vector_db.set_doc_states(active=True, pending_removal=True, filter=metadata)
 
             # download new docs for this agent and embed in vector DB
-            download_s3_files_and_embed(agent_config.bucket, s3_objects_to_insert, agent.id)
+            _, download_errors, embed_errors = download_s3_files_and_embed(
+                agent_config.bucket, s3_objects_to_insert, agent.id
+            )
+
+            download_errors_for_agent[agent.id] = download_errors
+            embed_errors_for_agent[agent.id] = embed_errors
 
             # set new doc chunks to active
             # all new docs will have state active=False, pending_removal=False
@@ -274,3 +288,19 @@ def run() -> None:
         agent_objects = vector_db.get_distinct_cmetadata(filter={"agent_id": agent.id})
         agent_files = [File(**obj) for obj in agent_objects]
         agent.update(filenames=[file.display_name for file in agent_files])
+
+    exit_code = 0
+    for agent_id, error_count in download_errors_for_agent.items():
+        if error_count:
+            log.error(
+                "agent %d hit %d download errors during sync, check logs", agent_id, error_count
+            )
+            exit_code = 1
+    for agent_id, error_count in embed_errors_for_agent.items():
+        if error_count:
+            log.error(
+                "agent %d hit %d embedding errors during sync, check logs", agent_id, error_count
+            )
+            exit_code = 1
+
+    return exit_code
