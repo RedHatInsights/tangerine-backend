@@ -3,10 +3,11 @@ import tempfile
 from concurrent import futures
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import List, Optional, Iterator
+from typing import Iterator, List, Optional
 
 import boto3
 import boto3.session
+import jinja2
 import yaml
 from flask import current_app
 from pydantic import BaseModel
@@ -15,8 +16,6 @@ import connectors.config as cfg
 from connectors.db.agent import Agent, db
 from connectors.db.common import File, embed_files
 from connectors.db.vector import vector_db
-
-import jinja2
 
 s3 = boto3.client("s3")
 
