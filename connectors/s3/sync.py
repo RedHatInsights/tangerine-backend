@@ -114,15 +114,15 @@ def embed_file(app_context, file: File, tmpdir: str, agent_id: int) -> File:
 
 
 def embed_files_concurrent(
-    bucket: str, s3_objects: List[File], tmpdir: str, agent_id: int
+    bucket: str, files: List[File], tmpdir: str, agent_id: int
 ) -> Iterator[Optional[File]]:
     max_workers = int(cfg.SQLALCHEMY_POOL_SIZE / 2)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         key_for_future = {
             executor.submit(
-                embed_file, current_app.app_context(), bucket, s3_object, tmpdir, agent_id
-            ): s3_object["Key"]
-            for s3_object in s3_objects
+                embed_file, current_app.app_context(), file, tmpdir, agent_id
+            ): file.full_path
+            for file in files
         }
 
         for future in futures.as_completed(key_for_future):
@@ -136,7 +136,7 @@ def embed_files_concurrent(
                 yield None
 
 
-def get_file_list(agent_config: AgentConfig, default_citation_url_template: str) -> List[File]:
+def get_file_list(agent_config: AgentConfig, defaults: SyncConfigDefaults) -> List[File]:
     files = []
 
     bucket = agent_config.bucket
@@ -144,20 +144,19 @@ def get_file_list(agent_config: AgentConfig, default_citation_url_template: str)
     for path_config in agent_config.paths:
         prefix = path_config.prefix
         objects = get_all_s3_objects(bucket, path_config.prefix)
-        log.debug("%d objects found in bucket %s at prefix %s", len(files), bucket, prefix)
+        log.debug("%d objects found in bucket %s at prefix %s", len(objects), bucket, prefix)
         for obj in objects:
             full_path = obj["Key"]
 
-            # filter by desired extension
-            extensions = path_config.extensions
-            if extensions:
-                valid_extension = any([full_path.endswith(f".{ext}") for ext in extensions])
-                if not valid_extension:
-                    continue
+            # check if this file extension matches any of the desired extensions
+            if not path_config.extensions:
+                path_config.extensions = defaults.extensions
+            if not any([full_path.endswith(f".{ext}") for ext in path_config.extensions]):
+                continue
 
             # generate citation URL for this file
             if not path_config.citation_url_template:
-                path_config.citation_url_template = default_citation_url_template
+                path_config.citation_url_template = defaults.citation_url_template
             template = jinja2.Template(path_config.citation_url_template)
             citation_url = template.render(full_path=full_path)
 
@@ -172,15 +171,19 @@ def get_file_list(agent_config: AgentConfig, default_citation_url_template: str)
             )
             files.append(file)
 
-    log.debug("%d total s3 objects left after filtering for extensions %s", len(files), extensions)
+    log.debug(
+        "%d total s3 objects left after filtering for extensions %s",
+        len(files),
+        path_config.extensions,
+    )
 
     return files
 
 
 def compare_files(
-    agent_config: AgentConfig, agent: Agent, default_citation_url_template: str
-) -> tuple[List[dict], List[File], int, int, int]:
-    files = get_file_list(agent_config, default_citation_url_template)
+    agent_config: AgentConfig, agent: Agent, defaults: SyncConfigDefaults
+) -> tuple[List[dict], List[File], set[dict], int, int, int]:
+    files = get_file_list(agent_config, defaults)
 
     # collect all unique file objects currently stored for this agent in the DB
     agent_objects = vector_db.get_distinct_cmetadata(filter={"agent_id": agent.id})
@@ -191,6 +194,7 @@ def compare_files(
 
     agent_objects_to_delete = []
     files_to_insert = []
+    metadata_update_args = set()
 
     num_to_add = 0
     num_to_delete = 0
@@ -223,6 +227,16 @@ def compare_files(
                 agent_objects_to_delete.append(agent_object)
                 num_to_update += 1
 
+        # check if citation URL needs an update
+        elif agent_object.get("citation_url") != files_by_key[full_path].citation_url:
+            log.debug("%s needs citation url update", full_path)
+            metadata_update_args.add(
+                dict(
+                    metadata={"citation_url": files_by_key[full_path].citation_url},
+                    filter={"full_path": full_path},
+                )
+            )
+
     # check if there's a new remote file to add
     for key, file in files_by_key.items():
         if key not in agent_objects_by_path:
@@ -238,7 +252,14 @@ def compare_files(
         if "pending_removal" in obj:
             del obj["pending_removal"]
 
-    return agent_objects_to_delete, files_to_insert, num_to_add, num_to_delete, num_to_update
+    return (
+        agent_objects_to_delete,
+        files_to_insert,
+        metadata_update_args,
+        num_to_add,
+        num_to_delete,
+        num_to_update,
+    )
 
 
 def download_s3_files_and_embed(
@@ -275,9 +296,6 @@ def run() -> int:
     embed_errors_for_agent = {}
 
     for agent_config in sync_config.agents:
-        if not agent_config.extensions:
-            agent_config.extensions = sync_config.defaults.extensions
-
         # check to see if agent already exists... if so, update... if not, create
         agent = Agent.get_by_name(agent_config.name)
         if agent:
@@ -286,15 +304,24 @@ def run() -> int:
             agent = Agent.create(**dict(agent_config))
 
         # determine what changes need to be made
-        agent_objects_to_delete, files_to_insert, num_adding, num_deleting, num_updating = (
-            compare_files(agent_config, agent)
-        )
+        (
+            agent_objects_to_delete,
+            files_to_insert,
+            metadata_update_args,
+            num_adding,
+            num_deleting,
+            num_updating,
+        ) = compare_files(agent_config, agent, sync_config.defaults)
 
         log.info(
-            "s3 sync: adding %d, deleting %d, updating %d", num_adding, num_deleting, num_updating
+            "s3 sync: adding %d, deleting %d, updating %d, and %d metadata updates",
+            num_adding,
+            num_deleting,
+            num_updating,
+            len(metadata_update_args),
         )
 
-        if agent_objects_to_delete or files_to_insert:
+        if agent_objects_to_delete or files_to_insert or metadata_update_args:
             # set docs which will be removed to state pending_removal=True
             for metadata in agent_objects_to_delete:
                 vector_db.set_doc_states(active=True, pending_removal=True, filter=metadata)
@@ -319,6 +346,10 @@ def run() -> int:
             # delete the now-inactive document chunks
             metadata = {"agent_id": agent.id, "active": False}
             vector_db.delete_document_chunks(metadata)
+
+            for args in metadata_update_args:
+                vector_db.update_cmetadata(**args, commit=False)
+            vector_db.db.session.commit()
 
         # update list of filenames associated with the agent
         agent_objects = vector_db.get_distinct_cmetadata(filter={"agent_id": agent.id})
