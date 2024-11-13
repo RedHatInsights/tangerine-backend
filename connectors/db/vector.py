@@ -34,6 +34,7 @@ class VectorStoreInterface:
         self.store = None
         self.vector_chunk_size = 2000
         self.vector_chunk_overlap = 0
+        self.db = db
 
         self.embeddings = OpenAIEmbeddings(
             model=cfg.EMBED_MODEL_NAME,
@@ -175,7 +176,7 @@ class VectorStoreInterface:
 
         metadata_as_str = {key: str(val) for key, val in metadata.items()}
 
-        for key, val in metadata_as_str.items():
+        for key in metadata_as_str.keys():
             # use parameterized query
             filter_stmt = f"cmetadata->>'{key}' = :{key}"
             filter_stmts.append(filter_stmt)
@@ -225,16 +226,21 @@ class VectorStoreInterface:
 
         return matching_docs
 
-    def set_doc_states(self, active: bool, pending_removal: bool, filter: dict):
+    def update_cmetadata(self, metadata: dict, filter: dict, commit: bool = True):
         metadata_as_str, filter_ = self._build_metadata_filter(filter)
-        data = {"active": str(active), "pending_removal": str(pending_removal)}
+        data = {key: str(val) for key, val in metadata.items()}
         update = (
             "UPDATE langchain_pg_embedding "
             f"SET cmetadata = cmetadata || '{json.dumps(data)}' "
             f"WHERE {filter_}"
         )
         db.session.execute(text(update), metadata_as_str)
-        db.session.commit()
+        if commit:
+            db.session.commit()
+
+    def set_doc_states(self, active: bool, pending_removal: bool, filter: dict):
+        metadata = {"active": str(active), "pending_removal": str(pending_removal)}
+        self.update_cmetadata(metadata, filter)
 
 
 vector_db = VectorStoreInterface()
