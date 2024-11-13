@@ -194,7 +194,7 @@ def compare_files(
 
     agent_objects_to_delete = []
     files_to_insert = []
-    metadata_update_args = set()
+    metadata_update_args = []
 
     num_to_add = 0
     num_to_delete = 0
@@ -209,28 +209,30 @@ def compare_files(
             log.debug("%s uses prefix not found in agent config, will remove file", full_path)
             agent_objects_to_delete.append(agent_object)
             num_to_delete += 1
+            continue
 
         # check if remote file has been removed
-        elif full_path not in files_by_key:
+        if full_path not in files_by_key:
             # stored file is not present in s3, mark for deletion
             log.debug("%s no longer present in s3, will remove file", full_path)
             agent_objects_to_delete.append(agent_object)
             num_to_delete += 1
+            continue
 
         # check if remote file has been updated
-        elif full_path in files_by_key:
-            current_hash = agent_object.get("hash")
-            new_hash = files_by_key[full_path].hash
-            if current_hash != new_hash:
-                log.debug("%s hash changed, will update file", full_path)
-                files_to_insert.append(files_by_key[full_path])
-                agent_objects_to_delete.append(agent_object)
-                num_to_update += 1
+        current_hash = agent_object.get("hash")
+        new_hash = files_by_key[full_path].hash
+        if current_hash != new_hash:
+            log.debug("%s hash changed, will update file", full_path)
+            files_to_insert.append(files_by_key[full_path])
+            agent_objects_to_delete.append(agent_object)
+            num_to_update += 1
+            continue
 
         # check if citation URL needs an update
         elif agent_object.get("citation_url") != files_by_key[full_path].citation_url:
             log.debug("%s needs citation url update", full_path)
-            metadata_update_args.add(
+            metadata_update_args.append(
                 dict(
                     metadata={"citation_url": files_by_key[full_path].citation_url},
                     filter={"full_path": full_path},
