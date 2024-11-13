@@ -46,21 +46,25 @@ objects:
   data:
     # example config
     s3.yaml: |
-      default_file_types:
-        - html
-        - md
+      defaults:
+        extensions:
+          - html
+          - md
+        citation_url_template: 'https://files.test/{{ full_path }}'
 
       agents:
         - name: agent1
           description: Agent One
           bucket: mybucket
-          prefix: path/in/bucket
+          paths:
+            - prefix: path/in/bucket
 
         - name: agent2
           description: Agent Two
           bucket: mybucket
-          prefix: other/path/in/bucket
-
+          paths:
+            - prefix: other/path/in/bucket
+              citation_url_template: 'https://some.site/{{ full_path | replace("other/", "") }}'
 
 - kind: CronJob
   apiVersion: batch/v1

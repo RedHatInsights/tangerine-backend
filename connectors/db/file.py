@@ -147,6 +147,7 @@ class File:
         pending_removal: bool = False,
         content: Optional[str] = "",
         hash: Optional[str] = "",
+        citation_url: Optional[str] = None,
         **kwargs,
     ):
         self.source = source
@@ -155,6 +156,7 @@ class File:
         self.active = active
         self.pending_removal = pending_removal
         self.hash = hash
+        self.citation_url = citation_url
 
     def validate(self):
         validate_file_path(self.full_path)
@@ -166,6 +168,7 @@ class File:
         metadata = {
             "source": self.source,
             "full_path": self.full_path,
+            "citation_url": self.citation_url,
             "active": self.active,
             "pending_removal": self.pending_removal,
             "hash": self.hash,
