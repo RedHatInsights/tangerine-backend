@@ -51,7 +51,8 @@ def get_all_s3_objects(bucket: str, prefix: str) -> List:
     paginator = s3.get_paginator("list_objects_v2")
     pages = paginator.paginate(Bucket=bucket, Prefix=prefix)
     for page in pages:
-        objects.extend(page["Contents"])
+        if "Contents" in page:
+            objects.extend(page["Contents"])
 
     return objects
 
@@ -143,6 +144,7 @@ def get_file_list(agent_config: AgentConfig, defaults: SyncConfigDefaults) -> Li
 
     for path_config in agent_config.paths:
         prefix = path_config.prefix
+        log.debug("fetching objects from bucket %s at prefix %s", bucket, prefix)
         objects = get_all_s3_objects(bucket, path_config.prefix)
         log.debug("%d objects found in bucket %s at prefix %s", len(objects), bucket, prefix)
         for obj in objects:
