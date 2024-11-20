@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 from operator import itemgetter
 
 from langchain_core.documents import Document
@@ -34,6 +35,7 @@ class VectorStoreInterface:
         self.store = None
         self.vector_chunk_size = 2000
         self.vector_chunk_overlap = 0
+        self.batch_size = 32
         self.db = db
 
         self.embeddings = OpenAIEmbeddings(
@@ -124,17 +126,31 @@ class VectorStoreInterface:
         return chunks
 
     def add_file(self, file: File, agent_id: int):
+        chunks = []
         try:
             chunks = self.create_document_chunks(file, agent_id)
-            if chunks:
-                self.store.add_documents(chunks)
-                log.debug(
-                    "added %d document chunks to agent %s",
-                    len(chunks),
-                    agent_id,
-                )
         except Exception:
-            log.exception("error adding documents")
+            log.exception("error creating document chunks")
+            return
+
+        total = len(chunks)
+        batch_size = self.batch_size
+        total_batches = math.ceil(total / batch_size)
+        current_batch = 0
+        for idx in range(0, total, batch_size):
+            current_batch += 1
+            documents = chunks[idx : idx + batch_size]
+            log.debug(
+                "adding %d document chunks to agent %s, batch %d/%d",
+                len(documents),
+                agent_id,
+                current_batch,
+                total_batches,
+            )
+            try:
+                self.store.add_documents(documents)
+            except Exception:
+                log.exception("error adding documents to vector store for batch %d", current_batch)
 
     def search(self, query, agent_id: int):
         filter = {"agent_id": str(agent_id), "active": "True"}
