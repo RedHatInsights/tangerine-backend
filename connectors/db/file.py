@@ -19,8 +19,9 @@ def validate_file_path(full_path: str) -> None:
         raise ValueError("file path cannot be empty string")
     else:
         # https://stackoverflow.com/a/73659000
-        invalid_chars = '\?%*:|"<>'  # noqa: W605
-        for char in set(invalid_chars):
+        invalid_chars = set('\\?%*:|"<>')
+
+        for char in invalid_chars:
             if char in full_path:
                 raise ValueError(f"file path cannot contain characters: {invalid_chars}")
 

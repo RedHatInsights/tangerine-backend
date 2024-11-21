@@ -22,17 +22,17 @@ RUN ON_RHEL=$(microdnf repolist --enabled | grep rhel-9) ; \
 
 RUN microdnf -y module enable postgresql:16 && \
     microdnf -y upgrade && \
-    microdnf -y install --setopt=install_weak_deps=0 --setopt=tsflags=nodocs python311 python3.11-pip which postgresql libpq && \
+    microdnf -y install --setopt=install_weak_deps=0 --setopt=tsflags=nodocs python312 python3.12-pip which postgresql libpq && \
     rpm -qa | sort > packages-before-devel-install.txt && \
-    microdnf -y install --setopt=install_weak_deps=0 --setopt=tsflags=nodocs python3.11-devel gcc make libpq-devel && \
+    microdnf -y install --setopt=install_weak_deps=0 --setopt=tsflags=nodocs python3.12-devel gcc make libpq-devel && \
     rpm -qa | sort > packages-after-devel-install.txt
 
 COPY Pipfile .
 COPY Pipfile.lock .
-RUN python3.11 -m venv .venv && \
+RUN python3.12 -m venv .venv && \
     source .venv/bin/activate && \
-    python3.11 -m pip install --upgrade pip setuptools wheel && \
-    python3.11 -m pip install pipenv && \
+    python3.12 -m pip install --upgrade pip setuptools wheel && \
+    python3.12 -m pip install pipenv && \
     pipenv install --system
 
 # remove devel packages that may have only been necessary for psycopg to compile
