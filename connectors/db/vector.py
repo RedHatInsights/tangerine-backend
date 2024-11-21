@@ -2,6 +2,7 @@ import json
 import logging
 import math
 from operator import itemgetter
+import itertools
 
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
@@ -136,21 +137,18 @@ class VectorStoreInterface:
         total = len(chunks)
         batch_size = self.batch_size
         total_batches = math.ceil(total / batch_size)
-        current_batch = 0
-        for idx in range(0, total, batch_size):
-            current_batch += 1
-            documents = chunks[idx : idx + batch_size]
+        for batch_num, batch in enumerate(itertools.batched(chunks, batch_size)):
             log.debug(
                 "adding %d document chunks to agent %s, batch %d/%d",
-                len(documents),
+                len(batch),
                 agent_id,
-                current_batch,
+                batch_num,
                 total_batches,
             )
             try:
-                self.store.add_documents(documents)
+                self.store.add_documents(batch)
             except Exception:
-                log.exception("error adding documents to vector store for batch %d", current_batch)
+                log.exception("error adding documents to vector store for batch %d", batch_num)
 
     def search(self, query, agent_id: int):
         filter = {"agent_id": str(agent_id), "active": "True"}
