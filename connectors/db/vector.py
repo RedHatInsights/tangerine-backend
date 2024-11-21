@@ -137,18 +137,19 @@ class VectorStoreInterface:
         total = len(chunks)
         batch_size = self.batch_size
         total_batches = math.ceil(total / batch_size)
-        for batch_num, batch in enumerate(itertools.batched(chunks, batch_size)):
+        for idx, batch in enumerate(itertools.batched(chunks, batch_size)):
+            current_batch = idx + 1
             log.debug(
                 "adding %d document chunks to agent %s, batch %d/%d",
                 len(batch),
                 agent_id,
-                batch_num,
+                current_batch,
                 total_batches,
             )
             try:
                 self.store.add_documents(batch)
             except Exception:
-                log.exception("error adding documents to vector store for batch %d", batch_num)
+                log.exception("error adding documents to vector store for batch %d", current_batch)
 
     def search(self, query, agent_id: int):
         filter = {"agent_id": str(agent_id), "active": "True"}
