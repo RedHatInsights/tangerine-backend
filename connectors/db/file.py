@@ -7,7 +7,9 @@ from typing import Optional
 import html2text
 import mdformat
 import PyPDF2
+import pytablereader as ptr
 from bs4 import BeautifulSoup
+from tabledata import TableData
 
 log = logging.getLogger("tangerine.file")
 
@@ -40,6 +42,11 @@ def validate_file_type(full_path: str) -> None:
 
 
 def _remove_large_md_code_blocks(text):
+    """
+    Replaces markdown code blocks longer than 9 lines with redirection text
+
+    This is to avoid large code blocks getting broken up across text chunks
+    """
     lines = []
     code_lines = []
     in_code_block = False
@@ -62,80 +69,138 @@ def _remove_large_md_code_blocks(text):
     return "\n".join(lines)
 
 
-def _html_to_md(text):
+def _get_table_row_lines(table: TableData) -> list[str]:
+    table_lines = []
+    for _, rows in table.as_dict().items():
+        for row in rows:
+            line = "* " + " \t| ".join(
+                [f"{header}: {row_content or 'null'}" for header, row_content in row.items()]
+            )
+            table_lines.append(line)
+
+    return table_lines
+
+
+def _convert_md_tables(text: str) -> str:
+    """
+    Converts tables into plain with with each row having "header: value" statements
+
+    Intended to preserve the context of the table headers across text chunks
+    """
+    # parse tables found in this text using pytablereader
+    table_loader = ptr.MarkdownTableTextLoader(text)
+    tables = table_loader.load()
+    table_for_regex = dict()
+    for table in tables:
+        # create a regex pattern to match: '| header1   | header2   | (and so on)... |'
+        headers = [re.escape(header) for header in table.headers]
+        re_str = r"\| " + r"[\t ]+\| ".join(headers) + r"[\t ]+\|"
+        table_for_regex[re_str] = table
+
+    line_num = 0
+    lines = text.split("\n")
+    new_lines = []
+
+    while line_num < len(lines):
+        line = lines[line_num]
+        for re_str in table_for_regex:
+            line_without_styling = re.sub(r"[*_~]", "", line)
+            if re.findall(re_str, line_without_styling):
+                # we found the start of a table
+                table = table_for_regex[re_str]
+                row_lines = _get_table_row_lines(table)
+                new_lines.append(
+                    "<the table below was condensed using 'header: value' format for rows>"
+                )
+                new_lines.extend(row_lines)
+                # skip over table rows and 2 header lines when continuing to process the text
+                line_num += len(row_lines) + 2
+                break
+        else:
+            new_lines.append(line)
+            line_num += 1
+
+    return "\n".join(new_lines)
+
+
+def _process_md(text: str) -> str:
+    """
+    Process markdown text to yield better text chunks when text is split
+
+    1. Remove excessive newlines before/after code blocks
+    2. Use mdformat for general cleanup
+    3. Remove large code blocks
+    4. Convert tables into condensed format
+    """
+    # strip empty newlines before end of code blocks
+    md = re.sub(r"\n\n+```", "\n```", text)
+    # strip empty newlines after the start of a code block
+    md = re.sub(r"```\n\n+", "```\n", md)
+    # use opinionated formatter
+    md = mdformat.text(md)
+
+    md = _remove_large_md_code_blocks(md)
+    md = _convert_md_tables(md)
+
+    return md
+
+
+def _mkdocs_to_md(md_content: str) -> str:
     """
     Parse a .html page that has been composed with mkdocs
 
-    It is assumed that the page contains 'md-content' which was compiled based on .md
-
-    TODO: possibly handle html pages not built with mkdocs
+    Converts the page back into md using html2text and addresses formatting issues that
+    are commonly found after the conversion.
     """
-    md = ""
-    soup = BeautifulSoup(text, "lxml")
-    # extract 'md-content', this ignores nav/header/footer/etc.
-    md_content = soup.find("div", class_="md-content")
-    if md_content:
-        # remove "Edit this page" button
-        edit_button = md_content.find("a", title="Edit this page")
-        if edit_button:
-            edit_button.decompose()
+    # remove "Edit this page" button
+    edit_button = md_content.find("a", title="Edit this page")
+    if edit_button:
+        edit_button.decompose()
 
-        # remove line numbers from code blocks
-        linenos_columns = md_content.find_all("td", class_="linenos")
-        for linenos_column in linenos_columns:
-            linenos_column.decompose()
+    # remove line numbers from code blocks
+    linenos_columns = md_content.find_all("td", class_="linenos")
+    for linenos_column in linenos_columns:
+        linenos_column.decompose()
 
-        h = html2text.HTML2Text()
-        h.ignore_images = True
-        h.mark_code = True
-        h.body_width = 0
-        h.ignore_emphasis = True
-        h.wrap_links = False
-        h.ignore_tables = True
+    h = html2text.HTML2Text()
+    h.ignore_images = True
+    h.mark_code = True
+    h.body_width = 0
+    h.ignore_emphasis = True
+    h.wrap_links = False
+    h.ignore_tables = True
 
-        html2text_output = h.handle(str(md_content))
+    html2text_output = h.handle(str(md_content))
 
-        md_lines = []
-        in_code_block = False
+    md_lines = []
+    in_code_block = False
 
-        for line in html2text_output.split("\n"):
-            # remove non printable chars (like paragraph markers)
-            line = "".join(filter(lambda char: char in string.printable, line))
+    for line in html2text_output.split("\n"):
+        # remove non printable chars (like paragraph markers)
+        line = "".join(filter(lambda char: char in string.printable, line))
 
-            # remove trailing "#" from header lines
-            if re.match(r"#+ \S+", line):
-                line = line.rstrip("\\\\#")
+        # remove trailing "#" from header lines
+        if re.match(r"#+ \S+", line):
+            line = line.rstrip("\\\\#")
 
-            # replace html2text code block start/end with standard md
-            if "[code]" in line:
-                in_code_block = True
-                line = line.replace("[code]", "```")
-            elif "[/code]" in line:
-                in_code_block = False
-                line = line.replace("[/code]", "```")
-            if in_code_block:
-                # also fix indent, html2text indents all code content by 4 spaces
-                if line.startswith("```"):
-                    # start of code block and the txt may be on the same line...
-                    #   eg: ```    <text>
-                    line = f"```\n{line[8:]}"
-                else:
-                    line = line[4:]
-            md_lines.append(line)
+        # replace html2text code block start/end with standard md
+        if "[code]" in line:
+            in_code_block = True
+            line = line.replace("[code]", "```")
+        elif "[/code]" in line:
+            in_code_block = False
+            line = line.replace("[/code]", "```")
+        if in_code_block:
+            # also fix indent, html2text indents all code content by 4 spaces
+            if line.startswith("```"):
+                # start of code block and the txt may be on the same line...
+                #   eg: ```    <text>
+                line = f"```\n{line[8:]}"
+            else:
+                line = line[4:]
+        md_lines.append(line)
 
-        md = "\n".join(md_lines)
-
-        # strip empty newlines before end of code blocks
-        md = re.sub(r"\n\n+```", "\n```", md)
-        # strip empty newlines after the start of a code block
-        md = re.sub(r"```\n\n+", "```\n", md)
-        # finally, use opinionated formatter
-        md = mdformat.text(md)
-    else:
-        log.error("no 'md-content' div found")
-
-    md = _remove_large_md_code_blocks(md)
-
+    md = "\n".join(md_lines)
     return md
 
 
@@ -195,10 +260,21 @@ class File:
 
             return text_content
 
-        elif self.full_path.endswith(".html"):
-            return _html_to_md(self.content)
+        if self.full_path.endswith(".html"):
+            soup = BeautifulSoup(self.content, "lxml")
+            # look for 'md-content' in the page, this ignores nav/header/footer/etc.
+            md_content = soup.find("div", class_="md-content")
+            if md_content:
+                # assume this is an mkdocs html page
+                md = _mkdocs_to_md(md_content)
+                return _process_md(md)
+            else:
+                return self.content
 
-        if self.full_path.endswith((".md", ".txt", ".rst", ".html")):
+        if self.full_path.endswith(".md"):
+            return _process_md(self.content)
+
+        if self.full_path.endswith(".txt", ".rst"):
             return self.content
 
         return ""

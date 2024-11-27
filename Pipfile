@@ -24,6 +24,7 @@ mdformat = "*"
 boto3 = "*"
 pydantic = "*"
 jinja2 = "*"
+pytablereader = {extras = ["md"], version = "*"}
 
 [dev-packages]
 black = "*"

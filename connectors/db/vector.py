@@ -1,8 +1,8 @@
+import itertools
 import json
 import logging
 import math
 from operator import itemgetter
-import itertools
 
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
@@ -92,7 +92,7 @@ class VectorStoreInterface:
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.vector_chunk_size,
             chunk_overlap=self.vector_chunk_overlap,
-            separators=TXT_SEPARATORS,
+            separators=TXT_SEPARATORS,  # todo: split on more doc types
         )
 
         chunks = text_splitter.split_text(text)
