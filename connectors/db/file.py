@@ -73,7 +73,7 @@ def _get_table_row_lines(table: TableData) -> list[str]:
     table_lines = []
     for _, rows in table.as_dict().items():
         for row in rows:
-            line = " \t| ".join(
+            line = "* " + " \t| ".join(
                 [f"{header}: {row_content or 'null'}" for header, row_content in row.items()]
             )
             table_lines.append(line)
