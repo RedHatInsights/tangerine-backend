@@ -13,6 +13,11 @@ from tabledata import TableData
 
 log = logging.getLogger("tangerine.file")
 
+# match example: [Text](something)
+LINK_REGEX = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+# match example: "http://something.com"
+ABSOLUTE_URL_REGEX = re.compile(r"[a-z0-9]*:\/\/.*")
+
 
 def validate_file_path(full_path: str) -> None:
     if not isinstance(full_path, str):
@@ -123,7 +128,24 @@ def _convert_md_tables(text: str) -> str:
     return "\n".join(new_lines)
 
 
-def _process_md(text: str) -> str:
+def _convert_relative_links(md: str, url_prefix: str) -> str:
+    if not url_prefix.endswith("/"):
+        url_prefix = url_prefix + "/"
+
+    md_lines = md.splitlines()
+    for idx, line in enumerate(md_lines):
+        for match in re.findall(LINK_REGEX, line):
+            if len(match) == 2:
+                txt, url = match
+                if not re.match(ABSOLUTE_URL_REGEX, url):
+                    # url is a relative url
+                    new_url = url_prefix + url
+                    new_line = line.replace(f"[{txt}]({url})", f"[{txt}]({new_url})")
+                    md_lines[idx] = new_line
+    return "\n".join(md_lines)
+
+
+def _process_md(text: str, relative_url_prefix: str) -> str:
     """
     Process markdown text to yield better text chunks when text is split
 
@@ -131,6 +153,7 @@ def _process_md(text: str) -> str:
     2. Use mdformat for general cleanup
     3. Remove large code blocks
     4. Convert tables into condensed format
+    5. Convert relative URL links into absolute URL links
     """
     # strip empty newlines before end of code blocks
     md = re.sub(r"\n\n+```", "\n```", text)
@@ -141,6 +164,7 @@ def _process_md(text: str) -> str:
 
     md = _remove_large_md_code_blocks(md)
     md = _convert_md_tables(md)
+    md = _convert_relative_links(md, relative_url_prefix)
 
     return md
 
@@ -267,7 +291,7 @@ class File:
             if md_content:
                 # assume this is an mkdocs html page
                 md = _mkdocs_to_md(md_content)
-                return _process_md(md)
+                return _process_md(md, relative_url_prefix=self.citation_url)
             else:
                 return self.content
 
