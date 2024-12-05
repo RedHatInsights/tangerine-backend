@@ -129,10 +129,6 @@ def _convert_md_tables(text: str) -> str:
 
 
 def _convert_relative_links(md: str, url_prefix: str) -> str:
-    if not re.match(ABSOLUTE_URL_REGEX, url_prefix):
-        # if the url prefix itself is not an absolute URL, do nothing
-        return md
-
     if not url_prefix.endswith("/"):
         url_prefix = url_prefix + "/"
 
@@ -152,7 +148,7 @@ def _convert_relative_links(md: str, url_prefix: str) -> str:
     return "\n".join(md_lines)
 
 
-def _process_md(text: str, relative_url_prefix: str) -> str:
+def _process_md(text: str, relative_url_prefix: Optional[str] = None) -> str:
     """
     Process markdown text to yield better text chunks when text is split
 
@@ -171,7 +167,8 @@ def _process_md(text: str, relative_url_prefix: str) -> str:
 
     md = _remove_large_md_code_blocks(md)
     md = _convert_md_tables(md)
-    md = _convert_relative_links(md, relative_url_prefix)
+    if relative_url_prefix:
+        md = _convert_relative_links(md, relative_url_prefix)
 
     return md
 
@@ -303,7 +300,7 @@ class File:
                 return self.content
 
         if self.full_path.endswith(".md"):
-            return _process_md(self.content)
+            return _process_md(self.content, relative_url_prefix=self.citation_url)
 
         if self.full_path.endswith(".txt", ".rst"):
             return self.content
