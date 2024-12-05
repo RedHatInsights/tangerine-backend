@@ -168,7 +168,10 @@ def _process_md(text: str, relative_url_prefix: Optional[str] = None) -> str:
     md = _remove_large_md_code_blocks(md)
     md = _convert_md_tables(md)
     if relative_url_prefix:
-        md = _convert_relative_links(md, relative_url_prefix)
+        try:
+            md = _convert_relative_links(md, relative_url_prefix)
+        except Exception:
+            log.exception("hit unexpected error while converting relative links")
 
     return md
 

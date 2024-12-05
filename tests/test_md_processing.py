@@ -20,3 +20,16 @@ def test_link_conversion():
     """
 
     assert _convert_relative_links(test_txt, base_url) == expected_txt
+
+def test_link_conversion_bad_links():
+    test_txt = """
+        This is a [bad]() link
+
+        This is an [](invalid) link
+
+        This is a totally []() invalid link
+    """
+    base_url = "http://baseurl.com/path/to/docs"
+
+    # text should be unmodified
+    assert _convert_relative_links(test_txt, base_url) == test_txt
