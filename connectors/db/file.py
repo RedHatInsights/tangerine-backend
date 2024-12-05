@@ -129,19 +129,26 @@ def _convert_md_tables(text: str) -> str:
 
 
 def _convert_relative_links(md: str, url_prefix: str) -> str:
+    if not re.match(ABSOLUTE_URL_REGEX, url_prefix):
+        # if the url prefix itself is not an absolute URL, do nothing
+        return md
+
     if not url_prefix.endswith("/"):
         url_prefix = url_prefix + "/"
 
     md_lines = md.splitlines()
+
     for idx, line in enumerate(md_lines):
+        new_line = line
         for match in re.findall(LINK_REGEX, line):
             if len(match) == 2:
                 txt, url = match
                 if not re.match(ABSOLUTE_URL_REGEX, url):
                     # url is a relative url
                     new_url = url_prefix + url
-                    new_line = line.replace(f"[{txt}]({url})", f"[{txt}]({new_url})")
-                    md_lines[idx] = new_line
+                    new_line = new_line.replace(f"[{txt}]({url})", f"[{txt}]({new_url})")
+        md_lines[idx] = new_line
+
     return "\n".join(md_lines)
 
 
