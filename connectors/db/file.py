@@ -1,7 +1,8 @@
 import logging
 import re
+import os
 import string
-from io import StringIO
+from io import StringIO, BytesIO
 from typing import Optional
 
 import html2text
@@ -10,6 +11,8 @@ import PyPDF2
 import pytablereader as ptr
 from bs4 import BeautifulSoup
 from tabledata import TableData
+
+from docling.document_converter import DocumentConverter, DocumentStream
 
 log = logging.getLogger("tangerine.file")
 
@@ -41,7 +44,7 @@ def validate_source(source: str) -> None:
 
 def validate_file_type(full_path: str) -> None:
     if not any(
-        [full_path.endswith(filetype) for filetype in [".txt", ".pdf", ".md", ".rst", ".html"]]
+        [full_path.endswith(filetype) for filetype in [".txt", ".pdf", ".md", ".rst", ".html", ".adoc"]]
     ):
         raise ValueError("unsupported file type")
 
@@ -73,6 +76,13 @@ def _remove_large_md_code_blocks(text):
 
     return "\n".join(lines)
 
+def _adoc_to_md(path, text):
+    converter = DocumentConverter()
+    textio = BytesIO(text.encode('utf-8'))
+    textio.seek(0)
+    ds = DocumentStream(name=path, stream=textio)
+    result = converter.convert(ds)
+    return(result.document.export_to_markdown())
 
 def _get_table_row_lines(table: TableData) -> list[str]:
     table_lines = []
@@ -307,5 +317,8 @@ class File:
 
         if self.full_path.endswith(".txt", ".rst"):
             return self.content
+
+        if self.full_path.endswith(".adoc"):
+            return _adoc_to_md(os.path.basename(self.full_path), self.content)
 
         return ""

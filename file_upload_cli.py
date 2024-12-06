@@ -10,6 +10,7 @@ DEFAULT_SOURCE = "default"
 def upload_files(source, directory_path, url, agent_id, html, bearer_token):
     files = glob.glob(os.path.join(directory_path, "**", "*.rst"), recursive=True)
     files.extend(glob.glob(os.path.join(directory_path, "**", "*.md"), recursive=True))
+    files.extend(glob.glob(os.path.join(directory_path, "**", "*.adoc"), recursive=True))
     if html:
         files.extend(glob.glob(os.path.join(directory_path, "**", "*.html"), recursive=True))
 
@@ -49,7 +50,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Upload .rst/.md/.html files to a tangerine agent."
+        description="Upload .rst/.md/.html/.adoc files to a tangerine agent."
     )
     parser.add_argument("--html", help="Include html docs", default=False, action="store_true")
     parser.add_argument("--bearer-token", type=str, help="Authorization bearer token")

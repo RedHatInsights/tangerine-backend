@@ -25,6 +25,7 @@ boto3 = "*"
 pydantic = "*"
 jinja2 = "*"
 pytablereader = {extras = ["md"], version = "*"}
+docling = "*"
 
 [dev-packages]
 black = "*"
