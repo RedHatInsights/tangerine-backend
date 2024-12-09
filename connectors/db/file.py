@@ -44,7 +44,10 @@ def validate_source(source: str) -> None:
 
 def validate_file_type(full_path: str) -> None:
     if not any(
-        [full_path.endswith(filetype) for filetype in [".txt", ".pdf", ".md", ".rst", ".html", ".adoc"]]
+        [
+            full_path.endswith(filetype)
+            for filetype in [".txt", ".pdf", ".md", ".rst", ".html", ".adoc"]
+        ]
     ):
         raise ValueError("unsupported file type")
 
@@ -76,13 +79,15 @@ def _remove_large_md_code_blocks(text):
 
     return "\n".join(lines)
 
+
 def _adoc_to_md(path, text):
     converter = DocumentConverter()
-    textio = BytesIO(text.encode('utf-8'))
+    textio = BytesIO(text.encode("utf-8"))
     textio.seek(0)
     ds = DocumentStream(name=path, stream=textio)
     result = converter.convert(ds)
-    return(result.document.export_to_markdown())
+    return result.document.export_to_markdown()
+
 
 def _get_table_row_lines(table: TableData) -> list[str]:
     table_lines = []
@@ -138,7 +143,9 @@ def _convert_md_tables(text: str) -> str:
     return "\n".join(new_lines)
 
 
-def _convert_relative_links(md: str, url_prefix: str) -> str:
+def _convert_relative_links(md: str, url: str) -> str:
+    url_prefix = url.rstrip(os.path.basename(url))  # remove filename at end
+
     if not url_prefix.endswith("/"):
         url_prefix = url_prefix + "/"
 
@@ -158,7 +165,7 @@ def _convert_relative_links(md: str, url_prefix: str) -> str:
     return "\n".join(md_lines)
 
 
-def _process_md(text: str, relative_url_prefix: Optional[str] = None) -> str:
+def _process_md(text: str, url: Optional[str] = None) -> str:
     """
     Process markdown text to yield better text chunks when text is split
 
@@ -177,9 +184,9 @@ def _process_md(text: str, relative_url_prefix: Optional[str] = None) -> str:
 
     md = _remove_large_md_code_blocks(md)
     md = _convert_md_tables(md)
-    if relative_url_prefix:
+    if url:
         try:
-            md = _convert_relative_links(md, relative_url_prefix)
+            md = _convert_relative_links(md, url)
         except Exception:
             log.exception("hit unexpected error while converting relative links")
 
@@ -308,12 +315,12 @@ class File:
             if md_content:
                 # assume this is an mkdocs html page
                 md = _mkdocs_to_md(md_content)
-                return _process_md(md, relative_url_prefix=self.citation_url)
+                return _process_md(md, url=self.citation_url)
             else:
                 return self.content
 
         if self.full_path.endswith(".md"):
-            return _process_md(self.content, relative_url_prefix=self.citation_url)
+            return _process_md(self.content, url=self.citation_url)
 
         if self.full_path.endswith(".txt", ".rst"):
             return self.content
