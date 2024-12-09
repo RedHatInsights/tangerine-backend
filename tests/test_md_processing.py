@@ -1,7 +1,13 @@
+import pytest
 from connectors.db.file import _convert_relative_links
 
 
-def test_link_conversion():
+@pytest.mark.parametrize(
+    "url",
+    ("http://baseurl.com/path/to/docs/index.html", "http://baseurl.com/path/to/docs/"),
+    ids=("file_url", "folder_url"),
+)
+def test_link_conversion(url):
     test_txt = """
         This is a markdown file. Some links are [absolute links](http://something.com)
 
@@ -9,7 +15,6 @@ def test_link_conversion():
 
         [relative](#relative-header) links should be converted and [absolute](https://absolute.com/index.html) should not.
     """
-    base_url = "http://baseurl.com/path/to/docs"
 
     expected_txt = """
         This is a markdown file. Some links are [absolute links](http://something.com)
@@ -19,7 +24,8 @@ def test_link_conversion():
         [relative](http://baseurl.com/path/to/docs/#relative-header) links should be converted and [absolute](https://absolute.com/index.html) should not.
     """
 
-    assert _convert_relative_links(test_txt, base_url) == expected_txt
+    assert _convert_relative_links(test_txt, url) == expected_txt
+
 
 def test_link_conversion_bad_links():
     test_txt = """
