@@ -1,8 +1,8 @@
 import logging
-import re
 import os
+import re
 import string
-from io import StringIO, BytesIO
+from io import BytesIO, StringIO
 from typing import Optional
 
 import html2text
@@ -10,9 +10,8 @@ import mdformat
 import PyPDF2
 import pytablereader as ptr
 from bs4 import BeautifulSoup
-from tabledata import TableData
-
 from docling.document_converter import DocumentConverter, DocumentStream
+from tabledata import TableData
 
 log = logging.getLogger("tangerine.file")
 
@@ -62,15 +61,21 @@ def _remove_large_md_code_blocks(text):
     code_lines = []
     in_code_block = False
     for line in text.split("\n"):
-        if line.strip() == "```" and not in_code_block:
+        if line.lstrip().startswith("```") and not in_code_block:
             in_code_block = True
             code_lines = []
             code_lines.append(line)
-        elif line.strip() == "```" and in_code_block:
+        elif line.lstrip().startswith("```") and in_code_block:
             code_lines.append(line)
             in_code_block = False
             if len(code_lines) > 9:
-                code_lines = ["```", "<large code block, visit documentation to view>", "```"]
+                # remove this block because it is too long, but preserve indentation of the block
+                whitespace = " " * (len(line) - len(line.lstrip()))
+                code_lines = [
+                    line,
+                    f"{whitespace}<large code block, visit documentation to view>",
+                    line,
+                ]
             lines.extend(code_lines)
         elif in_code_block:
             code_lines.append(line)
