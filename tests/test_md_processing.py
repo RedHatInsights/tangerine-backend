@@ -1,5 +1,6 @@
 import pytest
-from connectors.db.file import _convert_relative_links
+
+from connectors.db.file import _convert_relative_links, _remove_large_md_code_blocks
 
 
 @pytest.mark.parametrize(
@@ -39,3 +40,46 @@ def test_link_conversion_bad_links():
 
     # text should be unmodified
     assert _convert_relative_links(test_txt, base_url) == test_txt
+
+
+def test_remove_large_code_blocks():
+    test_txt = """
+        This is a sample md file
+
+        ```
+        short code block
+        ```
+
+        Text in between code blocks
+
+        ```
+        long code block
+        with
+        length
+        greater
+        than
+        nine
+        lines
+        long
+        ```
+
+        Text after code blocks
+    """
+
+    expected_txt = """
+        This is a sample md file
+
+        ```
+        short code block
+        ```
+
+        Text in between code blocks
+
+        ```
+        <large code block, visit documentation to view>
+        ```
+
+        Text after code blocks
+    """
+
+    assert _remove_large_md_code_blocks(test_txt) == expected_txt
