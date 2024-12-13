@@ -182,8 +182,30 @@ def get_file_list(agent_config: AgentConfig, defaults: SyncConfigDefaults) -> Li
     return files
 
 
+def _get_new_files_to_add(files_by_key, agent_objects_by_path, resync):
+    files_to_add = []
+
+    for key, file in files_by_key.items():
+        add = False
+
+        # if 'resync' is true, we are adding all of them
+        if resync:
+            log.debug("resync: %s to be added", key)
+            add = True
+
+        # check if there's a new remote file to add
+        elif key not in agent_objects_by_path:
+            log.debug("%s is new in s3, will add file", key)
+            add = True
+
+        if add:
+            files_to_add.append(file)
+
+    return files_to_add
+
+
 def compare_files(
-    agent_config: AgentConfig, agent: Agent, defaults: SyncConfigDefaults
+    agent_config: AgentConfig, agent: Agent, defaults: SyncConfigDefaults, resync: bool
 ) -> tuple[List[dict], List[File], set[dict], int, int, int]:
     files = get_file_list(agent_config, defaults)
 
@@ -204,6 +226,13 @@ def compare_files(
 
     for agent_object in agent_objects:
         full_path = agent_object["full_path"]
+
+        # if 'resync' is true, we are deleting all files
+        if resync:
+            log.debug("%s removing for resync", full_path)
+            agent_objects_to_delete.append(agent_object)
+            num_to_delete += 1
+            continue
 
         # check if the entire prefix is no longer defined in the agent config
         prefixes = [path_config.prefix for path_config in agent_config.paths]
@@ -241,12 +270,10 @@ def compare_files(
                 )
             )
 
-    # check if there's a new remote file to add
-    for key, file in files_by_key.items():
-        if key not in agent_objects_by_path:
-            log.debug("%s is new in s3, will add file", key)
-            files_to_insert.append(file)
-            num_to_add += 1
+    # determine which new files to add
+    files_to_add = _get_new_files_to_add(files_by_key, agent_objects_by_path, resync)
+    files_to_insert.extend(files_to_add)
+    num_to_add += len(files_to_add)
 
     for obj in agent_objects_to_delete:
         # remove active and pending_removal from the metadata so we don't use
@@ -290,7 +317,7 @@ def download_s3_files_and_embed(
     return completed_files, download_errors, embed_errors
 
 
-def run() -> int:
+def run(resync: bool = False) -> int:
     sync_config = get_sync_config()
 
     # remove any lingering inactive documents
@@ -315,7 +342,7 @@ def run() -> int:
             num_adding,
             num_deleting,
             num_updating,
-        ) = compare_files(agent_config, agent, sync_config.defaults)
+        ) = compare_files(agent_config, agent, sync_config.defaults, resync)
 
         log.info(
             "s3 sync: adding %d, deleting %d, updating %d, and %d metadata updates",

@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 
 import click
@@ -44,8 +45,11 @@ def create_app():
 
 
 @click.command("s3sync")
+@click.option("--force-resync", is_flag=True, help="Delete all files from agents and re-import")
 @with_appcontext
-def s3sync():
-    current_app.logger.info("running s3sync")
-    exit_code = connectors.s3.sync.run()
+def s3sync(force_resync):
+    force_resync_env_var = os.getenv("FORCE_RESYNC", "").lower() in ("1", "true")
+    force_resync = force_resync or force_resync_env_var
+    current_app.logger.info("running s3sync, force resync: %s", force_resync)
+    exit_code = connectors.s3.sync.run(resync=force_resync)
     sys.exit(exit_code)
