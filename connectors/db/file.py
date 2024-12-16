@@ -327,10 +327,11 @@ class File:
         if self.full_path.endswith(".md"):
             return _process_md(self.content, url=self.citation_url)
 
-        if self.full_path.endswith(".txt", ".rst"):
-            return self.content
-
         if self.full_path.endswith(".adoc"):
             return _adoc_to_md(os.path.basename(self.full_path), self.content)
 
+        if self.full_path.endswith(".txt") or self.full_path.endswith(".rst"):
+            return self.content
+
+        log.error("cannot extract text for unsupported file type: %s", self.full_path)
         return ""
