@@ -27,6 +27,8 @@ parameters:
     value: quay.io/tangerine/tangerine-backend
   - name: IMAGE_TAG
     value: latest
+  - name: FORCE_RESYNC_UNTIL
+    value: '0001-01-01T00:00:00Z'  # default is "the start of time", it will never run
 
 objects:
 - kind: Secret
@@ -150,6 +152,8 @@ objects:
                       secretKeyRef:
                         name: embed-api-key
                         key: api_key
+                  - name: FORCE_RESYNC_UNTIL
+                    value: ${FORCE_RESYNC_UNTIL}
                 imagePullPolicy: IfNotPresent
                 image: ${IMAGE}:${IMAGE_TAG}
             restartPolicy: Never
