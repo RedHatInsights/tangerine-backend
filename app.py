@@ -1,3 +1,4 @@
+import datetime as dt
 import logging
 import os
 import sys
@@ -46,10 +47,34 @@ def create_app():
 
 @click.command("s3sync")
 @click.option("--force-resync", is_flag=True, help="Delete all files from agents and re-import")
+@click.option(
+    "--force-resync-until",
+    help=(
+        "Timestamp in ISO 8601 format. Run a force resync unless current time is later than "
+        "specified time"
+    ),
+)
 @with_appcontext
-def s3sync(force_resync):
+def s3sync(force_resync, force_resync_until):
     force_resync_env_var = os.getenv("FORCE_RESYNC", "").lower() in ("1", "true")
+    force_resync_until_env_var = os.getenv("FORCE_RESYNC_UNTIL")
+
     force_resync = force_resync or force_resync_env_var
-    current_app.logger.info("running s3sync, force resync: %s", force_resync)
+    force_resync_until = force_resync_until or force_resync_until_env_var
+
+    if not force_resync and force_resync_until:
+        expires_dt = dt.datetime.fromisoformat(force_resync_until_env_var)
+        now_dt = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+        if now_dt < expires_dt:
+            force_resync = True
+        current_app.logger.info(
+            "force resync until %s (utc: %s), current time: %s, force_resync=%s",
+            expires_dt,
+            expires_dt.astimezone(dt.timezone.utc),
+            now_dt,
+            force_resync,
+        )
+
+    current_app.logger.info("running s3sync, force_resync=%s", force_resync)
     exit_code = connectors.s3.sync.run(resync=force_resync)
     sys.exit(exit_code)
