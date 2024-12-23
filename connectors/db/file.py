@@ -198,22 +198,39 @@ def _process_md(text: str, url: Optional[str] = None) -> str:
     return md
 
 
-def _mkdocs_to_md(md_content: str) -> str:
+def _html_to_md(content: str) -> str:
     """
-    Parse a .html page that has been composed with mkdocs
+    Parse a .html page and convert it into md
+
+    Typically, we are parsing .html that has been composed with mkdocs or antora
 
     Converts the page back into md using html2text and addresses formatting issues that
     are commonly found after the conversion.
     """
-    # remove "Edit this page" button
-    edit_button = md_content.find("a", title="Edit this page")
-    if edit_button:
-        edit_button.decompose()
+    soup = BeautifulSoup(content, "lxml")
 
-    # remove line numbers from code blocks
-    linenos_columns = md_content.find_all("td", class_="linenos")
-    for linenos_column in linenos_columns:
-        linenos_column.decompose()
+    # look for document body so that header/footer/nav/etc. is ignored
+
+    # mkdocs: content is found at <div class="md-content">
+    if doc_content := soup.find("article", class_="doc"):
+        # remove "Edit this page" button
+        edit_button = doc_content.find("a", title="Edit this page")
+        if edit_button:
+            edit_button.decompose()
+        # remove line numbers from code blocks
+        linenos_columns = doc_content.find_all("td", class_="linenos")
+        for linenos_column in linenos_columns:
+            linenos_column.decompose()
+
+    # antora: content found at <article class="doc">
+    elif doc_content := soup.find("article", class_="doc"):
+        # remove "next page" nav at bottom of content
+        pagination = doc_content.find("nav", class_="pagination")
+        if pagination:
+            pagination.decompose()
+
+    else:
+        doc_content = content
 
     h = html2text.HTML2Text()
     h.ignore_images = True
@@ -223,7 +240,7 @@ def _mkdocs_to_md(md_content: str) -> str:
     h.wrap_links = False
     h.ignore_tables = True
 
-    html2text_output = h.handle(str(md_content))
+    html2text_output = h.handle(str(doc_content))
 
     md_lines = []
     in_code_block = False
@@ -314,15 +331,8 @@ class File:
             return text_content
 
         if self.full_path.endswith(".html"):
-            soup = BeautifulSoup(self.content, "lxml")
-            # look for 'md-content' in the page, this ignores nav/header/footer/etc.
-            md_content = soup.find("div", class_="md-content")
-            if md_content:
-                # assume this is an mkdocs html page
-                md = _mkdocs_to_md(md_content)
-                return _process_md(md, url=self.citation_url)
-            else:
-                return self.content
+            md = _html_to_md(self.content)
+            return _process_md(md, url=self.citation_url)
 
         if self.full_path.endswith(".md"):
             return _process_md(self.content, url=self.citation_url)
