@@ -57,7 +57,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "5000:5000"
+      - "8000:8000"
     environment:
       - DB_HOST=postgres
       - DB_USERNAME=citrus
@@ -70,7 +70,7 @@ services:
       - EMBED_QUERY_PREFIX="Represent this sentence for searching relevant passages"
     env_file: ".env"  # store aws s3 env vars here
     healthcheck:
-      test: curl --fail "http://localhost:5000/ping" || exit 1
+      test: curl --fail "http://localhost:8000/ping" || exit 1
       start_period: 10s
       start_interval: 1s
       interval: 10s
