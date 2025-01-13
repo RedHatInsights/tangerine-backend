@@ -73,7 +73,7 @@ You may require further tweaks to properly make use of your GPU. Refer to the [o
     docker exec tangerine-ollama ollama pull mistral
     ```
 
-6. The API can now be accessed on `http://localhost:5000`
+6. The API can now be accessed on `http://localhost:8000`
 
 
 ### Local Environment Setup for Apple Silicon Macs
@@ -141,11 +141,8 @@ Some of the images used in the `docker-compose.yml` are unsupported on Apple sil
 
 7. Start Tangerine Backend
 
-    > [!NOTE]
-    > The default tangerine port, 5000, is already claimed by Bonjour on Macs, so we need to use a different port instead.
-
     ```sh
-    flask run --host=127.0.0.1 --port=8000
+    flask run
     ```
 
    You can now communicate with the API on port `8000`
@@ -170,7 +167,7 @@ Some of the images used in the `docker-compose.yml` are unsupported on Apple sil
 | `/api/agents/<id>/documents`       | `POST`   | Agent document uploads     |
 | `/api/agents/<id>/documents`       | `DELETE` | Delete agent documents     |
 | `/api/agentDefaults`               | `GET`    | Get agent default settings |
-| `/ping`
+| `/ping`                            | `GET`    | Health check endpoint      |
 
 ## Syncrhonizing Documents from S3
 

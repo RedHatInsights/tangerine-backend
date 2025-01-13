@@ -29,10 +29,15 @@ class AgentsApi(Resource):
         return {"data": [agent.to_dict() for agent in all_agents]}, 200
 
     def post(self):
+        name = request.json.get("name")
+        description = request.json.get("description")
+        if not name:
+            return {"message": "agent 'name' required"}, 400
+        if not description:
+            return {"message": "agent 'description' required"}, 400
+
         try:
-            agent = Agent.create(
-                request.form["name"], request.form["description"], request.form.get("system_prompt")
-            )
+            agent = Agent.create(name, description, request.json.get("system_prompt"))
         except Exception:
             log.exception("error creating agent")
             return {"message": "error creating agent"}, 500
@@ -44,14 +49,14 @@ class AgentApi(Resource):
     def get(self, id):
         agent = Agent.get(id)
         if not agent:
-            return {"message": "Agent not found"}, 404
+            return {"message": "agent not found"}, 404
 
         return agent.to_dict(), 200
 
     def put(self, id):
         agent = Agent.get(id)
         if not agent:
-            return {"message": "Agent not found"}, 404
+            return {"message": "agent not found"}, 404
 
         data = request.get_json()
         # ignore 'id' or 'filenames' if provided in JSON payload
@@ -59,23 +64,23 @@ class AgentApi(Resource):
         data.pop("id", None)
         agent.update(**data)
 
-        return {"message": "Agent updated successfully"}, 200
+        return {"message": "agent updated successfully"}, 200
 
     def delete(self, id):
         agent = Agent.get(id)
         if not agent:
-            return {"message": "Agent not found"}, 404
+            return {"message": "agent not found"}, 404
 
         agent.delete()
         vector_db.delete_document_chunks({"agent_id": agent.id})
-        return {"message": "Agent deleted successfully"}, 200
+        return {"message": "agent deleted successfully"}, 200
 
 
 class AgentDocuments(Resource):
     def post(self, id):
         agent = Agent.get(id)
         if not agent:
-            return {"message": "Agent not found"}, 404
+            return {"message": "agent not found"}, 404
 
         # Check if the post request has the file part
         if "file" not in request.files:
@@ -107,7 +112,7 @@ class AgentDocuments(Resource):
     def delete(self, id):
         agent = Agent.get(id)
         if not agent:
-            return {"message": "Agent not found"}, 404
+            return {"message": "agent not found"}, 404
 
         source = request.json.get("source")
         full_path = request.json.get("full_path")
@@ -139,7 +144,7 @@ class AgentChatApi(Resource):
     def post(self, id):
         agent = Agent.get(id)
         if not agent:
-            return {"message": "Agent not found"}, 404
+            return {"message": "agent not found"}, 404
 
         query = request.json.get("query")
         stream = request.json.get("stream") == "true"

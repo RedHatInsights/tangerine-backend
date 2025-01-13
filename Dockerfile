@@ -3,7 +3,7 @@ FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
 ENV LC_ALL=C.utf8
 ENV LANG=C.utf8
-ENV PYTHONUNBUFFERED=1 
+ENV PYTHONUNBUFFERED=1
 ENV PYTHONIOENCODING=UTF-8
 ENV PIP_NO_CACHE_DIR=1
 
@@ -47,8 +47,8 @@ ADD connectors ./connectors
 ADD resources ./resources
 ADD app.py .
 
-EXPOSE 5000
+EXPOSE 8000
 
 ENV PATH="$APP_ROOT/.venv/bin:$PATH"
-CMD ["flask", "run", "--host=0.0.0.0"]
+CMD ["flask", "run", "--host=0.0.0.0", "--port=8000"]
 
