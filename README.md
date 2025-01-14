@@ -12,7 +12,7 @@ Each agent is intended to answer questions related to a set of documents known a
   - [Without Docker Compose (supported with Mac)](#without-docker-compose-supported-with-mac)
 - [Syncrhonizing Documents from S3](#syncrhonizing-documents-from-s3)
 - [Run Tangerine Frontend Locally](#run-tangerine-frontend-locally)
-  - [Available API Paths](#available-api-paths)
+- [Available API Paths](#available-api-paths)
 
 ## Overview
 
@@ -243,7 +243,7 @@ The OpenShift templates contain a CronJob configuration that is used to run this
 
 The API can be used to create/manage/update agents, upload documents, and to chat with each agent. However, the frontend provides a simpler interface to manage the service with. To run the UI in a development environment, see [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend)
 
-### Available API Paths
+## Available API Paths
 
 | Path                               | Method   | Description                |
 | ---------------------------------- | -------- | -------------------------- |
