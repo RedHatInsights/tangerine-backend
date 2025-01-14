@@ -1,28 +1,40 @@
-# 🍊 tangerine (backend)
+
+# 🍊 tangerine (backend) <!-- omit from toc -->
 
 tangerine is a slim and light-weight RAG (Retieval Augmented Generated) system used to create and manage chat bot agents.
 
 Each agent is intended to answer questions related to a set of documents known as a knowledge base (KB).
 
-It relies on 4 key components:
+- [Overview](#overview)
+- [Development Envionment Setup](#development-envionment-setup)
+  - [With Docker Compose (not supported with Mac)](#with-docker-compose-not-supported-with-mac)
+    - [Using huggingface text-embeddings-inference server to host embedding model (deprecated)](#using-huggingface-text-embeddings-inference-server-to-host-embedding-model-deprecated)
+  - [Without Docker Compose (supported with Mac)](#without-docker-compose-supported-with-mac)
+- [Syncrhonizing Documents from S3](#syncrhonizing-documents-from-s3)
+- [Run Tangerine Frontend Locally](#run-tangerine-frontend-locally)
+  - [Available API Paths](#available-api-paths)
 
-* A vector database
-  * (PostgresQL with the pgvector extension)
-* A large language model (LLM)
-  * This can be hosted by any OpenAI-compatible API service. Locally, you can use ollama
-* An embedding model
-  * This can be hosted on any OpenAI-compatible API service. Locally, you can use ollama
-* (optional) An S3 bucket that you wish to sync documentation from.
+## Overview
+
+tangerine relies on 4 key components:
+
+- A vector database
+  - (PostgresQL with the pgvector extension)
+- A large language model (LLM)
+  - This can be hosted by any OpenAI-compatible API service. Locally, you can use ollama
+- An embedding model
+  - This can be hosted on any OpenAI-compatible API service. Locally, you can use ollama
+- (optional) An S3 bucket that you wish to sync documentation from.
 
 The backend service manages:
 
-* Management of chat bot "agents"
-* Document ingestion
-  * Upload via the API, or sync via an s3 bucket
-  * Text cleanup/conversion
-  * Chunking and embedding into the vector database.
-* Querying the vector database.
-* Interfacing with the LLM to prompt it and stream responses
+- Management of chat bot "agents"
+- Document ingestion
+  - Upload via the API, or sync via an s3 bucket
+  - Text cleanup/conversion
+  - Chunking and embedding into the vector database.
+- Querying the vector database.
+- Interfacing with the LLM to prompt it and stream responses
 
 tangerine will work with any deployed instance of PostgresQL+pgvector and can be configured to use any OpenAI-compliant API service that is hosting a large language model or embedding model. In addition, the model you wish to use and the prompts to instruct them are fully customizable.
 
@@ -32,13 +44,13 @@ The accompanying frontend service is [tangerine-frontend](https://github.com/Red
 
 This project is currently used by Red Hat's Hybrid Cloud Management Engineering Productivity Team. It was born out of a hack-a-thon and is still a work in progress. You will find some areas of code well developed while others are in need of attention and some tweaks to make it production-ready are needed (with that said, the project *is* currently in good enough shape to provide a working chat bot system).
 
-## Getting started
+## Development Envionment Setup
 
-Setting up a development environment
+A development environment can be set up with or without docker compose. In both cases, Ollama may be able to make use of your NVIDIA or AMD GPU (see more information about GPU support [here](https://github.com/ollama/ollama/blob/main/docs/gpu.md). On a Mac, Ollama must be run as a standalone application outside of Docker containers since Docker Desktop does not support GPUs.
 
-### With Docker Compose (not supported with Apple Silicon)
+### With Docker Compose (not supported with Mac)
 
-The docker compose file offers an easy way to spin up all components. [ollama](https://ollama.com) is used to host the LLM and embedding model. You may be able to make use of your NVIDIA or AMD GPU. Refer to the comments in the compose file to see which configurations to uncomment on the 'ollama' container.
+The docker compose file offers an easy way to spin up all components. [ollama](https://ollama.com) is used to host the LLM and embedding model. For utilization of your GPU, refer to the comments in the compose file to see which configurations to uncomment on the 'ollama' container.
 
 1. Create the directory which will house the local environment data:
 
@@ -75,8 +87,8 @@ to use this to test different embedding models that are not supported by ollama,
 
 1. Make sure [git-lfs](https://git-lfs.com/) is installed:
 
-    * Fedora: `sudo dnf install git-lfs`
-    * MacOS: `brew install git-lfs`
+    - Fedora: `sudo dnf install git-lfs`
+    - MacOS: `brew install git-lfs`
 
     Then, activate it globally with:
 
@@ -94,22 +106,21 @@ to use this to test different embedding models that are not supported by ollama,
 
 3. Search for `uncomment to use huggingface text-embeddings-inference` in [./docker-compose.yml](docker-compose.yml) and uncomment all relevant lines
 
-### Without Docker Compose (required for Mac)
+### Without Docker Compose (supported with Mac)
 
-On a Mac, Ollama must be run as a standalone application outside of Docker containers since Docker Desktop does not support GPUs.
 
 1. You'll need to have the following installed and working before proceeding:
 
-   * `pipenv`
-   * `pyenv`
-   * `docker` or `podman`
-   * (on Mac) `brew`
+   - `pipenv`
+   - `pyenv`
+   - `docker` or `podman`
+   - (on Mac) `brew`
 
 2. Install ollama
 
-    * visit https://ollama.com/download
+    - visit the [ollama download page](https://ollama.com/download)
 
-    * (on Mac) you can use brew:
+    - (on Mac) you can use brew:
 
         ```text
         brew install ollama
@@ -212,13 +223,13 @@ To do so you'll need to do the following:
 
 3. Run the S3 sync job:
 
-    * With docker compose:
+    - With docker compose:
 
     ```text
     docker exec -ti tangerine-backend flask s3sync
     ```
 
-    * Without:
+    - Without:
 
     ```sh
     flask s3sync
