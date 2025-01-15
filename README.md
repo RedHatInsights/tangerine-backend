@@ -80,6 +80,17 @@ The docker compose file offers an easy way to spin up all components. [ollama](h
    }
    ```
 
+5. (optional) Run the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend):
+
+    ```text
+    git clone git@github.com:RedHatInsights/tangerine-frontend.git
+    cd tangerine-frontend
+    docker compose up --build
+    ```
+
+    You can now access the frontend at `http://localhost:3000`
+
+
 #### Using huggingface text-embeddings-inference server to host embedding model (deprecated)
 
 ollama previously did not have an OpenAI compatible API path for interacting with an embedding models (i.e. `/v1/embeddings`). We previously used huggingface's [text-embeddings-inference](https://github.com/huggingface/text-embeddings-inference) server to host the embedding model. If you wish
@@ -186,6 +197,8 @@ to use this to test different embedding models that are not supported by ollama,
        "data": []
    }
    ```
+
+10. (optional) Follow steps to start the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend)
 
 ## Syncrhonizing Documents from S3
 
