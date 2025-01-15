@@ -7,9 +7,9 @@ Each agent is intended to answer questions related to a set of documents known a
 
 - [Overview](#overview)
 - [Development Envionment Setup](#development-envionment-setup)
-  - [With Docker Compose (not supported with Mac)](#with-docker-compose-not-supported-with-mac)
+  - [With Docker Compose](#with-docker-compose)
     - [Using huggingface text-embeddings-inference server to host embedding model (deprecated)](#using-huggingface-text-embeddings-inference-server-to-host-embedding-model-deprecated)
-  - [Without Docker Compose (supported with Mac)](#without-docker-compose-supported-with-mac)
+  - [Without Docker Compose](#without-docker-compose)
 - [Syncrhonizing Documents from S3](#syncrhonizing-documents-from-s3)
 - [Run Tangerine Frontend Locally](#run-tangerine-frontend-locally)
 - [Available API Paths](#available-api-paths)
@@ -48,7 +48,9 @@ This project is currently used by Red Hat's Hybrid Cloud Management Engineering 
 
 A development environment can be set up with or without docker compose. In both cases, Ollama may be able to make use of your NVIDIA or AMD GPU (see more information about GPU support [here](https://github.com/ollama/ollama/blob/main/docs/gpu.md). On a Mac, Ollama must be run as a standalone application outside of Docker containers since Docker Desktop does not support GPUs.
 
-### With Docker Compose (not supported with Mac)
+### With Docker Compose
+
+> **_NOTE:_**  Not supported with Mac, see [Without Docker Compose](#without-docker-compose) below.
 
 The docker compose file offers an easy way to spin up all components. [ollama](https://ollama.com) is used to host the LLM and embedding model. For utilization of your GPU, refer to the comments in the compose file to see which configurations to uncomment on the 'ollama' container.
 
@@ -80,15 +82,7 @@ The docker compose file offers an easy way to spin up all components. [ollama](h
    }
    ```
 
-5. (optional) Run the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend):
-
-    ```text
-    git clone git@github.com:RedHatInsights/tangerine-frontend.git
-    cd tangerine-frontend
-    docker compose up --build
-    ```
-
-    You can now access the frontend at `http://localhost:3000`
+5. (optional) Follow these steps to start the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend#with-docker-compose)
 
 
 #### Using huggingface text-embeddings-inference server to host embedding model (deprecated)
@@ -117,8 +111,7 @@ to use this to test different embedding models that are not supported by ollama,
 
 3. Search for `uncomment to use huggingface text-embeddings-inference` in [./docker-compose.yml](docker-compose.yml) and uncomment all relevant lines
 
-### Without Docker Compose (supported with Mac)
-
+### Without Docker Compose
 
 1. You'll need to have the following installed and working before proceeding:
 
@@ -198,7 +191,7 @@ to use this to test different embedding models that are not supported by ollama,
    }
    ```
 
-10. (optional) Follow steps to start the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend)
+10. (optional) Follow these steps to start the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend#without-docker-compose)
 
 ## Syncrhonizing Documents from S3
 
