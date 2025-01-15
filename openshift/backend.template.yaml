@@ -79,7 +79,7 @@ objects:
             readinessProbe:
               httpGet:
                 path: /ping
-                port: 5000
+                port: 8000
               initialDelaySeconds: 5
               periodSeconds: 5
               timeoutSeconds: 1
@@ -88,7 +88,7 @@ objects:
             livenessProbe:
               httpGet:
                 path: /ping
-                port: 5000
+                port: 8000
               initialDelaySeconds: 5
               periodSeconds: 5
               timeoutSeconds: 1
@@ -146,7 +146,7 @@ objects:
               capabilities: {}
               privileged: false
             ports:
-              - containerPort: 5000
+              - containerPort: 8000
                 protocol: TCP
             imagePullPolicy: IfNotPresent
             terminationMessagePolicy: File
@@ -167,5 +167,5 @@ objects:
     ports:
       - name: tangerine-backend
         protocol: TCP
-        port: 5000
-        targetPort: 5000
+        port: 8000
+        targetPort: 8000

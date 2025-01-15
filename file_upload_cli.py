@@ -54,7 +54,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--html", help="Include html docs", default=False, action="store_true")
     parser.add_argument("--bearer-token", type=str, help="Authorization bearer token")
-    parser.add_argument("--agent-id", type=int, help="Agent ID of the tangerine agent.")
+    parser.add_argument("--agent-id", type=int, help="agent ID of the tangerine agent.")
     parser.add_argument(
         "--source",
         type=str,

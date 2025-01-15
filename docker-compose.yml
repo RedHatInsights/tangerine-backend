@@ -18,27 +18,37 @@ services:
       timeout: 5s
       retries: 5
 
-  embeddings-service:
-    container_name: tangerine-text-embeddings-inference
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
-    ports:
-      - "8001:8001"
-    volumes:
-      - ./data/embeddings:/data
-    environment:
-      - MODEL_ID=/data/snowflake-arctic-embed-m-long
-      - PORT=8001
-    healthcheck:
-      test: "bash -c 'cat < /dev/null > /dev/tcp/localhost/8001'"
-      start_period: 10s
-      start_interval: 1s
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  ollama:
+    # --- NVIDIA GPU ---
+    # read https://hub.docker.com/r/ollama/ollama, install toolkit, and uncomment below
+    # ------------------
+    #resources:
+    #  reservations:
+    #    devices:
+    #      - driver: nvidia
+    #        count:all
+    #        capabilities: [gpu]
 
-  llm-service:
+    # --- AMD GPU ---
+    # uncomment below
+    # ---------------
+    #devices:
+    #  - /dev/kfd:/dev/kfd
+    #  - /dev/dri:/dev/dri
+
+    # --- AMD GPU ---
+    # (optional) uncomment below if needed for Radeon 780M or others
+    # more info at: https://github.com/ollama/ollama/blob/main/docs/gpu.md#overrides-on-linux
+    # ---------------
+    #environment:
+    #  - HSA_OVERRIDE_GFX_VERSION=11.0.2
+
+    # --- AMD GPU ---
+    # change below to 'ollama/ollama:0.5.5-rocm'
+    # ---------------
+    image: ollama/ollama:0.5.5
+
     container_name: tangerine-ollama
-    image: ollama/ollama:0.3.0
     ports:
       - "11434:11434"
     volumes:
@@ -51,26 +61,49 @@ services:
       timeout: 5s
       retries: 5
 
+  # uncomment to use huggingface text-embeddings-inference
+  #embeddings-service:
+  #  container_name: tangerine-text-embeddings-inference
+  #  image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
+  #  ports:
+  #    - "8001:8001"
+  #  volumes:
+  #    - ./data/embeddings:/data
+  #  environment:
+  #    - MODEL_ID=/data/nomic-embed-text
+  #    - PORT=8001
+  #  healthcheck:
+  #    test: "bash -c 'cat < /dev/null > /dev/tcp/localhost/8001'"
+  #    start_period: 10s
+  #    start_interval: 1s
+  #    interval: 10s
+  #    timeout: 5s
+  #    retries: 5
+
   tangerine-backend:
     container_name: tangerine-backend
     build:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "5000:5000"
+      - "8000:8000"
     environment:
       - DB_HOST=postgres
       - DB_USERNAME=citrus
       - DB_PASSWORD=citrus
       - DB_NAME=citrus
       - LLM_BASE_URL=http://tangerine-ollama:11434/v1
-      - EMBED_BASE_URL=http://tangerine-text-embeddings-inference:8001/v1
+      - EMBED_BASE_URL=http://tangerine-ollama:11434/v1
+      # uncomment below to use huggingface text-embeddings-inference
+      #- EMBED_BASE_URL=http://tangerine-text-embeddings-inference:8001/v1
       - LLM_MODEL_NAME=mistral
-      - EMBED_MODEL_NAME=snowflake-arctic-embed-m-long
-      - EMBED_QUERY_PREFIX="Represent this sentence for searching relevant passages"
-    env_file: ".env"  # store aws s3 env vars here
+      - EMBED_MODEL_NAME=nomic-embed-text
+      - EMBED_QUERY_PREFIX="search_query"
+      - EMBED_DOCUMENT_PREFUX="search_document"
+    # for s3sync, store AWS env vars needed to access your s3 bucket here
+    env_file: ".env"
     healthcheck:
-      test: curl --fail "http://localhost:5000/ping" || exit 1
+      test: curl --fail "http://localhost:8000/ping" || exit 1
       start_period: 10s
       start_interval: 1s
       interval: 10s
@@ -79,10 +112,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      llm-service:
+      ollama:
         condition: service_healthy
-      embeddings-service:
-        condition: service_healthy
+      # uncomment below to use huggingface text-embeddings-inference
+      #embeddings-service:
+      #  condition: service_healthy
 
 networks:
   default:
@@ -90,4 +124,3 @@ networks:
     driver: bridge
     driver_opts:
       com.docker.network.bridge.host_binding_ipv4: "127.0.0.1"
-
