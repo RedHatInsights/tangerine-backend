@@ -6,17 +6,24 @@ tangerine is a slim and light-weight RAG (Retieval Augmented Generated) system u
 Each agent is intended to answer questions related to a set of documents known as a knowledge base (KB).
 
 - [Overview](#overview)
-- [Development Envionment Setup](#development-envionment-setup)
+  - [Architecture](#architecture)
+    - [Data Preparation](#data-preparation)
+    - [Retrieval Augmented Generation (RAG)](#retrieval-augmented-generation-rag)
+  - [Purpose of Backend Service](#purpose-of-backend-service)
+  - [Related Frontends](#related-frontends)
+  - [Use of Hosted AI Services](#use-of-hosted-ai-services)
+- [Local Envionment Setup](#local-envionment-setup)
   - [With Docker Compose](#with-docker-compose)
     - [Using huggingface text-embeddings-inference server to host embedding model (deprecated)](#using-huggingface-text-embeddings-inference-server-to-host-embedding-model-deprecated)
   - [Without Docker Compose](#without-docker-compose)
 - [Syncrhonizing Documents from S3](#syncrhonizing-documents-from-s3)
+- [Deploying to Open Shift](#deploying-to-open-shift)
 - [Run Tangerine Frontend Locally](#run-tangerine-frontend-locally)
 - [Available API Paths](#available-api-paths)
 
 ## Overview
 
-tangerine relies on 4 key components:
+tangerine implements a basic RAG architecture which relies on 4 key components:
 
 - A vector database
   - (PostgresQL with the pgvector extension)
@@ -26,9 +33,41 @@ tangerine relies on 4 key components:
   - This can be hosted on any OpenAI-compatible API service. Locally, you can use ollama
 - (optional) An S3 bucket that you wish to sync documentation from.
 
-The backend service manages:
+This project is currently used by Red Hat's Hybrid Cloud Management Engineering Productivity Team.
+It was born out of a hack-a-thon and is still a work in progress. You will find some areas of code well developed while others are in need of attention and some tweaks to make it production-ready are needed (with that said, the project *is* currently in good enough shape to provide a working chat bot system).
 
-- Management of chat bot "agents"
+### Architecture
+
+![diagram](docs/diagram.png)
+
+#### Data Preparation
+
+- **A:** Documents are uploaded to the backend service
+  - (alternatively, they can be sync'd from an AWS S3 bucket)
+- **B:** The documents are processed/converted/cleaned up
+  - currently the well supported document formats include .md and .html pages compiled with 'mkdocs' or 'antora'.
+    - the body of the .html is extracted and converted back into .md
+    - the .md is "cleaned up" to provide more reliable search results
+      - for example: very large code blocks are removed
+  - support for .pdf, .txt, and .rst exists but the parsing is not yet well-optimized
+  - support for .adoc is a work-in-progress
+- **C:** The documents are split into separate text chunks
+- **D:** Embeddings are created for each text chunk and inserted into the vector database
+
+#### Retrieval Augmented Generation (RAG)
+
+- **1:** A user presents a question to an agent in the chat interface
+- **2:** Embeddings are created for the query using the embedding model
+- **3:** A similarity search and a max marginal relevance search are performed against the vector DB to find the top N most relevant document chunks
+  - The document set searched is scoped only to that specific agent
+- **4:** The LLM is prompted to answer the question using only the context found within the relevant document chunks
+- **5:** The LLM response is streamed by the backend service to the user
+
+### Purpose of Backend Service
+
+The **tangerine-backend** service manages:
+
+- Create/update/delete of chat bot "agents" via REST API.
 - Document ingestion
   - Upload via the API, or sync via an s3 bucket
   - Text cleanup/conversion
@@ -36,21 +75,35 @@ The backend service manages:
 - Querying the vector database.
 - Interfacing with the LLM to prompt it and stream responses
 
-tangerine will work with any deployed instance of PostgresQL+pgvector and can be configured to use any OpenAI-compliant API service that is hosting a large language model or embedding model. In addition, the model you wish to use and the prompts to instruct them are fully customizable.
-
-This repository provides Open Shift templates for all infrastructure (except for the model hosting service) as well as a docker compose file that allows you to spin it up locally.
+### Related Frontends
 
 The accompanying frontend service is [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend) and a related plugin for [Red Hat Developer Hub](https://developers.redhat.com/rhdh/overview) can be found [here](https://github.com/RedHatInsights/backstage-plugin-ai-search-frontend)
 
-This project is currently used by Red Hat's Hybrid Cloud Management Engineering Productivity Team. It was born out of a hack-a-thon and is still a work in progress. You will find some areas of code well developed while others are in need of attention and some tweaks to make it production-ready are needed (with that said, the project *is* currently in good enough shape to provide a working chat bot system).
+### Use of Hosted AI Services
 
-## Development Envionment Setup
+tangerine can be configured to use any OpenAI-compliant API service that is hosting a large language model or embedding model. In addition, the model you wish to use and the prompts to instruct them are fully customizable.
 
-A development environment can be set up with or without docker compose. In both cases, Ollama may be able to make use of your NVIDIA or AMD GPU (see more information about GPU support [here](https://github.com/ollama/ollama/blob/main/docs/gpu.md). On a Mac, Ollama must be run as a standalone application outside of Docker containers since Docker Desktop does not support GPUs.
+For example, to utilize a third party model hosting service, change the embedding model used, and adjust instruction prefix sent to the embedding model, the following environment variables could be set:
+
+```sh
+  LLM_BASE_URL=https://3rd-party-ai-service:443/v1
+  LLM_MODEL_NAME=mistral-7b-instruct
+  LLM_API_KEY=your-secret-key
+  DEFAULT_SYSTEM_PROMPT="Your LLM system prompt here"
+  EMBED_BASE_URL=https://3rd-party-ai-service:443/v1
+  EMBED_MODEL_NAME=snowflake-arctic-embed-m-v1.5
+  EMBED_API_KEY=your-secret-key
+  EMBED_QUERY_PREFIX="Represent this sentence for searching relevant passages"
+  EMBED_DOCUMENT_PREFIX=""
+```
+
+## Local Envionment Setup
+
+A development/test environment can be set up with or without docker compose. In both cases, Ollama may be able to make use of your NVIDIA or AMD GPU (see more information about GPU support [here](https://github.com/ollama/ollama/blob/main/docs/gpu.md). On a Mac, Ollama must be run as a standalone application outside of Docker containers since Docker Desktop does not support GPUs.
 
 ### With Docker Compose
 
-> **_NOTE:_**  Not supported with Mac, see [Without Docker Compose](#without-docker-compose) below.
+> ***NOTE:***  Not supported with Mac, see [Without Docker Compose](#without-docker-compose) below.
 
 The docker compose file offers an easy way to spin up all components. [ollama](https://ollama.com) is used to host the LLM and embedding model. For utilization of your GPU, refer to the comments in the compose file to see which configurations to uncomment on the 'ollama' container.
 
@@ -60,20 +113,20 @@ The docker compose file offers an easy way to spin up all components. [ollama](h
     mkdir data
     ```
 
-2. Invoke docker compose (postgres data will persist in `data/postgres`):
+1. Invoke docker compose (postgres data will persist in `data/postgres`):
 
     ```text
     docker compose up --build
     ```
 
-3. Pull the mistral LLM and nomic embedding model (data will persist in `data/ollama`):
+1. Pull the mistral LLM and nomic embedding model (data will persist in `data/ollama`):
 
     ```text
     docker exec tangerine-ollama ollama pull mistral
     docker exec tangerine-ollama ollama pull nomic-embed-text
     ```
 
-4. Access the API on port `8000`
+1. Access the API on port `8000`
 
    ```sh
    curl -XGET 127.0.0.1:8000/api/agents
@@ -82,8 +135,7 @@ The docker compose file offers an easy way to spin up all components. [ollama](h
    }
    ```
 
-5. (optional) Follow these steps to start the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend#with-docker-compose)
-
+1. (optional) Follow these steps to start the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend#with-docker-compose)
 
 #### Using huggingface text-embeddings-inference server to host embedding model (deprecated)
 
@@ -120,7 +172,7 @@ to use this to test different embedding models that are not supported by ollama,
    - `docker` or `podman`
    - (on Mac) `brew`
 
-2. Install ollama
+1. Install ollama
 
     - visit the [ollama download page](https://ollama.com/download)
 
@@ -130,20 +182,20 @@ to use this to test different embedding models that are not supported by ollama,
         brew install ollama
         ```
 
-3. Start ollama
+1. Start ollama
 
     ```text
     ollama serve
     ```
 
-4. Pull the language and embedding models
+1. Pull the language and embedding models
 
     ```text
     ollama pull mistral
     ollama pull nomic-embed-text
     ```
 
-5. (on Mac) install the C API for Postgres (libpq)
+1. (on Mac) install the C API for Postgres (libpq)
 
     ```sh
     brew install libpq
@@ -157,7 +209,13 @@ to use this to test different embedding models that are not supported by ollama,
     export CPPFLAGS="-I/opt/homebrew/opt/libpq/include"
     ```
 
-6. Start the vector database
+1. Create the directory to store postgresql data:
+
+    ```text
+    mkdir data
+    ```
+
+1. Start the vector database
 
     ```text
     docker run -d \
@@ -165,33 +223,34 @@ to use this to test different embedding models that are not supported by ollama,
         -e POSTGRES_USER="citrus" \
         -e POSTGRES_DB="citrus" \
         -e POSTGRES_HOST_AUTH_METHOD=trust \
+        -v data/postgres:/var/lib/postgresql/data \
         -p 5432:5432 \
         pgvector/pgvector:pg16
     ```
 
-7. Prepare your python virtual environment:
+1. Prepare your python virtual environment:
 
    ```sh
-   pipenv install
+   pipenv install --dev
    pipenv shell
    ```
 
-8. Start Tangerine Backend
+1. Start Tangerine Backend
 
     ```sh
     flask run
     ```
 
-9. Access the API on port `8000`
+1. Access the API on port `8000`
 
-   ```sh
-   curl -XGET 127.0.0.1:8000/api/agents
-   {
+    ```sh
+    curl -XGET 127.0.0.1:8000/api/agents
+    {
        "data": []
-   }
-   ```
+    }
+    ```
 
-10. (optional) Follow these steps to start the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend#without-docker-compose)
+1. (optional) Follow these steps to start the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend#without-docker-compose)
 
 ## Syncrhonizing Documents from S3
 
@@ -244,6 +303,10 @@ To do so you'll need to do the following:
 The sync creates agents and ingests the configured documents for each agent. After initial creation, when the task is run it checks the S3 bucket for updates and will only re-ingest files into the vector DB when it detects file changes.
 
 The OpenShift templates contain a CronJob configuration that is used to run this document sync repeatedly.
+
+## Deploying to Open Shift
+
+This repository provides [Open Shift templates](openshift/) for all infrastructure components (except for the LLM hosting server). You may not need the templates for postgres or text-embeddings-inference server if you intend to provide those via other infrastructure or 3rd party services.
 
 ## Run Tangerine Frontend Locally
 

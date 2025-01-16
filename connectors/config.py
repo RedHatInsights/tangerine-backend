@@ -47,7 +47,7 @@ Answer the above question using the below search results as context:
     "\n"
 )
 
-DEFAULT_SYSTEM_PROMPT = """
+_prompt = """
 <s>[INST] You are a helpful assistant that helps software developers quickly find answers to their
 questions by reviewing technical documents. You will be provided with a question and search results
 that are relevant for answering the question. The start marker for each search result is similar to
@@ -63,8 +63,6 @@ be based solely on the content found in the search results. Format your answers 
 easy readability. If you are not able to answer a question, you should say "I do not have enough
 information available to be able to answer your question." Answers must consider chat history.
 [/INST]
-""".lstrip(
-    "\n"
-).replace(
-    "\n", " "
-)
+"""
+
+DEFAULT_SYSTEM_PROMPT = os.getenv("DEFAULT_SYSTEM_PROMPT", _prompt).lstrip("\n").replace("\n", " ")
