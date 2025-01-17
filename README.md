@@ -5,10 +5,14 @@ tangerine is a slim and light-weight RAG (Retieval Augmented Generated) system u
 
 Each agent is intended to answer questions related to a set of documents known as a knowledge base (KB).
 
+![Demo video](docs/demo.gif)
+
 - [Overview](#overview)
   - [Architecture](#architecture)
     - [Data Preparation](#data-preparation)
     - [Retrieval Augmented Generation (RAG)](#retrieval-augmented-generation-rag)
+    - [Document Processing](#document-processing)
+    - [Document Processing Logic](#document-processing-logic)
   - [Purpose of Backend Service](#purpose-of-backend-service)
   - [Related Frontends](#related-frontends)
   - [Use of Hosted AI Services](#use-of-hosted-ai-services)
@@ -44,13 +48,7 @@ It was born out of a hack-a-thon and is still a work in progress. You will find 
 
 - **A:** Documents are uploaded to the backend service
   - (alternatively, they can be sync'd from an AWS S3 bucket)
-- **B:** The documents are processed/converted/cleaned up
-  - currently the well supported document formats include .md and .html pages compiled with 'mkdocs' or 'antora'.
-    - the body of the .html is extracted and converted back into .md
-    - the .md is "cleaned up" to provide more reliable search results
-      - for example: very large code blocks are removed
-  - support for .pdf, .txt, and .rst exists but the parsing is not yet well-optimized
-  - support for .adoc is a work-in-progress
+- **B:** The documents are processed/converted/cleaned up, see [Document Processing](#document-processing) below
 - **C:** The documents are split into separate text chunks
 - **D:** Embeddings are created for each text chunk and inserted into the vector database
 
@@ -61,7 +59,45 @@ It was born out of a hack-a-thon and is still a work in progress. You will find 
 - **3:** A similarity search and a max marginal relevance search are performed against the vector DB to find the top N most relevant document chunks
   - The document set searched is scoped only to that specific agent
 - **4:** The LLM is prompted to answer the question using only the context found within the relevant document chunks
-- **5:** The LLM response is streamed by the backend service to the user
+- **5:** The LLM response is streamed by the backend service to the user. Metadata containing the document chunks are also returned to be used as citations.
+
+#### Document Processing
+
+Document processing is arguably the most important part of a good RAG solution. The quality of the data stored within each text chunk is key to yielding accurate search results that will be passed to the LLM to "help it" answer a user's question.
+
+Our documentation set has initially focused on pages that have been compiled using `mkdocs` or `antora`. Therefore, our processing logic has been highly focused on improving the data from those sources.
+
+- Currently the well supported document formats include .md and .html pages compiled with 'mkdocs' or 'antora'.
+- Support for .pdf, .txt, and .rst exists but the parsing is not yet well-optimized. Results may vary.
+- Support for .adoc is a work-in-progress and relies on the ability of [docling](https://ds4sd.github.io/docling/) to parse the content
+
+#### Document Processing Logic
+
+- For markdown content, we:
+  1. Replace very large code blocks with text that says "This is a large code block, go read the documentation for more information"
+
+     - Large code blocks have a tedency to fill text chunks with "useless information" that do not help with answering a user's question
+
+  2. Convert tables into plain text with with each row having "header: value" statements
+
+     - This is intended to preserve the context of a large table across text chunks
+
+  3. Fix relative links by replacing them with absolute URLs
+
+     - This allows links within documentation to work when users review citation snippets
+
+  4. Make some formatting optimizations such as removing extra whitespace, removing non-printable characters, etc.
+
+- If we detect a .html page, we:
+
+  1. Check if it was created with mkdocs or antora, and if so extract only the 'content' from the page body (remove header/footer/nav/etc.)
+
+  2. Convert the page into markdown using `html2text`, then process it as a markdown document as described above
+
+- When creating text chunks, we split documents into chunks of about 2000 characters with no overlap.
+  - Sometimes the text splitter will create a very small chunk
+    - In this case, we will "roll" the text from the small chunk into the next one
+      - The goal is to fit as much "quality content" into a chunk as possible
 
 ### Purpose of Backend Service
 
