@@ -20,7 +20,7 @@ Each agent is intended to answer questions related to a set of documents known a
   - [With Docker Compose](#with-docker-compose)
     - [Using huggingface text-embeddings-inference server to host embedding model (deprecated)](#using-huggingface-text-embeddings-inference-server-to-host-embedding-model-deprecated)
   - [Without Docker Compose](#without-docker-compose)
-- [Syncrhonizing Documents from S3](#syncrhonizing-documents-from-s3)
+- [Synchronizing Documents from S3](#synchronizing-documents-from-s3)
 - [Deploying to Open Shift](#deploying-to-open-shift)
 - [Run Tangerine Frontend Locally](#run-tangerine-frontend-locally)
 - [Available API Paths](#available-api-paths)
@@ -288,7 +288,7 @@ to use this to test different embedding models that are not supported by ollama,
 
 1. (optional) Follow these steps to start the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend#without-docker-compose)
 
-## Syncrhonizing Documents from S3
+## Synchronizing Documents from S3
 
 You can configure a set of agents and continually sync their knowledge base via documents stored in an S3 bucket.
 
