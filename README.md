@@ -21,6 +21,7 @@ Each agent is intended to answer questions related to a set of documents known a
     - [Using huggingface text-embeddings-inference server to host embedding model (deprecated)](#using-huggingface-text-embeddings-inference-server-to-host-embedding-model-deprecated)
   - [Without Docker Compose](#without-docker-compose)
 - [Synchronizing Documents from S3](#synchronizing-documents-from-s3)
+  - [Continuous synchronization](#continuous-synchronization)
 - [Deploying to Open Shift](#deploying-to-open-shift)
 - [Run Tangerine Frontend Locally](#run-tangerine-frontend-locally)
 - [Available API Paths](#available-api-paths)
@@ -314,7 +315,7 @@ To do so you'll need to do the following:
    echo 'BUCKET=mybucket' >> .env
    ```
 
-2. Create an `s3.yaml` file that describes your agents and the documents they should ingest. See [s3-example.yaml](s3-example.yaml) for an example.
+5. Create an `s3.yaml` file that describes your agents and the documents they should ingest. See [s3-example.yaml](s3-example.yaml) for an example.
 
    If using docker compose, copy this config into your container:
 
@@ -322,7 +323,7 @@ To do so you'll need to do the following:
    docker cp s3.yaml tangerine-backend:/opt/app-root/src/s3.yaml
    ```
 
-3. Run the S3 sync job:
+6. Run the S3 sync job:
 
     - With docker compose:
 
@@ -339,6 +340,19 @@ To do so you'll need to do the following:
 The sync creates agents and ingests the configured documents for each agent. After initial creation, when the task is run it checks the S3 bucket for updates and will only re-ingest files into the vector DB when it detects file changes.
 
 The OpenShift templates contain a CronJob configuration that is used to run this document sync repeatedly.
+
+### Continuous synchronization
+
+The s3 sync can be configured on a schedule to continually update your document knowledge bases. The sync logic works like this:
+
+1. When documents are ingested, the s3 ETag is stored as metadata on the document chynks.
+2. Whenever s3 sync runs, the bucket objects are checked for ETag changes.
+3. If an object in s3 gets a new Etag, its document chunks are replaced in the vector DB.
+4. The replacement takes an "active/standby" approach whereby:
+   1. the document chunk initially has 'active: true' set on it (meaning it is used for RAG lookups)
+   2. the newly inserted chunks are loaded with 'active: false'.
+   3. once the entire document set has been ingested and is ready to use, the metadata is flipped so that the new chunks have 'active: true', and the old chunks have 'active: false'
+   4. finally, chunks with 'active: false' are removed from the vector DB
 
 ## Deploying to Open Shift
 
