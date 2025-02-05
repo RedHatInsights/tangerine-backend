@@ -31,7 +31,7 @@ class LLMInterface:
             log.debug("unable to find results")
             context_text = "No matching search results found"
         else:
-            log.debug("fetched %d results", len(results))
+            log.debug("fetched %d relevant search results from vector db", len(results))
             for i, doc in enumerate(results):
                 page_content = doc.page_content
                 metadata = doc.metadata
@@ -84,14 +84,14 @@ class LLMInterface:
                 search_metadata = {"search_metadata": extra_doc_info}
                 yield search_metadata
 
+            output_rate = cb.completion_tokens / (timer_end - timer_start)
             log.debug(
-                "input tokens: %s, output tokens: %s, total tokens: %s",
+                "total tokens: %s, input tokens: %s, output tokens: %s, output rate: %f tokens/sec",
+                cb.total_tokens,
                 cb.prompt_tokens,
                 cb.completion_tokens,
-                cb.total_tokens,
+                output_rate,
             )
-            output_rate = cb.completion_tokens / (timer_end - timer_start)
-            log.debug("output rate: %f tokens/sec", output_rate)
 
         def generator():
             for data in get_llm_response():
