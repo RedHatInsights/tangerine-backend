@@ -1,8 +1,9 @@
 import json
 import logging
+import time
 
+from langchain_community.callbacks.manager import get_openai_callback
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
@@ -17,6 +18,7 @@ class LLMInterface:
         pass
 
     def ask(self, system_prompt, previous_messages, question, agent_id, stream):
+        log.debug("querying vector DB")
         results = vector_db.search(question, agent_id)
 
         prompt_params = {"question": question}
@@ -29,11 +31,12 @@ class LLMInterface:
             log.debug("unable to find results")
             context_text = "No matching search results found"
         else:
+            log.debug("fetched %d results", len(results))
             for i, doc in enumerate(results):
                 page_content = doc.page_content
                 metadata = doc.metadata
                 extra_doc_info.append({"metadata": metadata, "page_content": page_content})
-                log.debug("metadata: %s", metadata)
+
                 context_text += f"\n<<Search result {i+1}"
                 if "title" in metadata:
                     title = metadata["title"]
@@ -42,7 +45,6 @@ class LLMInterface:
 
         prompt = ChatPromptTemplate.from_template(cfg.USER_PROMPT_TEMPLATE)
         prompt_params = {"context": context_text, "question": question}
-        log.debug("search result: %s", context_text)
 
         # Adding system prompt and memory
         msg_list = []
@@ -55,30 +57,59 @@ class LLMInterface:
                     msg_list.append(AIMessage(content=f"{msg['text']}</s>"))
         prompt.messages = msg_list + prompt.messages
 
-        log.debug("prompt: %s", prompt)
-        model = ChatOpenAI(
+        llm = ChatOpenAI(
             model=cfg.LLM_MODEL_NAME,
             openai_api_base=cfg.LLM_BASE_URL,
             openai_api_key=cfg.LLM_API_KEY,
             temperature=cfg.LLM_TEMPERATURE,
         )
 
-        chain = prompt | model | StrOutputParser()
+        chain = prompt | llm
+
+        log.debug("prompting llm...")
+
+        def get_llm_response():
+            timer_start = None
+
+            with get_openai_callback() as cb:
+                for chunk in chain.stream(prompt_params, stream_usage=True):
+                    if not timer_start:
+                        # this is the first output token received
+                        timer_start = time.time()
+                    if len(chunk.content):
+                        text_content = {"text_content": chunk.content}
+                        yield text_content
+
+                timer_end = time.time()
+                search_metadata = {"search_metadata": extra_doc_info}
+                yield search_metadata
+
+            log.debug(
+                "input tokens: %s, output tokens: %s, total tokens: %s",
+                cb.prompt_tokens,
+                cb.completion_tokens,
+                cb.total_tokens,
+            )
+            output_rate = cb.completion_tokens / (timer_end - timer_start)
+            log.debug("output rate: %f tokens/sec", output_rate)
+
+        def generator():
+            for data in get_llm_response():
+                yield f"data: {json.dumps(data)}\r\n"
 
         if stream:
+            return generator
 
-            def stream_generator():
-                for chunks in chain.stream(prompt_params):
-                    log.debug("chunks: %s", chunks)
-                    json_data = json.dumps({"text_content": chunks})
-                    yield f"data: {json_data}\r\n"
-                json_data = json.dumps({"search_metadata": extra_doc_info})
-                yield f"data: {json_data}\r\n"
-
-            return stream_generator
-
-        response_text = chain.invoke(prompt_params)
-        response = {"text_content": response_text, "search_metadata": extra_doc_info}
+        # else, if stream=False ...
+        response = {"text_content": None, "search_metadata": None}
+        for data in get_llm_response():
+            if "text_content" in data:
+                if response["text_content"] is None:
+                    response["text_content"] = data["text_content"]
+                else:
+                    response["text_content"] += data["text_content"]
+            if "search_metadata" in data:
+                response["search_metadata"] = data["search_metadata"]
         return response
 
 
