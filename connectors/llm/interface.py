@@ -9,8 +9,15 @@ from langchain_openai import ChatOpenAI
 
 import connectors.config as cfg
 from connectors.db.vector import vector_db
+from resources.metrics import get_counter, get_gauge
 
 log = logging.getLogger("tangerine.llm")
+
+llm_completion_tokens_metric = get_counter("llm_completion_tokens", "LLM completion tokens usage")
+llm_prompt_tokens_metric = get_counter("llm_prompt_tokens", "LLM prompt tokens usage")
+llm_output_rate = get_gauge(
+    "llm_output_rate", "Observed tokens per second from most recent LLM chat completion"
+)
 
 
 class LLMInterface:
@@ -86,12 +93,14 @@ class LLMInterface:
 
             output_rate = cb.completion_tokens / (timer_end - timer_start)
             log.debug(
-                "total tokens: %s, input tokens: %s, output tokens: %s, output rate: %f tokens/sec",
-                cb.total_tokens,
+                "prompt tokens: %s, completion tokens: %s, output rate: %f tokens/sec",
                 cb.prompt_tokens,
                 cb.completion_tokens,
                 output_rate,
             )
+            llm_completion_tokens_metric.inc(cb.completion_tokens)
+            llm_prompt_tokens_metric.inc(cb.prompt_tokens)
+            llm_output_rate.set(output_rate)
 
         def generator():
             for data in get_llm_response():

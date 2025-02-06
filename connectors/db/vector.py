@@ -13,12 +13,15 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sqlalchemy import text
 
 import connectors.config as cfg
+from resources.metrics import get_counter
 
 from .agent import db
 from .file import File
 
 log = logging.getLogger("tangerine.db.vector")
-
+embed_prompt_tokens_metric = get_counter(
+    "embed_prompt_tokens", "Embedding model prompt tokens usage"
+)
 
 TXT_SEPARATORS = [
     "\n\n## ",
@@ -55,8 +58,13 @@ class CustomResponse(httpx.Response):
         except json.JSONDecodeError:
             usage = {}
 
-        if "prompt_tokens" in usage:
-            log.debug("embedding prompt tokens: %d", usage["prompt_tokens"])
+        try:
+            prompt_tokens = int(usage.get("prompt_tokens", 0))
+        except ValueError:
+            prompt_tokens = 0
+
+        log.debug("embedding prompt tokens: %d", prompt_tokens)
+        embed_prompt_tokens_metric.inc(prompt_tokens)
 
 
 class CustomTransport(httpx.BaseTransport):
@@ -165,8 +173,6 @@ class VectorStoreInterface:
         metadata.update(file.metadata)
 
         chunks = self.split_to_document_chunks(text, metadata)
-
-        log.debug("document chunks: %s", chunks)
 
         return chunks
 

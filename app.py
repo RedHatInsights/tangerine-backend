@@ -13,6 +13,7 @@ import connectors.config as cfg
 import connectors.s3.sync
 from connectors.db.agent import db
 from connectors.db.vector import vector_db
+from resources.metrics import metrics
 from resources.routes import initialize_routes
 
 
@@ -32,6 +33,7 @@ def create_app():
     api = Api(app)
     initialize_routes(api)
 
+    metrics.init_app(app, api)
     app.cli.add_command(s3sync)
 
     with app.app_context():
