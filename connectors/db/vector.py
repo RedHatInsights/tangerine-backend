@@ -1,9 +1,11 @@
+import io
 import itertools
 import json
 import logging
 import math
 from operator import itemgetter
 
+import httpx
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
@@ -11,12 +13,15 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sqlalchemy import text
 
 import connectors.config as cfg
+from resources.metrics import get_counter
 
 from .agent import db
 from .file import File
 
 log = logging.getLogger("tangerine.db.vector")
-
+embed_prompt_tokens_metric = get_counter(
+    "embed_prompt_tokens", "Embedding model prompt tokens usage"
+)
 
 TXT_SEPARATORS = [
     "\n\n## ",
@@ -30,6 +35,52 @@ TXT_SEPARATORS = [
     "",
 ]
 
+# because we currently cannot access usage_metadata for embedding calls nor use
+# get_openai_callback() in the same way we can for chat model calls...
+# (see https://github.com/langchain-ai/langchain/issues/945)
+#
+# we use a work-around inspired by https://github.com/encode/httpx/discussions/3073
+
+
+class CustomResponse(httpx.Response):
+    def iter_bytes(self, *args, **kwargs):
+        content = io.BytesIO()
+
+        # copy the chunk into our own buffer but yield same chunk to caller
+        for chunk in super().iter_bytes(*args, **kwargs):
+            content.write(chunk)
+            yield chunk
+
+        # check to see if content can be loaded as json and look for 'usage' key
+        content.seek(0)
+        try:
+            usage = json.load(content).get("usage")
+        except json.JSONDecodeError:
+            usage = {}
+
+        try:
+            prompt_tokens = int(usage.get("prompt_tokens", 0))
+        except ValueError:
+            prompt_tokens = 0
+
+        log.debug("embedding prompt tokens: %d", prompt_tokens)
+        embed_prompt_tokens_metric.inc(prompt_tokens)
+
+
+class CustomTransport(httpx.BaseTransport):
+    def __init__(self, transport: httpx.BaseTransport):
+        self.transport = transport
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        response = self.transport.handle_request(request)
+
+        return CustomResponse(
+            status_code=response.status_code,
+            headers=response.headers,
+            stream=response.stream,
+            extensions=response.extensions,
+        )
+
 
 class VectorStoreInterface:
     def __init__(self):
@@ -40,6 +91,7 @@ class VectorStoreInterface:
         self.db = db
 
         self.embeddings = OpenAIEmbeddings(
+            http_client=httpx.Client(transport=CustomTransport(httpx.HTTPTransport())),
             model=cfg.EMBED_MODEL_NAME,
             openai_api_base=cfg.EMBED_BASE_URL,
             openai_api_key=cfg.EMBED_API_KEY,
@@ -121,8 +173,6 @@ class VectorStoreInterface:
         metadata.update(file.metadata)
 
         chunks = self.split_to_document_chunks(text, metadata)
-
-        log.debug("document chunks: %s", chunks)
 
         return chunks
 

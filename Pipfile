@@ -26,6 +26,8 @@ pydantic = "*"
 jinja2 = "*"
 pytablereader = {extras = ["md"], version = "*"}
 docling = "*"
+langchain-community = "*"
+prometheus-flask-exporter = "*"
 
 [dev-packages]
 black = "*"
