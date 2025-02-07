@@ -1,4 +1,5 @@
-from .agent import AgentApi, AgentChatApi, AgentDefaultsApi, AgentDocuments, AgentsApi
+from .agent import (AgentApi, AgentChatApi, AgentDefaultsApi, AgentDocuments,
+                    AgentsApi)
 from .utils import PingApi
 
 

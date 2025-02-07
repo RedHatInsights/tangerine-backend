@@ -6,7 +6,8 @@ from flask_restful import Resource
 
 from connectors.config import DEFAULT_SYSTEM_PROMPT
 from connectors.db.agent import Agent
-from connectors.db.common import File, add_filenames_to_agent, embed_files, remove_files
+from connectors.db.common import (File, add_filenames_to_agent, embed_files,
+                                  remove_files)
 from connectors.db.vector import vector_db
 from connectors.llm.interface import llm
 

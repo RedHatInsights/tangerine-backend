@@ -1,8 +1,10 @@
 import json
 import logging
 import time
+from typing import Generator, List
 
 from langchain_community.callbacks.manager import get_openai_callback
+from langchain_community.callbacks.openai_info import OpenAICallbackHandler
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
@@ -15,14 +17,82 @@ log = logging.getLogger("tangerine.llm")
 
 llm_completion_tokens_metric = get_counter("llm_completion_tokens", "LLM completion tokens usage")
 llm_prompt_tokens_metric = get_counter("llm_prompt_tokens", "LLM prompt tokens usage")
-llm_output_rate = get_gauge(
-    "llm_output_rate", "Observed tokens per second from most recent LLM chat completion"
+llm_completion_rate = get_gauge(
+    "llm_completion_rate", "Observed tokens per sec from most recent LLM chat completion"
+)
+llm_processing_rate = get_gauge(
+    "llm_processing_rate", "Observed tokens per sec for most recent LLM processing after prompted"
 )
 
 
 class LLMInterface:
     def __init__(self):
         pass
+
+    @staticmethod
+    def _record_metrics(
+        cb: OpenAICallbackHandler,
+        processing_start: float,
+        completion_start: float,
+        completion_end: float,
+    ) -> None:
+        if not completion_start:
+            log.error("no content in llm response stream")
+            return
+
+        processing_time = completion_start - processing_start
+        completion_time = completion_end - completion_start
+
+        try:
+            processing_rate = cb.prompt_tokens / processing_time
+            completion_rate = cb.completion_tokens / completion_time
+        except ZeroDivisionError:
+            log.error("unexpected time diff of 0")
+            completion_rate = 0
+
+        log.debug(
+            (
+                "prompt tokens: %s, completion tokens: %s, "
+                "processing time: %fsec (%f tokens/sec), completion time: %fsec (%f tokens/sec)"
+            ),
+            cb.prompt_tokens,
+            cb.completion_tokens,
+            processing_time,
+            processing_rate,
+            completion_time,
+            completion_rate,
+        )
+        llm_completion_tokens_metric.inc(cb.completion_tokens)
+        llm_prompt_tokens_metric.inc(cb.prompt_tokens)
+        llm_processing_rate.set(processing_rate)
+        llm_completion_rate.set(completion_rate)
+
+    @staticmethod
+    def _get_response(
+        chat: ChatOpenAI,
+        prompt: ChatPromptTemplate,
+        prompt_params: dict,
+        extra_doc_info: List[dict],
+    ) -> Generator[dict, None, None]:
+        chain = prompt | chat
+
+        completion_start = 0.0
+        processing_start = time.time()
+
+        with get_openai_callback() as cb:
+            for chunk in chain.stream(prompt_params, stream_usage=True):
+                if not completion_start:
+                    # this is the first output token received
+                    completion_start = time.time()
+                if len(chunk.content):
+                    text_content = {"text_content": chunk.content}
+                    yield text_content
+
+            completion_end = time.time()
+            search_metadata = {"search_metadata": extra_doc_info}
+            yield search_metadata
+
+        LLMInterface._record_metrics(cb, processing_start, completion_start, completion_end)
 
     def ask(self, system_prompt, previous_messages, question, agent_id, stream):
         log.debug("querying vector DB")
@@ -64,54 +134,26 @@ class LLMInterface:
                     msg_list.append(AIMessage(content=f"{msg['text']}</s>"))
         prompt.messages = msg_list + prompt.messages
 
-        llm = ChatOpenAI(
+        chat = ChatOpenAI(
             model=cfg.LLM_MODEL_NAME,
             openai_api_base=cfg.LLM_BASE_URL,
             openai_api_key=cfg.LLM_API_KEY,
             temperature=cfg.LLM_TEMPERATURE,
         )
 
-        chain = prompt | llm
-
         log.debug("prompting llm...")
+        llm_response = LLMInterface._get_response(chat, prompt, prompt_params, extra_doc_info)
 
-        def get_llm_response():
-            timer_start = None
-
-            with get_openai_callback() as cb:
-                for chunk in chain.stream(prompt_params, stream_usage=True):
-                    if not timer_start:
-                        # this is the first output token received
-                        timer_start = time.time()
-                    if len(chunk.content):
-                        text_content = {"text_content": chunk.content}
-                        yield text_content
-
-                timer_end = time.time()
-                search_metadata = {"search_metadata": extra_doc_info}
-                yield search_metadata
-
-            output_rate = cb.completion_tokens / (timer_end - timer_start)
-            log.debug(
-                "prompt tokens: %s, completion tokens: %s, output rate: %f tokens/sec",
-                cb.prompt_tokens,
-                cb.completion_tokens,
-                output_rate,
-            )
-            llm_completion_tokens_metric.inc(cb.completion_tokens)
-            llm_prompt_tokens_metric.inc(cb.prompt_tokens)
-            llm_output_rate.set(output_rate)
-
-        def generator():
-            for data in get_llm_response():
+        def api_response_generator():
+            for data in llm_response:
                 yield f"data: {json.dumps(data)}\r\n"
 
         if stream:
-            return generator
+            return api_response_generator
 
         # else, if stream=False ...
         response = {"text_content": None, "search_metadata": None}
-        for data in get_llm_response():
+        for data in llm_response:
             if "text_content" in data:
                 if response["text_content"] is None:
                     response["text_content"] = data["text_content"]
