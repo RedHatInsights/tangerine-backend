@@ -62,11 +62,11 @@ objects:
     replicas: 1
     selector:
       matchLabels:
-        app: tangerine-backend
+        app.kubernetes.io/name: tangerine-backend
     template:
       metadata:
         labels:
-          app: tangerine-backend
+          app.kubernetes.io/name: tangerine-backend
       spec:
         containers:
           - resources:
@@ -163,7 +163,7 @@ objects:
     name: tangerine-backend
   spec:
     selector:
-      app: tangerine-backend
+      app.kubernetes.io/name: tangerine-backend
     ports:
       - name: tangerine-backend
         protocol: TCP
