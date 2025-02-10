@@ -44,11 +44,11 @@ objects:
     replicas: 1
     selector:
       matchLabels:
-        app: postgresql
+        app.kubernetes.io/name: postgresql
     template:
       metadata:
         labels:
-          app: postgresql
+          app.kubernetes.io/name: postgresql
       spec:
         volumes:
           - name: postgresql-data
@@ -123,7 +123,7 @@ objects:
     name: postgresql
   spec:
     selector:
-      app: postgresql
+      app.kubernetes.io/name: postgresql
     ports:
       - name: postgresql
         protocol: TCP
