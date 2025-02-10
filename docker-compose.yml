@@ -101,7 +101,7 @@ services:
       - EMBED_QUERY_PREFIX="search_query"
       - EMBED_DOCUMENT_PREFUX="search_document"
     # for s3sync, store AWS env vars needed to access your s3 bucket here
-    env_file: ".env"
+  #  env_file: ".env"
     healthcheck:
       test: curl --fail "http://localhost:8000/ping" || exit 1
       start_period: 10s
