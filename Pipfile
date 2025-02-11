@@ -10,7 +10,6 @@ flask-sqlalchemy = "*"
 pgvector = "*"
 sqlalchemy = "*"
 langchain-core = "*"
-pypdf2 = "*"
 langchain-openai = "*"
 einops = "*"
 langchain-text-splitters = "*"
@@ -28,6 +27,7 @@ pytablereader = {extras = ["md"], version = "*"}
 docling = "*"
 langchain-community = "*"
 prometheus-flask-exporter = "*"
+pypdf2 = "*"
 
 [dev-packages]
 black = "*"

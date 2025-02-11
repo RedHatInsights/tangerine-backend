@@ -97,6 +97,8 @@ objects:
   apiVersion: v1
   metadata:
     name: text-embeddings-inference
+    labels:
+      app.kubernetes.io/name: text-embeddings-inference
   spec:
     selector:
       app.kubernetes.io/name: text-embeddings-inference

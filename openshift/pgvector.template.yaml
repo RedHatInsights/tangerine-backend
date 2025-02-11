@@ -121,6 +121,8 @@ objects:
   apiVersion: v1
   metadata:
     name: postgresql
+    labels:
+      app.kubernetes.io/name: postgresql
   spec:
     selector:
       app.kubernetes.io/name: postgresql
