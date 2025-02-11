@@ -33,6 +33,8 @@ EMBED_DOCUMENT_PREFIX = os.getenv("EMBED_DOCUMENT_PREFIX", "")
 
 S3_SYNC_CONFIG_FILE = os.getenv("S3_SYNC_CONFIG_FILE", "s3.yaml")
 
+METRICS_PREFIX = os.getenv("METRICS_PREFIX", "tangerine")
+
 USER_PROMPT_TEMPLATE = """
 [INST]
 Question: {question}
