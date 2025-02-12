@@ -54,11 +54,11 @@ objects:
     name: tangerine-backend
   spec:
     strategy:
-      type: Recreate  # TODO: switch to Rolling
-      recreateParams:
-        timeoutSeconds: 600
-      resources: {}
-      activeDeadlineSeconds: 21600
+      type: RollingUpdate
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 33%
+    minReadySeconds: 5
     replicas: 1
     selector:
       matchLabels:
