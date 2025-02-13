@@ -29,6 +29,10 @@ parameters:
     value: latest
   - name: FORCE_RESYNC_UNTIL
     value: '0001-01-01T00:00:00Z'  # default is "the start of time", it will never run
+  - name: S3_SYNC_EXPORT_METRICS
+    value: "true"
+  - name: S3_SYNC_EXPORT_METRICS_SLEEP_SECS
+    value: "120"
 
 objects:
 - kind: Secret
@@ -99,6 +103,10 @@ objects:
                     memory: ${MEMORY_LIMIT}
                     cpu: ${CPU_LIMIT}
                 env:
+                  - name: S3_SYNC_EXPORT_METRICS
+                    value: ${S3_SYNC_EXPORT_METRICS}
+                  - name: S3_SYNC_EXPORT_METRICS_SLEEP_SECS
+                    value: ${S3_SYNC_EXPORT_METRICS_SLEEP_SECS}
                   - name: S3_SYNC_CONFIG_FILE
                     value: /s3sync-config/s3.yaml
                   - name: AWS_ACCESS_KEY_ID

@@ -2,6 +2,7 @@ import datetime as dt
 import logging
 import os
 import sys
+import time
 
 import click
 from flask import Flask, current_app
@@ -58,6 +59,10 @@ def create_app():
 )
 @with_appcontext
 def s3sync(force_resync, force_resync_until):
+    if cfg.S3_SYNC_EXPORT_METRICS:
+        os.environ.pop("FLASK_RUN_FROM_CLI")
+        metrics.start_http_server(port=8000)
+
     force_resync_env_var = os.getenv("FORCE_RESYNC", "").lower() in ("1", "true")
     force_resync_until_env_var = os.getenv("FORCE_RESYNC_UNTIL")
 
@@ -79,4 +84,10 @@ def s3sync(force_resync, force_resync_until):
 
     current_app.logger.info("running s3sync, force_resync=%s", force_resync)
     exit_code = connectors.s3.sync.run(resync=force_resync)
+
+    if cfg.S3_SYNC_EXPORT_METRICS:
+        sleep_time = cfg.S3_SYNC_EXPORT_METRICS_SLEEP_SECS
+        current_app.logger.info("sleeping %dsec for metrics collection", sleep_time)
+        time.sleep(sleep_time)
+
     sys.exit(exit_code)

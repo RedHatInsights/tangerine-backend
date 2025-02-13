@@ -1,5 +1,14 @@
 import os
 
+
+def _is_true(env_var):
+    return str(os.getenv(env_var, "false")).lower() in [
+        "1",
+        "t",
+        "true",
+    ]
+
+
 LOG_LEVEL_GLOBAL = os.getenv("LOG_LEVEL", "INFO").upper()
 LOG_LEVEL_APP = os.getenv("LOG_LEVEL", "DEBUG").upper()
 
@@ -32,6 +41,8 @@ EMBED_QUERY_PREFIX = os.getenv("EMBED_QUERY_PREFIX", "search_query")
 EMBED_DOCUMENT_PREFIX = os.getenv("EMBED_DOCUMENT_PREFIX", "")
 
 S3_SYNC_CONFIG_FILE = os.getenv("S3_SYNC_CONFIG_FILE", "s3.yaml")
+S3_SYNC_EXPORT_METRICS = _is_true("S3_SYNC_EXPORT_METRICS")
+S3_SYNC_EXPORT_METRICS_SLEEP_SECS = int(os.getenv("S3_SYNC_EXPORT_METRICS_SLEEP_SECS", 60))
 
 METRICS_PREFIX = os.getenv("METRICS_PREFIX", "tangerine")
 
