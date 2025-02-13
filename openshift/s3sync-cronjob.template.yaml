@@ -109,6 +109,8 @@ objects:
                     value: ${S3_SYNC_EXPORT_METRICS_SLEEP_SECS}
                   - name: S3_SYNC_CONFIG_FILE
                     value: /s3sync-config/s3.yaml
+                  - name: METRICS_PREFIX
+                    value: "tangerine_s3sync"
                   - name: AWS_ACCESS_KEY_ID
                     valueFrom:
                       secretKeyRef:
