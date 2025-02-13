@@ -146,7 +146,7 @@ objects:
               capabilities: {}
               privileged: false
             ports:
-              - name: tangerine-backend
+              - name: backend
                 containerPort: 8000
                 protocol: TCP
             imagePullPolicy: IfNotPresent

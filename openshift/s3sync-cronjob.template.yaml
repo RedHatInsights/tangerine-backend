@@ -108,7 +108,7 @@ objects:
                     memory: ${MEMORY_LIMIT}
                     cpu: ${CPU_LIMIT}
                 ports:
-                  - name: tangerine-backend
+                  - name: backend
                     containerPort: 8000
                     protocol: TCP
                 env:
