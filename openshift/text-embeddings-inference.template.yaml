@@ -32,11 +32,11 @@ objects:
     replicas: 1
     selector:
       matchLabels:
-        app: text-embeddings-inference
+        app.kubernetes.io/name: text-embeddings-inference
     template:
       metadata:
         labels:
-          app: text-embeddings-inference
+          app.kubernetes.io/name: text-embeddings-inference
       spec:
         volumes:
           - name: embedding-models-data
@@ -97,9 +97,11 @@ objects:
   apiVersion: v1
   metadata:
     name: text-embeddings-inference
+    labels:
+      app.kubernetes.io/name: text-embeddings-inference
   spec:
     selector:
-      app: text-embeddings-inference
+      app.kubernetes.io/name: text-embeddings-inference
     ports:
       - name: text-embeddings-inference
         protocol: TCP

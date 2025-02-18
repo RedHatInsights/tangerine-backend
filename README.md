@@ -144,6 +144,30 @@ A development/test environment can be set up with or without docker compose. In 
 
 The docker compose file offers an easy way to spin up all components. [ollama](https://ollama.com) is used to host the LLM and embedding model. For utilization of your GPU, refer to the comments in the compose file to see which configurations to uncomment on the 'ollama' container.
 
+You will need Docker version 27.5.1 on Fedora 40 and 41 to be able to use docker compose (not docker-compose) and for that You will need to reinstall latest docker version from the [fedora docker repo](https://docs.docker.com/engine/install/fedora/#install-using-the-repository) or follow the instructions here. 
+
+To get the correct version of docker, add the repo:
+
+```text
+sudo dnf -y install dnf-plugins-core
+sudo dnf-3 config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+```
+
+Install the packages:
+
+```text
+sudo dnf install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```
+
+Enable:
+
+```text
+sudo systemctl enable --now docker
+```
+
+Run through the postinstall steps https://docs.docker.com/engine/install/linux-postinstall/
+
+
 1. Create the directory which will house the local environment data:
 
     ```text

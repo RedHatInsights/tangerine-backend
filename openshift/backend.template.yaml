@@ -54,19 +54,19 @@ objects:
     name: tangerine-backend
   spec:
     strategy:
-      type: Recreate  # TODO: switch to Rolling
-      recreateParams:
-        timeoutSeconds: 600
-      resources: {}
-      activeDeadlineSeconds: 21600
+      type: RollingUpdate
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 33%
+    minReadySeconds: 5
     replicas: 1
     selector:
       matchLabels:
-        app: tangerine-backend
+        app.kubernetes.io/name: tangerine-backend
     template:
       metadata:
         labels:
-          app: tangerine-backend
+          app.kubernetes.io/name: tangerine-backend
       spec:
         containers:
           - resources:
@@ -146,7 +146,8 @@ objects:
               capabilities: {}
               privileged: false
             ports:
-              - containerPort: 8000
+              - name: backend
+                containerPort: 8000
                 protocol: TCP
             imagePullPolicy: IfNotPresent
             terminationMessagePolicy: File
@@ -161,9 +162,11 @@ objects:
   apiVersion: v1
   metadata:
     name: tangerine-backend
+    labels:
+      app.kubernetes.io/name: tangerine-backend
   spec:
     selector:
-      app: tangerine-backend
+      app.kubernetes.io/name: tangerine-backend
     ports:
       - name: tangerine-backend
         protocol: TCP
