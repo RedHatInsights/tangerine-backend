@@ -2,7 +2,7 @@ import json
 import logging
 import uuid
 
-from flask import Response, request, stream_with_context
+from flask import Response, request, stream_with_context, current_app
 from flask_restful import Resource
 
 from connectors.config import DEFAULT_SYSTEM_PROMPT
@@ -151,39 +151,63 @@ class AgentChatApi(Resource):
             return {"message": "agent not found"}, 404
 
         query = request.json.get("query")
+        stream = request.json.get("stream", "true") == "true"  # Defaults to streaming
         session_uuid = request.json.get("session_uuid", str(uuid.uuid4()))
         previous_messages = request.json.get("prevMsgs")
 
         # Retrieve supporting documents and relevance scores
         retrieved_chunks = vector_db.search(query, agent.id)
-        relevance_scores = [result.metadata.get("score", None) for result in retrieved_chunks]
+        relevance_scores = [result.metadata.get("score", 0.0) for result in retrieved_chunks]
         source_doc_chunks = [{"text": doc.page_content, "source": doc.metadata.get("source")} for doc in retrieved_chunks]
 
         # Embed the query
         embedding = vector_db.embeddings.embed_query(query)
 
-        # Ask LLM - streaming generator
-        stream = llm.ask(agent.system_prompt, previous_messages, query, agent.id, stream=True)
+        # Call the LLM
+        llm_response = llm.ask(agent.system_prompt, previous_messages, query, agent.id, stream=stream)
 
-        def accumulate_and_stream():
-            accumulated_response = ""
-            for chunk in stream:
-                accumulated_response += chunk
-                yield chunk
+        # Detect if the response is a generator (stream=True) or a final string (stream=False)
+        is_streaming = callable(llm_response) or hasattr(llm_response, '__iter__')
 
-            # Now that the stream is done, we can log the interaction
+        if stream and is_streaming:
+            # Streaming Case
+            if callable(llm_response):
+                llm_response = llm_response()  # Handle callable generators
+
+            def accumulate_and_stream():
+                accumulated_response = ""
+                for chunk in llm_response:
+                    accumulated_response += chunk
+                    yield chunk
+                with current_app.app_context():
+                    # After stream ends, log the full response
+                    try:
+                        InteractionLogger.log_interaction(
+                            user_query=query,
+                            llm_response=accumulated_response,
+                            source_doc_chunks=source_doc_chunks,
+                            relevance_scores=relevance_scores,
+                            question_embedding=embedding,
+                            session_uuid=session_uuid,
+                        )
+                    except Exception as e:
+                        log.exception("Failed to log interaction")
+
+            return Response(stream_with_context(accumulate_and_stream()), mimetype="application/json")
+
+        else:
+            # Non-Streaming Case (Admin Panel, Dev)
+            final_response = llm_response  # This is a string
             try:
                 InteractionLogger.log_interaction(
                     user_query=query,
-                    llm_response=accumulated_response,
+                    llm_response=final_response,
                     source_doc_chunks=source_doc_chunks,
                     relevance_scores=relevance_scores,
                     question_embedding=embedding,
                     session_uuid=session_uuid,
                 )
             except Exception as e:
-                # Handle logging failure, e.g., log it somewhere else, but don't break the stream
                 log.exception("Failed to log interaction")
 
-        # Stream the response to the user while accumulating
-        return Response(stream_with_context(accumulate_and_stream()), mimetype="application/json")
+            return {"response": final_response}, 200
