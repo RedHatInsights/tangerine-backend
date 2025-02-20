@@ -1,5 +1,6 @@
 import json
 import logging
+import uuid
 
 from flask import Response, request, stream_with_context
 from flask_restful import Resource
@@ -9,6 +10,9 @@ from connectors.db.agent import Agent
 from connectors.db.common import File, add_filenames_to_agent, embed_files, remove_files
 from connectors.db.vector import vector_db
 from connectors.llm.interface import llm
+
+from connectors.db.interactions import InteractionLogger
+
 
 log = logging.getLogger("tangerine.agent")
 
@@ -147,12 +151,39 @@ class AgentChatApi(Resource):
             return {"message": "agent not found"}, 404
 
         query = request.json.get("query")
-        stream = request.json.get("stream") == "true"
+        session_uuid = request.json.get("session_uuid", str(uuid.uuid4()))
         previous_messages = request.json.get("prevMsgs")
 
-        llm_response = llm.ask(agent.system_prompt, previous_messages, query, agent.id, stream)
+        # Retrieve supporting documents and relevance scores
+        retrieved_chunks = vector_db.search(query, agent.id)
+        relevance_scores = [result.metadata.get("score", None) for result in retrieved_chunks]
+        source_doc_chunks = [{"text": doc.page_content, "source": doc.metadata.get("source")} for doc in retrieved_chunks]
 
-        if stream:
-            return Response(llm_response(), mimetype="application/json")
+        # Embed the query
+        embedding = vector_db.embeddings.embed_query(query)
 
-        return llm_response, 200
+        # Ask LLM - streaming generator
+        stream = llm.ask(agent.system_prompt, previous_messages, query, agent.id, stream=True)
+
+        def accumulate_and_stream():
+            accumulated_response = ""
+            for chunk in stream:
+                accumulated_response += chunk
+                yield chunk
+
+            # Now that the stream is done, we can log the interaction
+            try:
+                InteractionLogger.log_interaction(
+                    user_query=query,
+                    llm_response=accumulated_response,
+                    source_doc_chunks=source_doc_chunks,
+                    relevance_scores=relevance_scores,
+                    question_embedding=embedding,
+                    session_uuid=session_uuid,
+                )
+            except Exception as e:
+                # Handle logging failure, e.g., log it somewhere else, but don't break the stream
+                log.exception("Failed to log interaction")
+
+        # Stream the response to the user while accumulating
+        return Response(stream_with_context(accumulate_and_stream()), mimetype="application/json")
