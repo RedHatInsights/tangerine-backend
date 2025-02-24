@@ -1,0 +1,30 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Tangerine Backend",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "flask",
+            "env": {
+                "FLASK_APP": "app",
+                "FLASK_ENV": "development",
+                "FLASK_DEBUG": "1",
+                "DB_HOST": "localhost",
+                "DB_USERNAME": "citrus",
+                "DB_PASSWORD": "citrus",
+                "DB_NAME": "citrus",
+                "LLM_BASE_URL": "http://localhost:11434/v1",
+                "EMBED_BASE_URL": "http://localhost:11434/v1",
+                "LLM_MODEL_NAME": "mistral",
+                "EMBED_MODEL_NAME": "nomic-embed-text"
+            },
+            "args": [
+                "run",
+                "--host=0.0.0.0",
+                "--port=8000"
+            ],
+            "jinja": true
+        }
+    ]
+}
