@@ -18,6 +18,8 @@ from resources.metrics import get_counter
 from .agent import db
 from .file import File
 
+from abc import ABC, abstractmethod
+
 log = logging.getLogger("tangerine.db.vector")
 embed_prompt_tokens_metric = get_counter(
     "embed_prompt_tokens", "Embedding model prompt tokens usage"
@@ -35,13 +37,64 @@ TXT_SEPARATORS = [
     "",
 ]
 
+
+# Search providers let us swap out different search algorithms
+# without changing the interface
+class SearchProvider(ABC):
+    """Abstract base class for search providers."""
+    RETRIEVAL_METHOD = None
+    @abstractmethod
+    def search(self, query, filter):
+        """Runs the search and returns results with normalized scores."""
+        pass
+    
+    def add_retrieval_method(self, docs):
+        """Add retrieval method to each document's metadata."""
+        for doc, _score in docs:
+            doc.metadata["retrieval_method"] = self.RETRIEVAL_METHOD
+        return docs
+    
+class MMRSearchProvider(SearchProvider):
+    """Maximal Marginal Relevance (MMR) Search Provider."""
+    RETRIEVAL_METHOD = "mmr"
+    def __init__(self, store):
+        self.store = store
+
+    def search(self, query, filter):
+        """Runs MMR search and normalizes scores."""
+        results = self.store.max_marginal_relevance_search_with_score(
+            query=query,
+            filter=filter,
+            lambda_mult=0.7,
+            k=4,
+        )
+        results = self.add_retrieval_method(results)
+        # Normalize (Invert distance-based scores)
+        return [(doc, 1 - score) for doc, score in results]
+
+class SimilaritySearchProvider(SearchProvider):
+    """Cosine Similarity Search Provider."""
+    RETRIEVAL_METHOD = "similarity"
+    def __init__(self, store):
+        self.store = store
+
+    def search(self, query, filter):
+        """Runs similarity search and ensures scores are normalized."""
+        results = self.store.similarity_search_with_score(
+            query=query,
+            filter=filter,
+            k=2,
+        )
+        results = self.add_retrieval_method(results)
+        # Assume scores are already in 0-1 range (cosine similarity)
+        return results
+
+
 # because we currently cannot access usage_metadata for embedding calls nor use
 # get_openai_callback() in the same way we can for chat model calls...
 # (see https://github.com/langchain-ai/langchain/issues/945)
 #
 # we use a work-around inspired by https://github.com/encode/httpx/discussions/3073
-
-
 class CustomResponse(httpx.Response):
     def iter_bytes(self, *args, **kwargs):
         content = io.BytesIO()
@@ -89,6 +142,8 @@ class VectorStoreInterface:
         self.vector_chunk_overlap = 0
         self.batch_size = 32
         self.db = db
+        self.search_providers = []  
+
 
         self.embeddings = OpenAIEmbeddings(
             http_client=httpx.Client(transport=CustomTransport(httpx.HTTPTransport())),
@@ -107,6 +162,10 @@ class VectorStoreInterface:
             )
         except Exception:
             log.exception("error initializing vector store")
+        self.search_providers = [
+            MMRSearchProvider(self.store),
+            SimilaritySearchProvider(self.store)
+        ]
 
     def combine_small_chunks(self, chunks):
         """
@@ -202,36 +261,30 @@ class VectorStoreInterface:
                 log.exception("error adding documents to vector store for batch %d", current_batch)
 
     def search(self, query, agent_id: int):
+        results = []
         filter = {"agent_id": str(agent_id), "active": "True"}
         if cfg.EMBED_QUERY_PREFIX:
             query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
 
-        # return 4 chunks using MMR
-        results = self.store.max_marginal_relevance_search_with_score(
-            query=query,
-            filter=filter,
-            lambda_mult=0.7,
-            k=4,
-        )
+        for provider in self.search_providers:
+            results.extend(provider.search(query, filter))
 
-        # return 2 chunks using sentence similarity
-        results.extend(self.store.similarity_search_with_score(query=query, filter=filter, k=2))
+        # Sort the results by relevance score
+        results.sort(key=lambda x: x[1], reverse=True)  
 
-        # sort by score lowest to highest, lower is "less distance" which is better
-        results = sorted(results, key=itemgetter(1))
-        # drop the score
-        results = [result[0] for result in results]
+       # add relevance score to each result metadata
+        processed_results = []
+        for doc, score in results:
+            doc.metadata["relevance_score"] = score
+            processed_results.append(doc)
 
         # de-dupe, 'Document' is unhashable so check page content
         unique_results = []
-        for new_result in results:
-            present = False
-            for existing_result in unique_results:
-                if new_result.page_content == existing_result.page_content:
-                    # this one is already in the list, don't add it
-                    present = True
-                    break
-            if not present:
+        seen_pages = set()
+        for new_result in processed_results:
+            page_text = new_result.page_content
+            if page_text not in seen_pages:
+                seen_pages.add(page_text)
                 unique_results.append(new_result)
 
         return unique_results
