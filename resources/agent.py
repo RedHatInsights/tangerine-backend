@@ -8,11 +8,9 @@ from flask_restful import Resource
 from connectors.config import DEFAULT_SYSTEM_PROMPT
 from connectors.db.agent import Agent
 from connectors.db.common import File, add_filenames_to_agent, embed_files, remove_files
+from connectors.db.interactions import InteractionLogger
 from connectors.db.vector import vector_db
 from connectors.llm.interface import llm
-
-from connectors.db.interactions import InteractionLogger
-
 
 log = logging.getLogger("tangerine")
 
@@ -160,7 +158,9 @@ class AgentChatApi(Resource):
                 llm_response, query, source_doc_chunks, embedding, session_uuid
             )
 
-        return self._handle_final_response(llm_response, query, source_doc_chunks, embedding, session_uuid)
+        return self._handle_final_response(
+            llm_response, query, source_doc_chunks, embedding, session_uuid
+        )
 
     def _get_agent(self, agent_id):
         return Agent.get(agent_id)
@@ -191,9 +191,11 @@ class AgentChatApi(Resource):
         return llm.ask(agent.system_prompt, previous_messages, query, agent.id, stream=stream)
 
     def _is_streaming_response(self, llm_response, stream):
-        return stream and (callable(llm_response) or hasattr(lll_response, "__iter__"))
+        return stream and (callable(llm_response) or hasattr(llm_response, "__iter__"))
 
-    def _handle_streaming_response(self, llm_response, query, source_doc_chunks, embedding, session_uuid):
+    def _handle_streaming_response(
+        self, llm_response, query, source_doc_chunks, embedding, session_uuid
+    ):
         if callable(llm_response):
             llm_response = llm_response()
 
@@ -204,11 +206,15 @@ class AgentChatApi(Resource):
                 accumulated_response += text_content
                 yield raw_chunk
 
-            self._log_interaction(query, accumulated_response, source_doc_chunks, embedding, session_uuid)
+            self._log_interaction(
+                query, accumulated_response, source_doc_chunks, embedding, session_uuid
+            )
 
         return Response(stream_with_context(accumulate_and_stream()), mimetype="application/json")
 
-    def _handle_final_response(self, llm_response, query, source_doc_chunks, embedding, session_uuid):
+    def _handle_final_response(
+        self, llm_response, query, source_doc_chunks, embedding, session_uuid
+    ):
         self._log_interaction(query, llm_response, source_doc_chunks, embedding, session_uuid)
         return {"response": llm_response}, 200
 

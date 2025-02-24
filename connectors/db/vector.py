@@ -3,7 +3,7 @@ import itertools
 import json
 import logging
 import math
-from operator import itemgetter
+from abc import ABC, abstractmethod
 
 import httpx
 from langchain_core.documents import Document
@@ -17,8 +17,6 @@ from resources.metrics import get_counter
 
 from .agent import db
 from .file import File
-
-from abc import ABC, abstractmethod
 
 log = logging.getLogger("tangerine.db.vector")
 embed_prompt_tokens_metric = get_counter(
@@ -42,21 +40,26 @@ TXT_SEPARATORS = [
 # without changing the interface
 class SearchProvider(ABC):
     """Abstract base class for search providers."""
+
     RETRIEVAL_METHOD = None
+
     @abstractmethod
     def search(self, query, filter):
         """Runs the search and returns results with normalized scores."""
         pass
-    
+
     def add_retrieval_method(self, docs):
         """Add retrieval method to each document's metadata."""
         for doc, _score in docs:
             doc.metadata["retrieval_method"] = self.RETRIEVAL_METHOD
         return docs
-    
+
+
 class MMRSearchProvider(SearchProvider):
     """Maximal Marginal Relevance (MMR) Search Provider."""
+
     RETRIEVAL_METHOD = "mmr"
+
     def __init__(self, store):
         self.store = store
 
@@ -72,9 +75,12 @@ class MMRSearchProvider(SearchProvider):
         # Normalize (Invert distance-based scores)
         return [(doc, 1 - score) for doc, score in results]
 
+
 class SimilaritySearchProvider(SearchProvider):
     """Cosine Similarity Search Provider."""
+
     RETRIEVAL_METHOD = "similarity"
+
     def __init__(self, store):
         self.store = store
 
@@ -142,8 +148,7 @@ class VectorStoreInterface:
         self.vector_chunk_overlap = 0
         self.batch_size = 32
         self.db = db
-        self.search_providers = []  
-
+        self.search_providers = []
 
         self.embeddings = OpenAIEmbeddings(
             http_client=httpx.Client(transport=CustomTransport(httpx.HTTPTransport())),
@@ -164,7 +169,7 @@ class VectorStoreInterface:
             log.exception("error initializing vector store")
         self.search_providers = [
             MMRSearchProvider(self.store),
-            SimilaritySearchProvider(self.store)
+            SimilaritySearchProvider(self.store),
         ]
 
     def combine_small_chunks(self, chunks):
@@ -270,9 +275,9 @@ class VectorStoreInterface:
             results.extend(provider.search(query, filter))
 
         # Sort the results by relevance score
-        results.sort(key=lambda x: x[1], reverse=True)  
+        results.sort(key=lambda x: x[1], reverse=True)
 
-       # add relevance score to each result metadata
+        # add relevance score to each result metadata
         processed_results = []
         for doc, score in results:
             doc.metadata["relevance_score"] = score

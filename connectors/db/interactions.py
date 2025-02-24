@@ -1,17 +1,19 @@
-from pgvector.sqlalchemy import Vector
-from sqlalchemy.dialects.postgresql import UUID
 import logging
 import uuid
+
+from pgvector.sqlalchemy import Vector
+from sqlalchemy.dialects.postgresql import UUID
 
 from .agent import db
 
 log = logging.getLogger("tangerine.db.agent")
 
+
 class RelevanceScore(db.Model):
-    __tablename__ = 'relevance_scores'
+    __tablename__ = "relevance_scores"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    question_uuid = db.Column(UUID(as_uuid=True), db.ForeignKey('interactions.question_uuid'))
+    question_uuid = db.Column(UUID(as_uuid=True), db.ForeignKey("interactions.question_uuid"))
     retrieval_method = db.Column(db.String(50), nullable=False)
     score = db.Column(db.Float, nullable=False)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
@@ -24,13 +26,16 @@ class RelevanceScore(db.Model):
 
 
 class QuestionEmbedding(db.Model):
-    __tablename__ = 'question_embeddings'
+    __tablename__ = "question_embeddings"
 
-    question_uuid = db.Column(UUID(as_uuid=True), db.ForeignKey('interactions.question_uuid'), primary_key=True)
-    question_embedding = db.Column(Vector(768), nullable=False)  
-    
+    question_uuid = db.Column(
+        UUID(as_uuid=True), db.ForeignKey("interactions.question_uuid"), primary_key=True
+    )
+    question_embedding = db.Column(Vector(768), nullable=False)
+
+
 class Interaction(db.Model):
-    __tablename__ = 'interactions'
+    __tablename__ = "interactions"
 
     question_uuid = db.Column(UUID(as_uuid=True), primary_key=True)
     session_uuid = db.Column(db.String(36))
@@ -40,7 +45,8 @@ class Interaction(db.Model):
     user_feedback = db.Column(db.String(20))
     feedback_comment = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
-    
+
+
 class InteractionLogger:
     @staticmethod
     def log_interaction(
@@ -84,7 +90,7 @@ class InteractionLogger:
             question_uuid=question_uuid,
             question_embedding=question_embedding,
         )
-        
+
         # Create relevance scores
         relevance_scores = []
         for chunk in source_doc_chunks:
@@ -93,7 +99,7 @@ class InteractionLogger:
             relevance_score = RelevanceScore(
                 question_uuid=interaction.question_uuid,
                 retrieval_method=retrieval_method,
-                score=score
+                score=score,
             )
             relevance_scores.append(relevance_score)
             db.session.add(relevance_score)
@@ -104,7 +110,7 @@ class InteractionLogger:
             db.session.add(embedding_record)
             db.session.commit()
             log.info("Interaction and embedding logged successfully.")
-            return question_uuid  
+            return question_uuid
         except Exception as e:
             db.session.rollback()
             log.error("Error logging interaction or embedding", exc_info=True)

@@ -1,5 +1,7 @@
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
+
 from resources.agent import AgentChatApi  # Import your API class
 
 
@@ -44,7 +46,12 @@ def test_post_chat_non_streaming(agent_chat_api):
 
     # Configure mocks
     agent_chat_api._get_agent.return_value = mock_agent
-    agent_chat_api._extract_request_data.return_value = (mock_query, mock_session_uuid, False, mock_previous_messages)
+    agent_chat_api._extract_request_data.return_value = (
+        mock_query,
+        mock_session_uuid,
+        False,
+        mock_previous_messages,
+    )
     agent_chat_api._retrieve_relevant_documents.return_value = mock_source_doc_chunks
     agent_chat_api._embed_query.return_value = mock_embedding
     agent_chat_api._call_llm.return_value = mock_llm_response
@@ -58,8 +65,12 @@ def test_post_chat_non_streaming(agent_chat_api):
     agent_chat_api._extract_request_data.assert_called_once()
     agent_chat_api._retrieve_relevant_documents.assert_called_once_with(mock_agent, mock_query)
     agent_chat_api._embed_query.assert_called_once_with(mock_query)
-    agent_chat_api._call_llm.assert_called_once_with(mock_agent, mock_query, mock_previous_messages, False)
-    agent_chat_api._handle_final_response.assert_called_once_with(mock_llm_response, mock_query, mock_source_doc_chunks, mock_embedding, mock_session_uuid)
+    agent_chat_api._call_llm.assert_called_once_with(
+        mock_agent, mock_query, mock_previous_messages, False
+    )
+    agent_chat_api._handle_final_response.assert_called_once_with(
+        mock_llm_response, mock_query, mock_source_doc_chunks, mock_embedding, mock_session_uuid
+    )
 
     assert status_code == 200
     assert response == {"response": mock_llm_response}
@@ -78,7 +89,12 @@ def test_post_chat_streaming(agent_chat_api):
 
     # Configure mocks
     agent_chat_api._get_agent.return_value = mock_agent
-    agent_chat_api._extract_request_data.return_value = (mock_query, mock_session_uuid, True, mock_previous_messages)
+    agent_chat_api._extract_request_data.return_value = (
+        mock_query,
+        mock_session_uuid,
+        True,
+        mock_previous_messages,
+    )
     agent_chat_api._retrieve_relevant_documents.return_value = mock_source_doc_chunks
     agent_chat_api._embed_query.return_value = mock_embedding
     agent_chat_api._call_llm.return_value = mock_llm_response
@@ -92,7 +108,11 @@ def test_post_chat_streaming(agent_chat_api):
     agent_chat_api._extract_request_data.assert_called_once()
     agent_chat_api._retrieve_relevant_documents.assert_called_once_with(mock_agent, mock_query)
     agent_chat_api._embed_query.assert_called_once_with(mock_query)
-    agent_chat_api._call_llm.assert_called_once_with(mock_agent, mock_query, mock_previous_messages, True)
-    agent_chat_api._handle_streaming_response.assert_called_once_with(mock_llm_response, mock_query, mock_source_doc_chunks, mock_embedding, mock_session_uuid)
+    agent_chat_api._call_llm.assert_called_once_with(
+        mock_agent, mock_query, mock_previous_messages, True
+    )
+    agent_chat_api._handle_streaming_response.assert_called_once_with(
+        mock_llm_response, mock_query, mock_source_doc_chunks, mock_embedding, mock_session_uuid
+    )
 
     assert response == "mock_stream_response"
