@@ -9,6 +9,7 @@ from connectors.db.agent import Agent
 from connectors.db.common import File, add_filenames_to_agent, embed_files, remove_files
 from connectors.db.vector import vector_db
 from connectors.llm.interface import llm
+# from resources.metrics import get_counter, get_gauge
 
 log = logging.getLogger("tangerine.agent")
 
