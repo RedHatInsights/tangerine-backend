@@ -140,11 +140,11 @@ A development/test environment can be set up with or without docker compose. In 
 
 ### With Docker Compose
 
-> ***NOTE:***  Not supported with Mac, see [Without Docker Compose](#without-docker-compose) below.
-
-The docker compose file offers an easy way to spin up all components. [ollama](https://ollama.com) is used to host the LLM and embedding model. For utilization of your GPU, refer to the comments in the compose file to see which configurations to uncomment on the 'ollama' container.
+The docker compose file offers an easy way to spin up all components. [ollama](https://ollama.com) is used to host the LLM and embedding model. For utilization of your GPU, refer to the comments in the compose file to see which configurations to uncomment on the 'ollama' container. Postgres persists the data, and pgadmin allows you to query the database.
 
 You will need Docker version 27.5.1 on Fedora 40 and 41 to be able to use docker compose (not docker-compose) and for that You will need to reinstall latest docker version from the [fedora docker repo](https://docs.docker.com/engine/install/fedora/#install-using-the-repository) or follow the instructions here. 
+
+Docker 27.5.1 is confirmed working with macOS 15.3.
 
 To get the correct version of docker, add the repo:
 
@@ -197,6 +197,8 @@ Run through the postinstall steps https://docs.docker.com/engine/install/linux-p
    ```
 
 1. (optional) Follow these steps to start the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend#with-docker-compose)
+
+Note: You can access pgadmin at localhost:5050.
 
 #### Using huggingface text-embeddings-inference server to host embedding model (deprecated)
 
