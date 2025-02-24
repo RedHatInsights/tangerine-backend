@@ -1,21 +1,33 @@
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects.postgresql import UUID
 import logging
-from flask_sqlalchemy import SQLAlchemy
-from connectors.config import SQLALCHEMY_MAX_OVERFLOW, SQLALCHEMY_POOL_SIZE
 import uuid
 
-db = SQLAlchemy(
-    engine_options={"pool_size": SQLALCHEMY_POOL_SIZE, "max_overflow": SQLALCHEMY_MAX_OVERFLOW}
-)
+from .agent import db
 
 log = logging.getLogger("tangerine.db.agent")
+
+class RelevanceScore(db.Model):
+    __tablename__ = 'relevance_scores'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    question_uuid = db.Column(UUID(as_uuid=True), db.ForeignKey('interactions.question_uuid'))
+    retrieval_method = db.Column(db.String(50), nullable=False)
+    score = db.Column(db.Float, nullable=False)
+    timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+    def __init__(self, question_uuid, retrieval_method, score):
+        self.question_uuid = question_uuid
+        self.retrieval_method = retrieval_method
+        self.score = score
+        self.timestamp = db.func.current_timestamp()
+
 
 class QuestionEmbedding(db.Model):
     __tablename__ = 'question_embeddings'
 
-    question_uuid = db.Column(UUID(as_uuid=True), db.ForeignKey('rag_interactions.question_uuid'), primary_key=True)
-    question_embedding = db.Column(Vector(1536), nullable=False)  
+    question_uuid = db.Column(UUID(as_uuid=True), db.ForeignKey('interactions.question_uuid'), primary_key=True)
+    question_embedding = db.Column(Vector(768), nullable=False)  
     
 class Interaction(db.Model):
     __tablename__ = 'interactions'
@@ -25,7 +37,6 @@ class Interaction(db.Model):
     user_query = db.Column(db.Text, nullable=False)
     llm_response = db.Column(db.Text)
     source_doc_chunks = db.Column(db.JSON)
-    relevance_scores = db.Column(db.JSON)
     user_feedback = db.Column(db.String(20))
     feedback_comment = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
@@ -36,7 +47,6 @@ class InteractionLogger:
         user_query,
         llm_response,
         source_doc_chunks,
-        relevance_scores,
         question_embedding,
         session_uuid=None,
         user_feedback=None,
@@ -65,7 +75,6 @@ class InteractionLogger:
             user_query=user_query,
             llm_response=llm_response,
             source_doc_chunks=source_doc_chunks,
-            relevance_scores=relevance_scores,
             user_feedback=user_feedback,
             feedback_comment=feedback_comment,
         )
@@ -75,6 +84,19 @@ class InteractionLogger:
             question_uuid=question_uuid,
             question_embedding=question_embedding,
         )
+        
+        # Create relevance scores
+        relevance_scores = []
+        for chunk in source_doc_chunks:
+            retrieval_method = chunk.get("retrieval_method", "unknown")
+            score = chunk.get("score", 0.0)
+            relevance_score = RelevanceScore(
+                question_uuid=interaction.question_uuid,
+                retrieval_method=retrieval_method,
+                score=score
+            )
+            relevance_scores.append(relevance_score)
+            db.session.add(relevance_score)
 
         # Commit both within a transaction
         try:
