@@ -104,7 +104,7 @@ class InteractionLogger:
             db.session.add(embedding_record)
             db.session.commit()
             log.info("Interaction and embedding logged successfully.")
-            return question_uuid  # Return the UUID in case you need it later
+            return question_uuid  
         except Exception as e:
             db.session.rollback()
             log.error("Error logging interaction or embedding", exc_info=True)
