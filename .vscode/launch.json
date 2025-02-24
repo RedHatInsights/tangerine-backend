@@ -25,6 +25,15 @@
                 "--port=8000"
             ],
             "jinja": true
+        },
+        {
+            "name": "Debug Pytest",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["tests/chatapi.py", "-s"],
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }

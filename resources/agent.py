@@ -156,18 +156,16 @@ class AgentChatApi(Resource):
         llm_response = self._call_llm(agent, query, previous_messages, stream)
 
         if self._is_streaming_response(llm_response, stream):
-            return self._handle_streaming_response(llm_response, query, source_doc_chunks, embedding, session_uuid)
+            return self._handle_streaming_response(
+                llm_response, query, source_doc_chunks, embedding, session_uuid
+            )
 
         return self._handle_final_response(llm_response, query, source_doc_chunks, embedding, session_uuid)
 
-    # Private Methods
-    
     def _get_agent(self, agent_id):
-        """Retrieve the agent by ID."""
         return Agent.get(agent_id)
 
     def _extract_request_data(self):
-        """Extracts query parameters from the request."""
         query = request.json.get("query")
         session_uuid = request.json.get("session_uuid", str(uuid.uuid4()))
         stream = request.json.get("stream", "true") == "true"
@@ -175,25 +173,27 @@ class AgentChatApi(Resource):
         return query, session_uuid, stream, previous_messages
 
     def _retrieve_relevant_documents(self, agent, query):
-        """Fetches relevant documents and extracts metadata."""
         retrieved_chunks = vector_db.search(query, agent.id)
-        source_doc_chunks = [{"text": doc.page_content, "source": doc.metadata.get("source"), "score": doc.metadata.get("relevance_score"), "retrieval_method": doc.metadata.get("retrieval_method")} for doc in retrieved_chunks]
-        return source_doc_chunks
+        return [
+            {
+                "text": doc.page_content,
+                "source": doc.metadata.get("source"),
+                "score": doc.metadata.get("relevance_score"),
+                "retrieval_method": doc.metadata.get("retrieval_method"),
+            }
+            for doc in retrieved_chunks
+        ]
 
     def _embed_query(self, query):
-        """Embeds the query using the vector database's embedding model."""
         return vector_db.embeddings.embed_query(query)
 
     def _call_llm(self, agent, query, previous_messages, stream):
-        """Calls the LLM with the agent's system prompt."""
         return llm.ask(agent.system_prompt, previous_messages, query, agent.id, stream=stream)
 
     def _is_streaming_response(self, llm_response, stream):
-        """Detects whether the response is a streaming generator or a final string."""
-        return stream and (callable(llm_response) or hasattr(llm_response, '__iter__'))
+        return stream and (callable(llm_response) or hasattr(lll_response, "__iter__"))
 
     def _handle_streaming_response(self, llm_response, query, source_doc_chunks, embedding, session_uuid):
-        """Handles streaming responses while accumulating data for logging."""
         if callable(llm_response):
             llm_response = llm_response()
 
@@ -209,24 +209,19 @@ class AgentChatApi(Resource):
         return Response(stream_with_context(accumulate_and_stream()), mimetype="application/json")
 
     def _handle_final_response(self, llm_response, query, source_doc_chunks, embedding, session_uuid):
-        """Handles non-streaming responses and logs them."""
-        final_response = llm_response
-        self._log_interaction(query, final_response, source_doc_chunks, embedding, session_uuid)
-        return {"response": final_response}, 200
+        self._log_interaction(query, llm_response, source_doc_chunks, embedding, session_uuid)
+        return {"response": llm_response}, 200
 
     def _extract_text_from_chunk(self, raw_chunk):
-        """Extracts text content from a JSON chunk, handling malformed chunks."""
         if raw_chunk.startswith("data: "):
-            raw_chunk = raw_chunk[6:]  # Remove "data: " prefix
+            raw_chunk = raw_chunk[6:]
 
         try:
-            chunk_data = json.loads(raw_chunk)
-            return chunk_data.get("text_content", "")
+            return json.loads(raw_chunk).get("text_content", "")
         except json.JSONDecodeError:
             return ""
 
     def _log_interaction(self, query, response, source_doc_chunks, embedding, session_uuid):
-        """Logs interaction with error handling."""
         try:
             InteractionLogger.log_interaction(
                 user_query=query,
@@ -235,5 +230,5 @@ class AgentChatApi(Resource):
                 question_embedding=embedding,
                 session_uuid=session_uuid,
             )
-        except Exception as e:
+        except Exception:
             log.exception("Failed to log interaction")

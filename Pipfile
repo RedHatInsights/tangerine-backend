@@ -28,6 +28,8 @@ docling = "*"
 langchain-community = "*"
 prometheus-flask-exporter = "*"
 pypdf2 = "*"
+pytest = "*"
+flask-testing = "*"
 
 [dev-packages]
 black = "*"
@@ -35,6 +37,7 @@ isort = "*"
 flake8 = "*"
 ipython = "*"
 pytest = "*"
+flask-testing = "*"
 
 [requires]
 python_version = "3.12"
