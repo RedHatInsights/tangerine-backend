@@ -2,7 +2,7 @@ import json
 import logging
 import uuid
 
-from flask import Response, request, stream_with_context, current_app
+from flask import Response, request, stream_with_context
 from flask_restful import Resource
 
 from connectors.config import DEFAULT_SYSTEM_PROMPT
@@ -14,7 +14,7 @@ from connectors.llm.interface import llm
 from connectors.db.interactions import InteractionLogger
 
 
-log = logging.getLogger("tangerine.agent")
+log = logging.getLogger("tangerine")
 
 
 class AgentDefaultsApi(Resource):
@@ -146,68 +146,94 @@ class AgentDocuments(Resource):
 
 class AgentChatApi(Resource):
     def post(self, id):
-        agent = Agent.get(id)
+        agent = self._get_agent(id)
         if not agent:
             return {"message": "agent not found"}, 404
 
+        query, session_uuid, stream, previous_messages = self._extract_request_data()
+        source_doc_chunks = self._retrieve_relevant_documents(agent, query)
+        embedding = self._embed_query(query)
+        llm_response = self._call_llm(agent, query, previous_messages, stream)
+
+        if self._is_streaming_response(llm_response, stream):
+            return self._handle_streaming_response(llm_response, query, source_doc_chunks, embedding, session_uuid)
+
+        return self._handle_final_response(llm_response, query, source_doc_chunks, embedding, session_uuid)
+
+    # Private Methods
+    
+    def _get_agent(self, agent_id):
+        """Retrieve the agent by ID."""
+        return Agent.get(agent_id)
+
+    def _extract_request_data(self):
+        """Extracts query parameters from the request."""
         query = request.json.get("query")
-        stream = request.json.get("stream", "true") == "true"  # Defaults to streaming
         session_uuid = request.json.get("session_uuid", str(uuid.uuid4()))
+        stream = request.json.get("stream", "true") == "true"
         previous_messages = request.json.get("prevMsgs")
+        return query, session_uuid, stream, previous_messages
 
-        # Retrieve supporting documents and relevance scores
+    def _retrieve_relevant_documents(self, agent, query):
+        """Fetches relevant documents and extracts metadata."""
         retrieved_chunks = vector_db.search(query, agent.id)
-        relevance_scores = [result.metadata.get("score", 0.0) for result in retrieved_chunks]
-        source_doc_chunks = [{"text": doc.page_content, "source": doc.metadata.get("source")} for doc in retrieved_chunks]
+        source_doc_chunks = [{"text": doc.page_content, "source": doc.metadata.get("source"), "score": doc.metadata.get("relevance_score"), "retrieval_method": doc.metadata.get("retrieval_method")} for doc in retrieved_chunks]
+        return source_doc_chunks
 
-        # Embed the query
-        embedding = vector_db.embeddings.embed_query(query)
+    def _embed_query(self, query):
+        """Embeds the query using the vector database's embedding model."""
+        return vector_db.embeddings.embed_query(query)
 
-        # Call the LLM
-        llm_response = llm.ask(agent.system_prompt, previous_messages, query, agent.id, stream=stream)
+    def _call_llm(self, agent, query, previous_messages, stream):
+        """Calls the LLM with the agent's system prompt."""
+        return llm.ask(agent.system_prompt, previous_messages, query, agent.id, stream=stream)
 
-        # Detect if the response is a generator (stream=True) or a final string (stream=False)
-        is_streaming = callable(llm_response) or hasattr(llm_response, '__iter__')
+    def _is_streaming_response(self, llm_response, stream):
+        """Detects whether the response is a streaming generator or a final string."""
+        return stream and (callable(llm_response) or hasattr(llm_response, '__iter__'))
 
-        if stream and is_streaming:
-            # Streaming Case
-            if callable(llm_response):
-                llm_response = llm_response()  # Handle callable generators
+    def _handle_streaming_response(self, llm_response, query, source_doc_chunks, embedding, session_uuid):
+        """Handles streaming responses while accumulating data for logging."""
+        if callable(llm_response):
+            llm_response = llm_response()
 
-            def accumulate_and_stream():
-                accumulated_response = ""
-                for chunk in llm_response:
-                    accumulated_response += chunk
-                    yield chunk
-                with current_app.app_context():
-                    # After stream ends, log the full response
-                    try:
-                        InteractionLogger.log_interaction(
-                            user_query=query,
-                            llm_response=accumulated_response,
-                            source_doc_chunks=source_doc_chunks,
-                            relevance_scores=relevance_scores,
-                            question_embedding=embedding,
-                            session_uuid=session_uuid,
-                        )
-                    except Exception as e:
-                        log.exception("Failed to log interaction")
+        def accumulate_and_stream():
+            accumulated_response = ""
+            for raw_chunk in llm_response:
+                text_content = self._extract_text_from_chunk(raw_chunk)
+                accumulated_response += text_content
+                yield raw_chunk
 
-            return Response(stream_with_context(accumulate_and_stream()), mimetype="application/json")
+            self._log_interaction(query, accumulated_response, source_doc_chunks, embedding, session_uuid)
 
-        else:
-            # Non-Streaming Case (Admin Panel, Dev)
-            final_response = llm_response  # This is a string
-            try:
-                InteractionLogger.log_interaction(
-                    user_query=query,
-                    llm_response=final_response,
-                    source_doc_chunks=source_doc_chunks,
-                    relevance_scores=relevance_scores,
-                    question_embedding=embedding,
-                    session_uuid=session_uuid,
-                )
-            except Exception as e:
-                log.exception("Failed to log interaction")
+        return Response(stream_with_context(accumulate_and_stream()), mimetype="application/json")
 
-            return {"response": final_response}, 200
+    def _handle_final_response(self, llm_response, query, source_doc_chunks, embedding, session_uuid):
+        """Handles non-streaming responses and logs them."""
+        final_response = llm_response
+        self._log_interaction(query, final_response, source_doc_chunks, embedding, session_uuid)
+        return {"response": final_response}, 200
+
+    def _extract_text_from_chunk(self, raw_chunk):
+        """Extracts text content from a JSON chunk, handling malformed chunks."""
+        if raw_chunk.startswith("data: "):
+            raw_chunk = raw_chunk[6:]  # Remove "data: " prefix
+
+        try:
+            chunk_data = json.loads(raw_chunk)
+            return chunk_data.get("text_content", "")
+        except json.JSONDecodeError:
+            return ""
+
+    def _log_interaction(self, query, response, source_doc_chunks, embedding, session_uuid):
+        """Logs interaction with error handling."""
+        try:
+            InteractionLogger.log_interaction(
+                user_query=query,
+                llm_response=response,
+                source_doc_chunks=source_doc_chunks,
+                question_embedding=embedding,
+                session_uuid=session_uuid,
+            )
+        except Exception as e:
+            log.exception("Failed to log interaction")
