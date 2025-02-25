@@ -38,9 +38,11 @@ TXT_SEPARATORS = [
 
 class SearchResult:
     """Class to hold search results with document and score."""
+
     def __init__(self, document: str, score: float):
         self.document = document
         self.score = score
+
 
 # Search providers let us swap out different search algorithms
 # without changing the interface
@@ -50,9 +52,9 @@ class SearchProvider(ABC):
     RETRIEVAL_METHOD = None
 
     def __init__(self, store):
-            if self.RETRIEVAL_METHOD is None:
-                raise TypeError("Subclasses must set RETRIEVAL_METHOD to a non-None value")
-            self.store = store
+        if self.RETRIEVAL_METHOD is None:
+            raise TypeError("Subclasses must set RETRIEVAL_METHOD to a non-None value")
+        self.store = store
 
     @abstractmethod
     def search(self, query, search_filter) -> list[SearchResult]:
@@ -64,13 +66,13 @@ class SearchProvider(ABC):
         for doc, _score in docs:
             doc.metadata["retrieval_method"] = self.RETRIEVAL_METHOD
         return docs
-    
+
     def _add_relevance_score(self, docs):
         """Add relevance score to each document's metadata."""
         for doc, score in docs:
             doc.metadata["relevance_score"] = score
         return docs
-    
+
     def _process_results(self, results):
         """Process the results and return a list of SearchResult."""
         results = self._add_retrieval_method(results)
@@ -111,7 +113,6 @@ class SimilaritySearchProvider(SearchProvider):
         results = self._process_results(results)
         # Assume scores are already in 0-1 range (cosine similarity)
         return [SearchResult(doc, score) for doc, score in results]
-
 
 
 # because we currently cannot access usage_metadata for embedding calls nor use
@@ -355,7 +356,9 @@ class VectorStoreInterface:
             result.cmetadata["id"] = result.id
             matching_docs.append(result.cmetadata)
 
-        log.debug("found %d doc(s) from vector DB matching filter: %s", len(matching_docs), search_filter)
+        log.debug(
+            "found %d doc(s) from vector DB matching filter: %s", len(matching_docs), search_filter
+        )
 
         self.delete_document_chunks_by_id([doc["id"] for doc in matching_docs])
 

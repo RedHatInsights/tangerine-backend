@@ -14,7 +14,7 @@ import connectors.config as cfg
 import connectors.s3.sync
 
 # Imported so SQLAlchemy can find the models
-from connectors.db import interactions
+from connectors.db import interactions  # noqa: F401
 from connectors.db.agent import db
 from connectors.db.vector import vector_db
 from resources.metrics import metrics

@@ -1,5 +1,7 @@
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
+
 from resources.agent import AgentChatApi  # Import your API class
 
 
@@ -23,7 +25,6 @@ def agent_chat_api():
     return api_instance
 
 
-
 def test_post_chat_agent_not_found(agent_chat_api):
     """Test case when the agent is not found."""
 
@@ -31,9 +32,9 @@ def test_post_chat_agent_not_found(agent_chat_api):
 
     response, status_code = agent_chat_api.post(1)
 
-
     assert status_code == 404
     assert response == {"message": "agent not found"}
+
 
 def test_post_chat_non_streaming(agent_chat_api):
     """Test case when chat is non-streaming."""
@@ -72,7 +73,9 @@ def test_post_chat_non_streaming(agent_chat_api):
     agent_chat_api._extract_request_data.assert_called_once()
     agent_chat_api._retrieve_relevant_documents.assert_called_once_with(mock_agent, mock_query)
     agent_chat_api._embed_question.assert_called_once_with(mock_query)
-    agent_chat_api._call_llm.assert_called_once_with(mock_agent, mock_query, mock_previous_messages, False)
+    agent_chat_api._call_llm.assert_called_once_with(
+        mock_agent, mock_query, mock_previous_messages, False
+    )
     agent_chat_api._handle_final_response.assert_called_once_with(
         mock_llm_response, mock_query, mock_source_doc_chunks, mock_embedding, mock_session_uuid
     )
@@ -115,7 +118,9 @@ def test_post_chat_streaming(agent_chat_api):
     agent_chat_api._extract_request_data.assert_called_once()
     agent_chat_api._retrieve_relevant_documents.assert_called_once_with(mock_agent, mock_query)
     agent_chat_api._embed_question.assert_called_once_with(mock_query)
-    agent_chat_api._call_llm.assert_called_once_with(mock_agent, mock_query, mock_previous_messages, True)
+    agent_chat_api._call_llm.assert_called_once_with(
+        mock_agent, mock_query, mock_previous_messages, True
+    )
     agent_chat_api._handle_streaming_response.assert_called_once_with(
         mock_llm_response, mock_query, mock_source_doc_chunks, mock_embedding, mock_session_uuid
     )

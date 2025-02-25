@@ -46,6 +46,7 @@ class Interaction(db.Model):
     feedback_comment = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
 
+
 def insert(model):
     try:
         db.session.add(model)

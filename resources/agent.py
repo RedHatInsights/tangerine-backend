@@ -5,14 +5,13 @@ import uuid
 from flask import Response, request, stream_with_context
 from flask_restful import Resource
 
+from connectors import config
 from connectors.config import DEFAULT_SYSTEM_PROMPT
 from connectors.db.agent import Agent
 from connectors.db.common import File, add_filenames_to_agent, embed_files, remove_files
 from connectors.db.interactions import store_interaction
 from connectors.db.vector import vector_db
 from connectors.llm.interface import llm
-
-from connectors import config
 
 log = logging.getLogger("tangerine")
 
@@ -229,7 +228,7 @@ class AgentChatApi(Resource):
         return config.STORE_INTERACTIONS is True
 
     def _log_interaction(self, question, response, source_doc_chunks, embedding, session_uuid):
-        if (self._interaction_storage_enabled() is False):
+        if self._interaction_storage_enabled() is False:
             return
         try:
             store_interaction(
