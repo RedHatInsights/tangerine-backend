@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 
 from .agent import db
 
-log = logging.getLogger("tangerine.db.agent")
+log = logging.getLogger("tangerine.db.interactions")
 
 
 class RelevanceScore(db.Model):
