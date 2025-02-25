@@ -98,16 +98,12 @@ def store_interaction(
             score=score,
         )
         relevance_scores.append(relevance_score)
-        db.session.add(relevance_score)
+        with db.session.begin():
+            db.session.add(relevance_score)
 
     # Commit both within a transaction
-    try:
+    with db.session.begin():
         db.session.add(interaction)
         db.session.add(embedding_record)
-        db.session.commit()
-        log.info("Interaction and embedding logged successfully.")
+        log.debug("Interaction and embedding logged successfully.")
         return interaction.id
-    except Exception as e:
-        db.session.rollback()
-        log.error("Error logging interaction or embedding", exc_info=True)
-        raise e
