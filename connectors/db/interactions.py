@@ -13,7 +13,7 @@ class RelevanceScore(db.Model):
     __tablename__ = "relevance_scores"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    interaction_id = db.Column(UUID(as_uuid=True), db.ForeignKey("interactions.question_uuid"))
+    interaction_id = db.Column(UUID(as_uuid=True), db.ForeignKey("interactions.id"))
     retrieval_method = db.Column(db.String(50), nullable=False)
     score = db.Column(db.Float, nullable=False)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())

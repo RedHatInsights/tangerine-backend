@@ -110,8 +110,8 @@ class LLMInterface:
         else:
             log.debug("fetched %d relevant search results from vector db", len(results))
             for i, doc in enumerate(results):
-                page_content = doc.page_content
-                metadata = doc.metadata
+                page_content = doc.document.page_content
+                metadata = doc.document.metadata
                 extra_doc_info.append({"metadata": metadata, "page_content": page_content})
 
                 context_text += f"\n<<Search result {i+1}"
@@ -146,9 +146,10 @@ class LLMInterface:
 
         def api_response_generator():
             for data in llm_response:
-                yield f"{json.dumps(data)}\r\n"
+                yield f"data: {json.dumps(data)}\r\n"
 
         if stream:
+            log.debug("streaming response...")
             return api_response_generator
 
         # else, if stream=False ...

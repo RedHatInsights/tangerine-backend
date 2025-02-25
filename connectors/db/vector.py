@@ -299,7 +299,7 @@ class VectorStoreInterface:
         unique_results = []
         seen_pages = set()
         for new_result in results:
-            page_text = new_result.page_content
+            page_text = new_result.document.page_content
             if page_text not in seen_pages:
                 seen_pages.add(page_text)
                 unique_results.append(new_result)

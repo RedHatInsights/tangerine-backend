@@ -178,10 +178,10 @@ class AgentChatApi(Resource):
         retrieved_chunks = vector_db.search(question, agent.id)
         return [
             {
-                "text": doc.page_content,
-                "source": doc.metadata.get("source"),
-                "score": doc.metadata.get("relevance_score"),
-                "retrieval_method": doc.metadata.get("retrieval_method"),
+                "text": doc.document.page_content,
+                "source": doc.document.metadata.get("source"),
+                "score": doc.document.metadata.get("relevance_score"),
+                "retrieval_method": doc.document.metadata.get("retrieval_method"),
             }
             for doc in retrieved_chunks
         ]
@@ -198,12 +198,10 @@ class AgentChatApi(Resource):
     def _handle_streaming_response(
         self, llm_response, question, source_doc_chunks, embedding, session_uuid
     ):
-        if callable(llm_response):
-            llm_response = llm_response()
 
         def accumulate_and_stream():
             accumulated_response = ""
-            for raw_chunk in llm_response:
+            for raw_chunk in llm_response():
                 text_content = self._extract_text_from_chunk(raw_chunk)
                 accumulated_response += text_content
                 yield raw_chunk
@@ -212,7 +210,7 @@ class AgentChatApi(Resource):
                 question, accumulated_response, source_doc_chunks, embedding, session_uuid
             )
 
-        return Response(stream_with_context(accumulate_and_stream()), mimetype="application/json")
+        return Response(stream_with_context(accumulate_and_stream()))
 
     def _handle_final_response(
         self, llm_response, question, source_doc_chunks, embedding, session_uuid
