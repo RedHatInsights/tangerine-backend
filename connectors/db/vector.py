@@ -79,7 +79,7 @@ class MMRSearchProvider(SearchProvider):
         )
         results = self.add_retrieval_method(results)
         # Normalize (Invert distance-based scores)
-        return [(doc, 1 - score) for doc, score in results]
+        return [SearchResult(doc, 1 - score) for doc, score in results]
 
 
 class SimilaritySearchProvider(SearchProvider):
@@ -99,7 +99,8 @@ class SimilaritySearchProvider(SearchProvider):
         )
         results = self.add_retrieval_method(results)
         # Assume scores are already in 0-1 range (cosine similarity)
-        return results
+        return [SearchResult(doc, score) for doc, score in results]
+
 
 
 # because we currently cannot access usage_metadata for embedding calls nor use
