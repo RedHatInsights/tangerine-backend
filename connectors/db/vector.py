@@ -64,6 +64,18 @@ class SearchProvider(ABC):
         for doc, _score in docs:
             doc.metadata["retrieval_method"] = self.RETRIEVAL_METHOD
         return docs
+    
+    def _add_relevance_score(self, docs):
+        """Add relevance score to each document's metadata."""
+        for doc, score in docs:
+            doc.metadata["relevance_score"] = score
+        return docs
+    
+    def _process_results(self, results):
+        """Process the results and return a list of SearchResult."""
+        results = self._add_retrieval_method(results)
+        results = self._add_relevance_score(results)
+        return results
 
 
 class MMRSearchProvider(SearchProvider):
@@ -79,7 +91,7 @@ class MMRSearchProvider(SearchProvider):
             lambda_mult=0.7,
             k=4,
         )
-        results = self._add_retrieval_method(results)
+        results = self._process_results(results)
         # Normalize (Invert distance-based scores)
         return [SearchResult(doc, 1 - score) for doc, score in results]
 
@@ -96,7 +108,7 @@ class SimilaritySearchProvider(SearchProvider):
             filter=search_filter,
             k=2,
         )
-        results = self._add_retrieval_method(results)
+        results = self._process_results(results)
         # Assume scores are already in 0-1 range (cosine similarity)
         return [SearchResult(doc, score) for doc, score in results]
 
@@ -281,18 +293,12 @@ class VectorStoreInterface:
             results.extend(provider.search(query, search_filter))
 
         # Sort the results by relevance score
-        results.sort(key=lambda x: x[1], reverse=True)
-
-        # add relevance score to each result metadata
-        processed_results = []
-        for doc, score in results:
-            doc.metadata["relevance_score"] = score
-            processed_results.append(doc)
+        results.sort(key=lambda result: result.score, reverse=True)
 
         # de-dupe, 'Document' is unhashable so check page content
         unique_results = []
         seen_pages = set()
-        for new_result in processed_results:
+        for new_result in results:
             page_text = new_result.page_content
             if page_text not in seen_pages:
                 seen_pages.add(page_text)

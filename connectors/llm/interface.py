@@ -146,7 +146,7 @@ class LLMInterface:
 
         def api_response_generator():
             for data in llm_response:
-                yield f"data: {json.dumps(data)}\r\n"
+                yield f"{json.dumps(data)}\r\n"
 
         if stream:
             return api_response_generator

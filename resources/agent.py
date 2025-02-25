@@ -219,9 +219,6 @@ class AgentChatApi(Resource):
         return {"response": llm_response}, 200
 
     def _extract_text_from_chunk(self, raw_chunk):
-        if raw_chunk.startswith("data: "):
-            raw_chunk = raw_chunk[6:]
-
         try:
             return json.loads(raw_chunk).get("text_content", "")
         except json.JSONDecodeError:
