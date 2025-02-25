@@ -36,6 +36,12 @@ TXT_SEPARATORS = [
 ]
 
 
+class SearchResult:
+    """Class to hold search results with document and score."""
+    def __init__(self, document: str, score: float):
+        self.document = document
+        self.score = score
+
 # Search providers let us swap out different search algorithms
 # without changing the interface
 class SearchProvider(ABC):
@@ -44,7 +50,7 @@ class SearchProvider(ABC):
     RETRIEVAL_METHOD = None
 
     @abstractmethod
-    def search(self, query, filter):
+    def search(self, query, search_filter) -> list[SearchResult]:
         """Runs the search and returns results with normalized scores."""
         pass
 
@@ -63,11 +69,11 @@ class MMRSearchProvider(SearchProvider):
     def __init__(self, store):
         self.store = store
 
-    def search(self, query, filter):
+    def search(self, query, search_filter) -> list[SearchResult]:
         """Runs MMR search and normalizes scores."""
         results = self.store.max_marginal_relevance_search_with_score(
             query=query,
-            filter=filter,
+            filter=search_filter,
             lambda_mult=0.7,
             k=4,
         )
@@ -84,11 +90,11 @@ class SimilaritySearchProvider(SearchProvider):
     def __init__(self, store):
         self.store = store
 
-    def search(self, query, filter):
+    def search(self, query, search_filter) -> list[SearchResult]:
         """Runs similarity search and ensures scores are normalized."""
         results = self.store.similarity_search_with_score(
             query=query,
-            filter=filter,
+            filter=search_filter,
             k=2,
         )
         results = self.add_retrieval_method(results)
@@ -195,9 +201,9 @@ class VectorStoreInterface:
 
         return chunks
 
-    def split_to_document_chunks(self, text, metadata):
+    def split_to_document_chunks(self, text_to_split, metadata):
         # find title if possible and add to metadata
-        for line in text.splitlines():
+        for line in text_to_split.splitlines():
             if line.startswith("# "):
                 # we found a title header, add it to metadata
                 metadata["title"] = line.lstrip("# ").strip()
@@ -211,7 +217,7 @@ class VectorStoreInterface:
             separators=TXT_SEPARATORS,  # todo: split on more doc types
         )
 
-        chunks = text_splitter.split_text(text)
+        chunks = text_splitter.split_text(text_to_split)
         chunks = self.combine_small_chunks(chunks)
 
         documents = []
@@ -267,12 +273,12 @@ class VectorStoreInterface:
 
     def search(self, query, agent_id: int):
         results = []
-        filter = {"agent_id": str(agent_id), "active": "True"}
+        search_filter = {"agent_id": str(agent_id), "active": "True"}
         if cfg.EMBED_QUERY_PREFIX:
             query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
 
         for provider in self.search_providers:
-            results.extend(provider.search(query, filter))
+            results.extend(provider.search(query, search_filter))
 
         # Sort the results by relevance score
         results.sort(key=lambda x: x[1], reverse=True)
@@ -308,11 +314,11 @@ class VectorStoreInterface:
 
         return metadata_as_str, filter_
 
-    def get_distinct_cmetadata(self, filter):
-        if not filter:
+    def get_distinct_cmetadata(self, search_filter):
+        if not search_filter:
             raise ValueError("empty metadata")
 
-        metadata_as_str, filter_ = self._build_metadata_filter(filter)
+        metadata_as_str, filter_ = self._build_metadata_filter(search_filter)
         query = text(
             f"SELECT distinct on (cmetadata) cmetadata from langchain_pg_embedding where {filter_}"
         )
@@ -320,11 +326,11 @@ class VectorStoreInterface:
 
         return [row.cmetadata for row in results]
 
-    def get_ids_and_cmetadata(self, filter):
-        if not filter:
+    def get_ids_and_cmetadata(self, search_filter):
+        if not search_filter:
             raise ValueError("empty metadata")
 
-        metadata_as_str, filter_ = self._build_metadata_filter(filter)
+        metadata_as_str, filter_ = self._build_metadata_filter(search_filter)
         query = text(f"SELECT id, cmetadata FROM langchain_pg_embedding WHERE {filter_}")
         results = db.session.execute(query, metadata_as_str).all()
 
@@ -334,7 +340,7 @@ class VectorStoreInterface:
         log.debug("deleting %d document chunks from vector store", len(ids))
         self.store.delete(ids)
 
-    def delete_document_chunks(self, filter: dict) -> dict:
+    def delete_document_chunks(self, search_filter: dict) -> dict:
         results = self.get_ids_and_cmetadata(filter)
 
         matching_docs = []
@@ -343,14 +349,14 @@ class VectorStoreInterface:
             result.cmetadata["id"] = result.id
             matching_docs.append(result.cmetadata)
 
-        log.debug("found %d doc(s) from vector DB matching filter: %s", len(matching_docs), filter)
+        log.debug("found %d doc(s) from vector DB matching filter: %s", len(matching_docs), search_filter)
 
         self.delete_document_chunks_by_id([doc["id"] for doc in matching_docs])
 
         return matching_docs
 
-    def update_cmetadata(self, metadata: dict, filter: dict, commit: bool = True):
-        metadata_as_str, filter_ = self._build_metadata_filter(filter)
+    def update_cmetadata(self, metadata: dict, search_filter: dict, commit: bool = True):
+        metadata_as_str, filter_ = self._build_metadata_filter(search_filter)
         data = {key: str(val) for key, val in metadata.items()}
         update = (
             "UPDATE langchain_pg_embedding "
@@ -361,9 +367,9 @@ class VectorStoreInterface:
         if commit:
             db.session.commit()
 
-    def set_doc_states(self, active: bool, pending_removal: bool, filter: dict):
+    def set_doc_states(self, active: bool, pending_removal: bool, search_filter: dict):
         metadata = {"active": str(active), "pending_removal": str(pending_removal)}
-        self.update_cmetadata(metadata, filter)
+        self.update_cmetadata(metadata, search_filter)
 
 
 vector_db = VectorStoreInterface()
