@@ -185,7 +185,7 @@ class AgentChatApi(Resource):
         ]
 
     def _embed_question(self, question):
-        return vector_db.embeddings.embed_question(question)
+        return vector_db.embeddings.embed_query(question)
 
     def _call_llm(self, agent, question, previous_messages, stream):
         return llm.ask(agent.system_prompt, previous_messages, question, agent.id, stream=stream)
