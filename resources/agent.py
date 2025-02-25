@@ -148,32 +148,32 @@ class AgentChatApi(Resource):
         if not agent:
             return {"message": "agent not found"}, 404
 
-        query, session_uuid, stream, previous_messages = self._extract_request_data()
-        source_doc_chunks = self._retrieve_relevant_documents(agent, query)
-        embedding = self._embed_query(query)
-        llm_response = self._call_llm(agent, query, previous_messages, stream)
+        question, session_uuid, stream, previous_messages = self._extract_request_data()
+        source_doc_chunks = self._retrieve_relevant_documents(agent, question)
+        embedding = self._embed_question(question)
+        llm_response = self._call_llm(agent, question, previous_messages, stream)
 
         if self._is_streaming_response(llm_response, stream):
             return self._handle_streaming_response(
-                llm_response, query, source_doc_chunks, embedding, session_uuid
+                llm_response, question, source_doc_chunks, embedding, session_uuid
             )
 
         return self._handle_final_response(
-            llm_response, query, source_doc_chunks, embedding, session_uuid
+            llm_response, question, source_doc_chunks, embedding, session_uuid
         )
 
     def _get_agent(self, agent_id):
         return Agent.get(agent_id)
 
     def _extract_request_data(self):
-        query = request.json.get("query")
+        question = request.json.get("query")
         session_uuid = request.json.get("session_uuid", str(uuid.uuid4()))
         stream = request.json.get("stream", "true") == "true"
         previous_messages = request.json.get("prevMsgs")
-        return query, session_uuid, stream, previous_messages
+        return question, session_uuid, stream, previous_messages
 
-    def _retrieve_relevant_documents(self, agent, query):
-        retrieved_chunks = vector_db.search(query, agent.id)
+    def _retrieve_relevant_documents(self, agent, question):
+        retrieved_chunks = vector_db.search(question, agent.id)
         return [
             {
                 "text": doc.page_content,
@@ -184,17 +184,17 @@ class AgentChatApi(Resource):
             for doc in retrieved_chunks
         ]
 
-    def _embed_query(self, query):
-        return vector_db.embeddings.embed_query(query)
+    def _embed_question(self, question):
+        return vector_db.embeddings.embed_question(question)
 
-    def _call_llm(self, agent, query, previous_messages, stream):
-        return llm.ask(agent.system_prompt, previous_messages, query, agent.id, stream=stream)
+    def _call_llm(self, agent, question, previous_messages, stream):
+        return llm.ask(agent.system_prompt, previous_messages, question, agent.id, stream=stream)
 
     def _is_streaming_response(self, llm_response, stream):
         return stream and (callable(llm_response) or hasattr(llm_response, "__iter__"))
 
     def _handle_streaming_response(
-        self, llm_response, query, source_doc_chunks, embedding, session_uuid
+        self, llm_response, question, source_doc_chunks, embedding, session_uuid
     ):
         if callable(llm_response):
             llm_response = llm_response()
@@ -207,15 +207,15 @@ class AgentChatApi(Resource):
                 yield raw_chunk
 
             self._log_interaction(
-                query, accumulated_response, source_doc_chunks, embedding, session_uuid
+                question, accumulated_response, source_doc_chunks, embedding, session_uuid
             )
 
         return Response(stream_with_context(accumulate_and_stream()), mimetype="application/json")
 
     def _handle_final_response(
-        self, llm_response, query, source_doc_chunks, embedding, session_uuid
+        self, llm_response, question, source_doc_chunks, embedding, session_uuid
     ):
-        self._log_interaction(query, llm_response, source_doc_chunks, embedding, session_uuid)
+        self._log_interaction(question, llm_response, source_doc_chunks, embedding, session_uuid)
         return {"response": llm_response}, 200
 
     def _extract_text_from_chunk(self, raw_chunk):
@@ -227,10 +227,10 @@ class AgentChatApi(Resource):
         except json.JSONDecodeError:
             return ""
 
-    def _log_interaction(self, query, response, source_doc_chunks, embedding, session_uuid):
+    def _log_interaction(self, question, response, source_doc_chunks, embedding, session_uuid):
         try:
             store_interaction(
-                user_query=query,
+                question=question,
                 llm_response=response,
                 source_doc_chunks=source_doc_chunks,
                 question_embedding=embedding,

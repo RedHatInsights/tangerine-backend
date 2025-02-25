@@ -39,7 +39,7 @@ class Interaction(db.Model):
 
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     session_uuid = db.Column(db.String(36))
-    user_query = db.Column(db.Text, nullable=False)
+    question = db.Column(db.Text, nullable=False)
     llm_response = db.Column(db.Text)
     source_doc_chunks = db.Column(db.JSON)
     user_feedback = db.Column(db.String(20))
@@ -48,7 +48,7 @@ class Interaction(db.Model):
 
 
 def store_interaction(
-    user_query,
+    question,
     llm_response,
     source_doc_chunks,
     question_embedding,
@@ -60,7 +60,7 @@ def store_interaction(
     Logs a RAG interaction and its question embedding into the database.
 
     Args:
-        user_query (str): The user's natural language question.
+        question (str): The user's natural language question.
         llm_response (str): The LLM-generated response.
         source_doc_chunks (list[dict]): Retrieved document chunks (list of dicts).
         relevance_scores (list[float]): Relevance scores corresponding to the chunks.
@@ -74,7 +74,7 @@ def store_interaction(
     # Create interaction record
     interaction = Interaction(
         session_uuid=session_uuid,
-        user_query=user_query,
+        question=question,
         llm_response=llm_response,
         source_doc_chunks=source_doc_chunks,
         user_feedback=user_feedback,
