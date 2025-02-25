@@ -210,7 +210,7 @@ def compare_files(
     files = get_file_list(agent_config, defaults)
 
     # collect all unique file objects currently stored for this agent in the DB
-    agent_objects = vector_db.get_distinct_cmetadata(filter={"agent_id": agent.id})
+    agent_objects = vector_db.get_distinct_cmetadata(search_filter={"agent_id": agent.id})
 
     # group by keys for easier comparisons
     files_by_key = {file.full_path: file for file in files}
@@ -355,7 +355,7 @@ def run(resync: bool = False) -> int:
         if agent_objects_to_delete or files_to_insert or metadata_update_args:
             # set docs which will be removed to state pending_removal=True
             for metadata in agent_objects_to_delete:
-                vector_db.set_doc_states(active=True, pending_removal=True, filter=metadata)
+                vector_db.set_doc_states(active=True, pending_removal=True, search_filter=metadata)
 
             # download new docs for this agent and embed in vector DB
             _, download_errors, embed_errors = download_s3_files_and_embed(
@@ -368,11 +368,11 @@ def run(resync: bool = False) -> int:
             # set new doc chunks to active
             # all new docs will have state active=False, pending_removal=False
             metadata = {"agent_id": agent.id, "active": False, "pending_removal": False}
-            vector_db.set_doc_states(active=True, pending_removal=False, filter=metadata)
+            vector_db.set_doc_states(active=True, pending_removal=False, search_filter=metadata)
 
             # set any old docs with state pending_removal=True to inactive
             metadata = {"agent_id": agent.id, "pending_removal": True}
-            vector_db.set_doc_states(active=False, pending_removal=True, filter=metadata)
+            vector_db.set_doc_states(active=False, pending_removal=True, search_filter=metadata)
 
             # delete the now-inactive document chunks
             metadata = {"agent_id": agent.id, "active": False}
@@ -383,7 +383,7 @@ def run(resync: bool = False) -> int:
             vector_db.db.session.commit()
 
         # update list of filenames associated with the agent
-        agent_objects = vector_db.get_distinct_cmetadata(filter={"agent_id": agent.id})
+        agent_objects = vector_db.get_distinct_cmetadata(search_filter={"agent_id": agent.id})
         agent_files = [File(**obj) for obj in agent_objects]
         agent.update(filenames=[file.display_name for file in agent_files])
 
