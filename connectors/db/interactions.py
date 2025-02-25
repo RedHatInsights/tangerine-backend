@@ -47,71 +47,69 @@ class Interaction(db.Model):
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
 
 
-class InteractionLogger:
-    @staticmethod
-    def log_interaction(
-        user_query,
-        llm_response,
-        source_doc_chunks,
-        question_embedding,
-        session_uuid=None,
-        user_feedback=None,
-        feedback_comment=None,
-    ):
-        """
-        Logs a RAG interaction and its question embedding into the database.
+def store_interaction(
+    user_query,
+    llm_response,
+    source_doc_chunks,
+    question_embedding,
+    session_uuid=None,
+    user_feedback=None,
+    feedback_comment=None,
+):
+    """
+    Logs a RAG interaction and its question embedding into the database.
 
-        Args:
-            user_query (str): The user's natural language question.
-            llm_response (str): The LLM-generated response.
-            source_doc_chunks (list[dict]): Retrieved document chunks (list of dicts).
-            relevance_scores (list[float]): Relevance scores corresponding to the chunks.
-            question_embedding (list[float]): The vector embedding of the question.
-            session_uuid (str, optional): Session UUID if available. Auto-generated if not provided.
-            user_feedback (str, optional): 'thumbs_up', 'thumbs_down', 'neutral', or None.
-            feedback_comment (str, optional): Optional free-text feedback from the user.
-        """
-        question_uuid = uuid.uuid4()
-        session_uuid = session_uuid or str(uuid.uuid4())
+    Args:
+        user_query (str): The user's natural language question.
+        llm_response (str): The LLM-generated response.
+        source_doc_chunks (list[dict]): Retrieved document chunks (list of dicts).
+        relevance_scores (list[float]): Relevance scores corresponding to the chunks.
+        question_embedding (list[float]): The vector embedding of the question.
+        session_uuid (str, optional): Session UUID if available. Auto-generated if not provided.
+        user_feedback (str, optional): 'thumbs_up', 'thumbs_down', 'neutral', or None.
+        feedback_comment (str, optional): Optional free-text feedback from the user.
+    """
+    question_uuid = uuid.uuid4()
+    session_uuid = session_uuid or str(uuid.uuid4())
 
-        # Create interaction record
-        interaction = Interaction(
-            question_uuid=question_uuid,
-            session_uuid=session_uuid,
-            user_query=user_query,
-            llm_response=llm_response,
-            source_doc_chunks=source_doc_chunks,
-            user_feedback=user_feedback,
-            feedback_comment=feedback_comment,
+    # Create interaction record
+    interaction = Interaction(
+        question_uuid=question_uuid,
+        session_uuid=session_uuid,
+        user_query=user_query,
+        llm_response=llm_response,
+        source_doc_chunks=source_doc_chunks,
+        user_feedback=user_feedback,
+        feedback_comment=feedback_comment,
+    )
+
+    # Create embedding record
+    embedding_record = QuestionEmbedding(
+        question_uuid=question_uuid,
+        question_embedding=question_embedding,
+    )
+
+    # Create relevance scores
+    relevance_scores = []
+    for chunk in source_doc_chunks:
+        retrieval_method = chunk.get("retrieval_method", "unknown")
+        score = chunk.get("score", 0.0)
+        relevance_score = RelevanceScore(
+            question_uuid=interaction.question_uuid,
+            retrieval_method=retrieval_method,
+            score=score,
         )
+        relevance_scores.append(relevance_score)
+        db.session.add(relevance_score)
 
-        # Create embedding record
-        embedding_record = QuestionEmbedding(
-            question_uuid=question_uuid,
-            question_embedding=question_embedding,
-        )
-
-        # Create relevance scores
-        relevance_scores = []
-        for chunk in source_doc_chunks:
-            retrieval_method = chunk.get("retrieval_method", "unknown")
-            score = chunk.get("score", 0.0)
-            relevance_score = RelevanceScore(
-                question_uuid=interaction.question_uuid,
-                retrieval_method=retrieval_method,
-                score=score,
-            )
-            relevance_scores.append(relevance_score)
-            db.session.add(relevance_score)
-
-        # Commit both within a transaction
-        try:
-            db.session.add(interaction)
-            db.session.add(embedding_record)
-            db.session.commit()
-            log.info("Interaction and embedding logged successfully.")
-            return question_uuid
-        except Exception as e:
-            db.session.rollback()
-            log.error("Error logging interaction or embedding", exc_info=True)
-            raise e
+    # Commit both within a transaction
+    try:
+        db.session.add(interaction)
+        db.session.add(embedding_record)
+        db.session.commit()
+        log.info("Interaction and embedding logged successfully.")
+        return question_uuid
+    except Exception as e:
+        db.session.rollback()
+        log.error("Error logging interaction or embedding", exc_info=True)
+        raise e
