@@ -49,12 +49,17 @@ class SearchProvider(ABC):
 
     RETRIEVAL_METHOD = None
 
+    def __init__(self, store):
+            if self.RETRIEVAL_METHOD is None:
+                raise TypeError("Subclasses must set RETRIEVAL_METHOD to a non-None value")
+            self.store = store
+
     @abstractmethod
     def search(self, query, search_filter) -> list[SearchResult]:
         """Runs the search and returns results with normalized scores."""
         pass
 
-    def add_retrieval_method(self, docs):
+    def _add_retrieval_method(self, docs):
         """Add retrieval method to each document's metadata."""
         for doc, _score in docs:
             doc.metadata["retrieval_method"] = self.RETRIEVAL_METHOD
@@ -66,9 +71,6 @@ class MMRSearchProvider(SearchProvider):
 
     RETRIEVAL_METHOD = "mmr"
 
-    def __init__(self, store):
-        self.store = store
-
     def search(self, query, search_filter) -> list[SearchResult]:
         """Runs MMR search and normalizes scores."""
         results = self.store.max_marginal_relevance_search_with_score(
@@ -77,7 +79,7 @@ class MMRSearchProvider(SearchProvider):
             lambda_mult=0.7,
             k=4,
         )
-        results = self.add_retrieval_method(results)
+        results = self._add_retrieval_method(results)
         # Normalize (Invert distance-based scores)
         return [SearchResult(doc, 1 - score) for doc, score in results]
 
@@ -87,9 +89,6 @@ class SimilaritySearchProvider(SearchProvider):
 
     RETRIEVAL_METHOD = "similarity"
 
-    def __init__(self, store):
-        self.store = store
-
     def search(self, query, search_filter) -> list[SearchResult]:
         """Runs similarity search and ensures scores are normalized."""
         results = self.store.similarity_search_with_score(
@@ -97,7 +96,7 @@ class SimilaritySearchProvider(SearchProvider):
             filter=search_filter,
             k=2,
         )
-        results = self.add_retrieval_method(results)
+        results = self._add_retrieval_method(results)
         # Assume scores are already in 0-1 range (cosine similarity)
         return [SearchResult(doc, score) for doc, score in results]
 
