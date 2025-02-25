@@ -37,7 +37,7 @@ class QuestionEmbedding(db.Model):
 class Interaction(db.Model):
     __tablename__ = "interactions"
 
-    question_uuid = db.Column(UUID(as_uuid=True), primary_key=True)
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     session_uuid = db.Column(db.String(36))
     user_query = db.Column(db.Text, nullable=False)
     llm_response = db.Column(db.Text)
@@ -69,12 +69,10 @@ def store_interaction(
         user_feedback (str, optional): 'thumbs_up', 'thumbs_down', 'neutral', or None.
         feedback_comment (str, optional): Optional free-text feedback from the user.
     """
-    question_uuid = uuid.uuid4()
     session_uuid = session_uuid or str(uuid.uuid4())
 
     # Create interaction record
     interaction = Interaction(
-        question_uuid=question_uuid,
         session_uuid=session_uuid,
         user_query=user_query,
         llm_response=llm_response,
@@ -85,7 +83,7 @@ def store_interaction(
 
     # Create embedding record
     embedding_record = QuestionEmbedding(
-        question_uuid=question_uuid,
+        question_uuid=interaction.id,
         question_embedding=question_embedding,
     )
 
@@ -95,7 +93,7 @@ def store_interaction(
         retrieval_method = chunk.get("retrieval_method", "unknown")
         score = chunk.get("score", 0.0)
         relevance_score = RelevanceScore(
-            question_uuid=interaction.question_uuid,
+            question_uuid=interaction.id,
             retrieval_method=retrieval_method,
             score=score,
         )
@@ -108,7 +106,7 @@ def store_interaction(
         db.session.add(embedding_record)
         db.session.commit()
         log.info("Interaction and embedding logged successfully.")
-        return question_uuid
+        return interaction.id
     except Exception as e:
         db.session.rollback()
         log.error("Error logging interaction or embedding", exc_info=True)
