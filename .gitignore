@@ -165,3 +165,7 @@ cython_debug/
 
 # local docker data
 data/
+
+# ignore local docker settings
+docker-compose-maas.yml
+

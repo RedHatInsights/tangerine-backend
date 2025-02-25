@@ -15,6 +15,9 @@ from resources.metrics import get_counter, get_gauge
 
 log = logging.getLogger("tangerine.llm")
 
+agent_response_counter = get_counter(
+    "agent_response_counter", "Total number of responses for an agent", ["agent_id"]
+)
 llm_completion_tokens_metric = get_counter("llm_completion_tokens", "LLM completion tokens usage")
 llm_prompt_tokens_metric = get_counter("llm_prompt_tokens", "LLM prompt tokens usage")
 llm_completion_rate = get_gauge(
@@ -23,6 +26,7 @@ llm_completion_rate = get_gauge(
 llm_processing_rate = get_gauge(
     "llm_processing_rate", "Observed tokens per sec for most recent LLM processing after prompted"
 )
+llm_no_answer = get_counter("llm_no_answer", "No Answer provided by the bot")
 
 
 class LLMInterface:
@@ -107,7 +111,9 @@ class LLMInterface:
         if len(results) == 0:
             log.debug("unable to find results")
             context_text = "No matching search results found"
+            llm_no_answer.labels(agent_id=agent_id).inc()
         else:
+            agent_response_counter.labels(agent_id=agent_id).inc()
             log.debug("fetched %d relevant search results from vector db", len(results))
             for i, doc in enumerate(results):
                 page_content = doc.page_content
