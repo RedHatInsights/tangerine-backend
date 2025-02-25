@@ -12,6 +12,8 @@ from connectors.db.interactions import store_interaction
 from connectors.db.vector import vector_db
 from connectors.llm.interface import llm
 
+from connectors import config
+
 log = logging.getLogger("tangerine")
 
 
@@ -225,6 +227,8 @@ class AgentChatApi(Resource):
             return ""
 
     def _log_interaction(self, question, response, source_doc_chunks, embedding, session_uuid):
+        if (config.STORE_INTERACTIONS is False):
+            return
         try:
             store_interaction(
                 question=question,
