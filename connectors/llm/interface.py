@@ -15,7 +15,9 @@ from resources.metrics import get_counter, get_gauge
 
 log = logging.getLogger("tangerine.llm")
 
-agent_response_counter = get_counter("agent_response_counter","Total number of responses for an agent", ['agent_id'])
+agent_response_counter = get_counter(
+    "agent_response_counter", "Total number of responses for an agent", ["agent_id"]
+)
 llm_completion_tokens_metric = get_counter("llm_completion_tokens", "LLM completion tokens usage")
 llm_prompt_tokens_metric = get_counter("llm_prompt_tokens", "LLM prompt tokens usage")
 llm_completion_rate = get_gauge(
@@ -24,12 +26,8 @@ llm_completion_rate = get_gauge(
 llm_processing_rate = get_gauge(
     "llm_processing_rate", "Observed tokens per sec for most recent LLM processing after prompted"
 )
-llm_no_answer = get_counter(
-    "llm_no_answer", "No Answer provided by the bot"
-)
-# llm_error
-# db_error
-# token_counter 
+llm_no_answer = get_counter("llm_no_answer", "No Answer provided by the bot")
+
 
 class LLMInterface:
     def __init__(self):
