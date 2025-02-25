@@ -315,6 +315,12 @@ to use this to test different embedding models that are not supported by ollama,
 
 1. (optional) Follow these steps to start the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend#without-docker-compose)
 
+## Debugging in VSCode
+
+Run postgres and ollama either locally or in containers. Don't run the backend container. Click on "Run & Debug" in the left menu and then run the "Debug Tangerine Backend" debug target. You can now set breakpoints and inspect runtime state.
+
+There's a second debug target for the unit tests if you want to run those in a debugger.
+
 ## Synchronizing Documents from S3
 
 You can configure a set of agents and continually sync their knowledge base via documents stored in an S3 bucket.
