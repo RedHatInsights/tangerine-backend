@@ -46,6 +46,17 @@ class Interaction(db.Model):
     feedback_comment = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
 
+def insert(model):
+    try:
+        db.session.add(model)
+        db.session.commit()
+        db.session.refresh(model)
+    except Exception:
+        db.session.rollback()
+        log.exception("Error logging interaction")
+        raise
+    return model
+
 
 def store_interaction(
     question,
@@ -80,15 +91,15 @@ def store_interaction(
         user_feedback=user_feedback,
         feedback_comment=feedback_comment,
     )
+    interaction = insert(interaction)
 
     # Create embedding record
     embedding_record = QuestionEmbedding(
         interaction_id=interaction.id,
         question_embedding=question_embedding,
     )
+    insert(embedding_record)
 
-    # Create relevance scores
-    relevance_scores = []
     for chunk in source_doc_chunks:
         retrieval_method = chunk.get("retrieval_method", "unknown")
         score = chunk.get("score", 0.0)
@@ -97,13 +108,6 @@ def store_interaction(
             retrieval_method=retrieval_method,
             score=score,
         )
-        relevance_scores.append(relevance_score)
-        with db.session.begin():
-            db.session.add(relevance_score)
+        insert(relevance_score)
 
-    # Commit both within a transaction
-    with db.session.begin():
-        db.session.add(interaction)
-        db.session.add(embedding_record)
-        log.debug("Interaction and embedding logged successfully.")
-        return interaction.id
+    return interaction.id
