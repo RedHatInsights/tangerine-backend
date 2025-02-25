@@ -13,13 +13,13 @@ class RelevanceScore(db.Model):
     __tablename__ = "relevance_scores"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    question_uuid = db.Column(UUID(as_uuid=True), db.ForeignKey("interactions.question_uuid"))
+    interaction_id = db.Column(UUID(as_uuid=True), db.ForeignKey("interactions.question_uuid"))
     retrieval_method = db.Column(db.String(50), nullable=False)
     score = db.Column(db.Float, nullable=False)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
 
-    def __init__(self, question_uuid, retrieval_method, score):
-        self.question_uuid = question_uuid
+    def __init__(self, interaction_id, retrieval_method, score):
+        self.interaction_id = interaction_id
         self.retrieval_method = retrieval_method
         self.score = score
         self.timestamp = db.func.current_timestamp()
@@ -28,8 +28,8 @@ class RelevanceScore(db.Model):
 class QuestionEmbedding(db.Model):
     __tablename__ = "question_embeddings"
 
-    question_uuid = db.Column(
-        UUID(as_uuid=True), db.ForeignKey("interactions.question_uuid"), primary_key=True
+    interaction_id = db.Column(
+        UUID(as_uuid=True), db.ForeignKey("interactions.id"), primary_key=True
     )
     question_embedding = db.Column(Vector(768), nullable=False)
 
@@ -83,7 +83,7 @@ def store_interaction(
 
     # Create embedding record
     embedding_record = QuestionEmbedding(
-        question_uuid=interaction.id,
+        interaction_id=interaction.id,
         question_embedding=question_embedding,
     )
 
@@ -93,7 +93,7 @@ def store_interaction(
         retrieval_method = chunk.get("retrieval_method", "unknown")
         score = chunk.get("score", 0.0)
         relevance_score = RelevanceScore(
-            question_uuid=interaction.id,
+            interaction_id=interaction.id,
             retrieval_method=retrieval_method,
             score=score,
         )
