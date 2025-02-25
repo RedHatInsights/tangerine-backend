@@ -226,8 +226,12 @@ class AgentChatApi(Resource):
         except json.JSONDecodeError:
             return ""
 
+    # Looks like a silly function but it makes it easier to mock in tests
+    def _interaction_storage_enabled(self) -> bool:
+        return config.STORE_INTERACTIONS is True
+
     def _log_interaction(self, question, response, source_doc_chunks, embedding, session_uuid):
-        if (config.STORE_INTERACTIONS is False):
+        if (self._interaction_storage_enabled() is False):
             return
         try:
             store_interaction(
