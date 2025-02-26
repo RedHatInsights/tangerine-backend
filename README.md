@@ -321,6 +321,9 @@ Run postgres and ollama either locally or in containers. Don't run the backend c
 
 There's a second debug target for the unit tests if you want to run those in a debugger.
 
+## Mac Development Tips
+Ollama running in Docker on Apple Silicon cannot make use of hardware acceleration. That means the LLM will be very slow to respond running in Docker, even on a very capable machine. However, running the model locally does make use of acceleration and is quite fast. If you are working on a Mac the best setup is to run the model through ollama locally and then the other deps like the database in Docker. The way the compose file is set up, the networking is all seemless. If you stop the ollama container and then ollama serve locally it will all just work together. You'll have the best local development setup if you combine the model running locally and tangerine-backend running in a debugger in VSCode with postgres and pgadmin running in Docker!
+
 ## Synchronizing Documents from S3
 
 You can configure a set of agents and continually sync their knowledge base via documents stored in an S3 bucket.
