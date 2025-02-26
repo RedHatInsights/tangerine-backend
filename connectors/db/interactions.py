@@ -42,8 +42,6 @@ class Interaction(db.Model):
     question = db.Column(db.Text, nullable=False)
     llm_response = db.Column(db.Text)
     source_doc_chunks = db.Column(db.JSON)
-    user_feedback = db.Column(db.String(20))
-    feedback_comment = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
 
 
@@ -65,8 +63,6 @@ def store_interaction(
     source_doc_chunks,
     question_embedding,
     session_uuid=None,
-    user_feedback=None,
-    feedback_comment=None,
 ):
     """
     Logs a RAG interaction and its question embedding into the database.
@@ -78,8 +74,6 @@ def store_interaction(
         relevance_scores (list[float]): Relevance scores corresponding to the chunks.
         question_embedding (list[float]): The vector embedding of the question.
         session_uuid (str, optional): Session UUID if available. Auto-generated if not provided.
-        user_feedback (str, optional): 'thumbs_up', 'thumbs_down', 'neutral', or None.
-        feedback_comment (str, optional): Optional free-text feedback from the user.
     """
     session_uuid = session_uuid or str(uuid.uuid4())
 
@@ -89,8 +83,6 @@ def store_interaction(
         question=question,
         llm_response=llm_response,
         source_doc_chunks=source_doc_chunks,
-        user_feedback=user_feedback,
-        feedback_comment=feedback_comment,
     )
     interaction = insert(interaction)
 
