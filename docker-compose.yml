@@ -17,7 +17,21 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
+  pgadmin:
+      container_name: tangerine-pgadmin
+      image: dpage/pgadmin4
+      environment:
+        PGADMIN_DEFAULT_EMAIL: admin@local.dev
+        PGADMIN_DEFAULT_PASSWORD: admin
+        PGADMIN_CONFIG_SERVER_MODE: "False"
+      volumes:
+        - ./pgadmin/pgpassfile:/var/lib/pgadmin/pgpassfile
+        - ./pgadmin/pgadmin-servers.json:/pgadmin4/servers.json
+      ports:
+        - "5050:80"
+      depends_on:
+        postgres:
+          condition: service_healthy
   ollama:
     # --- NVIDIA GPU ---
     # read https://hub.docker.com/r/ollama/ollama, install toolkit, and uncomment below
@@ -100,6 +114,7 @@ services:
       - EMBED_MODEL_NAME=nomic-embed-text
       - EMBED_QUERY_PREFIX="search_query"
       - EMBED_DOCUMENT_PREFUX="search_document"
+      - STORE_INTERACTIONS=true
     # for s3sync, store AWS env vars needed to access your s3 bucket here
   #  env_file: ".env"
     healthcheck:

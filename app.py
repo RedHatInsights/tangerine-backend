@@ -12,6 +12,9 @@ from flask_restful import Api
 
 import connectors.config as cfg
 import connectors.s3.sync
+
+# Imported so SQLAlchemy can find the models
+from connectors.db import interactions  # noqa: F401
 from connectors.db.agent import db
 from connectors.db.vector import vector_db
 from resources.metrics import metrics
@@ -39,12 +42,10 @@ def create_app():
 
     with app.app_context():
         db.session.commit()
-        db.create_all()
-        app.logger.info("db tables initiated.")
-
         vector_db.init_vector_store()
         app.logger.info("vector store initiated.")
-
+        db.create_all()
+        app.logger.info("db tables initiated.")
     return app
 
 

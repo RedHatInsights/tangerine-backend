@@ -116,8 +116,8 @@ class LLMInterface:
             agent_response_counter.labels(agent_id=agent_id).inc()
             log.debug("fetched %d relevant search results from vector db", len(results))
             for i, doc in enumerate(results):
-                page_content = doc.page_content
-                metadata = doc.metadata
+                page_content = doc.document.page_content
+                metadata = doc.document.metadata
                 extra_doc_info.append({"metadata": metadata, "page_content": page_content})
 
                 context_text += f"\n<<Search result {i+1}"
@@ -155,6 +155,7 @@ class LLMInterface:
                 yield f"data: {json.dumps(data)}\r\n"
 
         if stream:
+            log.debug("streaming response...")
             return api_response_generator
 
         # else, if stream=False ...

@@ -1,16 +1,19 @@
 import json
 import logging
+import uuid
 
 from flask import Response, request, stream_with_context
 from flask_restful import Resource
 
+from connectors import config
 from connectors.config import DEFAULT_SYSTEM_PROMPT
 from connectors.db.agent import Agent
 from connectors.db.common import File, add_filenames_to_agent, embed_files, remove_files
+from connectors.db.interactions import store_interaction
 from connectors.db.vector import vector_db
 from connectors.llm.interface import llm
 
-log = logging.getLogger("tangerine.agent")
+log = logging.getLogger("tangerine")
 
 
 class AgentDefaultsApi(Resource):
@@ -142,17 +145,98 @@ class AgentDocuments(Resource):
 
 class AgentChatApi(Resource):
     def post(self, id):
-        agent = Agent.get(id)
+        agent = self._get_agent(id)
         if not agent:
             return {"message": "agent not found"}, 404
 
-        query = request.json.get("query")
-        stream = request.json.get("stream") == "true"
+        question, session_uuid, stream, previous_messages = self._extract_request_data()
+        source_doc_chunks = self._retrieve_relevant_documents(agent, question)
+        embedding = self._embed_question(question)
+        llm_response = self._call_llm(agent, question, previous_messages, stream)
+
+        if self._is_streaming_response(llm_response, stream):
+            return self._handle_streaming_response(
+                llm_response, question, source_doc_chunks, embedding, session_uuid
+            )
+
+        return self._handle_final_response(
+            llm_response, question, source_doc_chunks, embedding, session_uuid
+        )
+
+    def _get_agent(self, agent_id):
+        return Agent.get(agent_id)
+
+    def _extract_request_data(self):
+        question = request.json.get("query")
+        session_uuid = request.json.get("session_uuid", str(uuid.uuid4()))
+        stream = request.json.get("stream", "true") == "true"
         previous_messages = request.json.get("prevMsgs")
+        return question, session_uuid, stream, previous_messages
 
-        llm_response = llm.ask(agent.system_prompt, previous_messages, query, agent.id, stream)
+    def _retrieve_relevant_documents(self, agent, question):
+        retrieved_chunks = vector_db.search(question, agent.id)
+        return [
+            {
+                "text": doc.document.page_content,
+                "source": doc.document.metadata.get("source"),
+                "score": doc.document.metadata.get("relevance_score"),
+                "retrieval_method": doc.document.metadata.get("retrieval_method"),
+            }
+            for doc in retrieved_chunks
+        ]
 
-        if stream:
-            return Response(llm_response(), mimetype="application/json")
+    def _embed_question(self, question):
+        return vector_db.embeddings.embed_query(question)
 
-        return llm_response, 200
+    def _call_llm(self, agent, question, previous_messages, stream):
+        return llm.ask(agent.system_prompt, previous_messages, question, agent.id, stream=stream)
+
+    def _is_streaming_response(self, llm_response, stream):
+        return stream and (callable(llm_response) or hasattr(llm_response, "__iter__"))
+
+    def _handle_streaming_response(
+        self, llm_response, question, source_doc_chunks, embedding, session_uuid
+    ):
+
+        def accumulate_and_stream():
+            accumulated_response = ""
+            for raw_chunk in llm_response():
+                text_content = self._extract_text_from_chunk(raw_chunk)
+                accumulated_response += text_content
+                yield raw_chunk
+
+            self._log_interaction(
+                question, accumulated_response, source_doc_chunks, embedding, session_uuid
+            )
+
+        return Response(stream_with_context(accumulate_and_stream()))
+
+    def _handle_final_response(
+        self, llm_response, question, source_doc_chunks, embedding, session_uuid
+    ):
+        self._log_interaction(question, llm_response, source_doc_chunks, embedding, session_uuid)
+        return {"response": llm_response}, 200
+
+    def _extract_text_from_chunk(self, raw_chunk):
+        try:
+            return json.loads(raw_chunk).get("text_content", "")
+        except json.JSONDecodeError:
+            return ""
+
+    # Looks like a silly function but it makes it easier to mock in tests
+    def _interaction_storage_enabled(self) -> bool:
+        return config.STORE_INTERACTIONS is True
+
+    def _log_interaction(self, question, response, source_doc_chunks, embedding, session_uuid):
+        if self._interaction_storage_enabled() is False:
+            return
+        try:
+            store_interaction(
+                question=question,
+                llm_response=response,
+                source_doc_chunks=source_doc_chunks,
+                question_embedding=embedding,
+                session_uuid=session_uuid,
+            )
+        except Exception:
+            log.exception("Failed to log interaction")
