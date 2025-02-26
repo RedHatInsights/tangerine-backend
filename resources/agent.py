@@ -171,7 +171,7 @@ class AgentChatApi(Resource):
         session_uuid = request.json.get("session_uuid", str(uuid.uuid4()))
         stream = request.json.get("stream", "true") == "true"
         previous_messages = request.json.get("prevMsgs")
-        interaction_id = request.json.get("interaction_id", None)
+        interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
         return question, session_uuid, stream, previous_messages, interaction_id, client
 
@@ -208,7 +208,7 @@ class AgentChatApi(Resource):
                 yield raw_chunk
 
             self._log_interaction(
-                question, accumulated_response, source_doc_chunks, embedding, session_uuid
+                question, accumulated_response, source_doc_chunks, embedding, session_uuid, interaction_id, client
             )
 
         return Response(stream_with_context(accumulate_and_stream()))

@@ -1,4 +1,5 @@
-from .agent import AgentApi, AgentChatApi, AgentDefaultsApi, AgentDocuments, AgentsApi, FeedbackApi
+from .agent import AgentApi, AgentChatApi, AgentDefaultsApi, AgentDocuments, AgentsApi
+from .feedback import FeedbackApi
 from .utils import PingApi
 
 

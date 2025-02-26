@@ -129,7 +129,6 @@ def store_interaction(
         llm_response=llm_response,
         source_doc_chunks=source_doc_chunks,
         client=client,
-        interaction_id=interaction_id,
     )
     interaction = insert(interaction, "Interaction")
 
