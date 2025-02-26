@@ -33,6 +33,46 @@ class QuestionEmbedding(db.Model):
     )
     question_embedding = db.Column(Vector(768), nullable=False)
 
+class UserFeedback(db.Model):
+    __tablename__ = "user_feedback"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    interaction_id = db.Column(UUID(as_uuid=True), db.ForeignKey("interactions.id"))
+    timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
+    like = db.Column(db.Boolean, nullable=False)
+    dislike = db.Column(db.Boolean, nullable=False)
+    feedback = db.Column(db.Text, nullable=False)
+    def __init__(self, interaction_id, like, dislike, feedback):
+        self.interaction_id = interaction_id
+        self.like = like
+        self.dislike = dislike
+        self.feedback = feedback
+        self.timestamp = db.func.current_timestamp()
+
+def store_user_feedback(
+    interaction_id,
+    like,
+    dislike,
+    feedback,
+):
+    """
+    Logs user feedback into the database.
+
+    Args:
+        interaction_id (str): The ID of the interaction being rated.
+        like (bool): Whether the user liked the response.
+        dislike (bool): Whether the user disliked the response.
+        feedback (str): Additional feedback from the user.
+    """
+    # Create feedback record
+    feedback_record = UserFeedback(
+        interaction_id=interaction_id,
+        like=like,
+        dislike=dislike,
+        feedback=feedback,
+    )
+    insert(feedback_record, "Feedback")
+    return feedback_record.id
 
 class Interaction(db.Model):
     __tablename__ = "interactions"
@@ -45,14 +85,14 @@ class Interaction(db.Model):
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
 
 
-def insert(model):
+def insert(model, name="DB Model"):
     try:
         db.session.add(model)
         db.session.commit()
         db.session.refresh(model)
     except Exception:
         db.session.rollback()
-        log.exception("Error logging interaction")
+        log.exception("Error logging %s", name)
         raise
     return model
 
@@ -84,14 +124,14 @@ def store_interaction(
         llm_response=llm_response,
         source_doc_chunks=source_doc_chunks,
     )
-    interaction = insert(interaction)
+    interaction = insert(interaction, "Interaction")
 
     # Create embedding record
     embedding_record = QuestionEmbedding(
         interaction_id=interaction.id,
         question_embedding=question_embedding,
     )
-    insert(embedding_record)
+    insert(embedding_record, "Question Embedding")
 
     for chunk in source_doc_chunks:
         retrieval_method = chunk.get("retrieval_method", "unknown")
@@ -101,6 +141,6 @@ def store_interaction(
             retrieval_method=retrieval_method,
             score=score,
         )
-        insert(relevance_score)
+        insert(relevance_score, "Relevance Score")
 
     return interaction.id
