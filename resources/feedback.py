@@ -9,7 +9,7 @@ log = logging.getLogger("tangerine")
 
 class FeedbackApi(Resource):
     def post(self):
-        interaction_id = request.json.get("interaction_id")
+        interaction_id = request.json.get("interactionId")
         like = request.json.get("like")
         dislike = request.json.get("dislike")
         feedback = request.json.get("feedback")
