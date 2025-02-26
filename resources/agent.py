@@ -152,7 +152,7 @@ class AgentChatApi(Resource):
         question, session_uuid, stream, previous_messages, interaction_id, client = self._extract_request_data()
         source_doc_chunks = self._retrieve_relevant_documents(agent, question)
         embedding = self._embed_question(question)
-        llm_response = self._call_llm(agent, question, previous_messages, stream)
+        llm_response = self._call_llm(agent, question, previous_messages, stream, interaction_id)
 
         if self._is_streaming_response(llm_response, stream):
             return self._handle_streaming_response(
@@ -190,8 +190,8 @@ class AgentChatApi(Resource):
     def _embed_question(self, question):
         return vector_db.embeddings.embed_query(question)
 
-    def _call_llm(self, agent, question, previous_messages, stream):
-        return llm.ask(agent.system_prompt, previous_messages, question, agent.id, stream=stream)
+    def _call_llm(self, agent, question, previous_messages, stream, interaction_id):
+        return llm.ask(agent.system_prompt, previous_messages, question, agent.id, stream=stream, interaction_id=interaction_id)
 
     def _is_streaming_response(self, llm_response, stream):
         return stream and (callable(llm_response) or hasattr(llm_response, "__iter__"))
