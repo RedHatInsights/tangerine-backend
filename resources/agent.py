@@ -168,7 +168,7 @@ class AgentChatApi(Resource):
 
     def _extract_request_data(self):
         question = request.json.get("query")
-        session_uuid = request.json.get("session_uuid", str(uuid.uuid4()))
+        session_uuid = request.json.get("sessionId", str(uuid.uuid4()))
         stream = request.json.get("stream", "true") == "true"
         previous_messages = request.json.get("prevMsgs")
         interaction_id = request.json.get("interactionId", None)
@@ -206,7 +206,6 @@ class AgentChatApi(Resource):
                 text_content = self._extract_text_from_chunk(raw_chunk)
                 accumulated_response += text_content
                 yield raw_chunk
-
             self._log_interaction(
                 question, accumulated_response, source_doc_chunks, embedding, session_uuid, interaction_id, client
             )
@@ -221,8 +220,13 @@ class AgentChatApi(Resource):
 
     def _extract_text_from_chunk(self, raw_chunk):
         try:
-            return json.loads(raw_chunk).get("text_content", "")
-        except json.JSONDecodeError:
+            # I know how this looks
+            # the raw_chunk is a string that looks like this:
+            # data: {"text_content": "Hello, how can I help you today?"}\r\n
+            # We need to extract the JSON part from it
+            return json.loads(raw_chunk.split("data:")[1].split("\r")[0]).get("text_content", "")
+        except Exception:
+            log.exception("Error parsing chunk")
             return ""
 
     # Looks like a silly function but it makes it easier to mock in tests
