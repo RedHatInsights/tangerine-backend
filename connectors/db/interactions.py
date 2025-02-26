@@ -41,7 +41,7 @@ class UserFeedback(db.Model):
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
     like = db.Column(db.Boolean, nullable=False)
     dislike = db.Column(db.Boolean, nullable=False)
-    feedback = db.Column(db.Text, nullable=False)
+    feedback = db.Column(db.Text, nullable=True)
     def __init__(self, interaction_id, like, dislike, feedback):
         self.interaction_id = interaction_id
         self.like = like
