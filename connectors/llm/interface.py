@@ -98,7 +98,7 @@ class LLMInterface:
 
         LLMInterface._record_metrics(cb, processing_start, completion_start, completion_end)
 
-    def ask(self, system_prompt, previous_messages, question, agent_id, stream):
+    def ask(self, system_prompt, previous_messages, question, agent_id, stream, interaction_id=None):
         log.debug("querying vector DB")
         results = vector_db.search(question, agent_id)
 
@@ -118,7 +118,8 @@ class LLMInterface:
             for i, doc in enumerate(results):
                 page_content = doc.document.page_content
                 metadata = doc.document.metadata
-                extra_doc_info.append({"metadata": metadata, "page_content": page_content})
+                extra_doc_info.append({"interactionId": interaction_id, "metadata": metadata, "page_content": page_content})
+                
 
                 context_text += f"\n<<Search result {i+1}"
                 if "title" in metadata:
