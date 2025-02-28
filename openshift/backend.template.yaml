@@ -29,6 +29,8 @@ parameters:
     value: quay.io/tangerine/tangerine-backend
   - name: IMAGE_TAG
     value: latest
+  - name: STORE_INTERACTIONS
+    value: "false"
 
 objects:
 # tangerine backend
@@ -97,6 +99,8 @@ objects:
             terminationMessagePath: /dev/termination-log
             name: tangerine-backend
             env:
+              - name: STORE_INTERACTIONS
+                value: ${STORE_INTERACTIONS}
               - name: DB_USERNAME
                 valueFrom:
                   secretKeyRef:
