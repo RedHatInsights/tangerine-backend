@@ -108,7 +108,7 @@ class SimilaritySearchProvider(SearchProvider):
         results = self.store.similarity_search_with_score(
             query=query,
             filter=search_filter,
-            k=2,
+            k=4,
         )
         results = self._process_results(results)
         # Assume scores are already in 0-1 range (cosine similarity)
