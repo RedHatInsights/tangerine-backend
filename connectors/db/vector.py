@@ -117,6 +117,43 @@ class SimilaritySearchProvider(SearchProvider):
         # Assume scores are already in 0-1 range (cosine similarity)
         return [SearchResult(doc, score) for doc, score in results]
 
+class BM25SearchProvider(SearchProvider):
+    """BM25 (Full-Text Search) Search Provider using PostgreSQL."""
+
+    RETRIEVAL_METHOD = "bm25"
+
+    def search(self, query, search_filter) -> list[SearchResult]:
+        """Runs BM25 text search and normalizes scores."""
+        # Perform a full-text search using PostgreSQL's ts_rank_cd function
+        search_query = text("""
+            SELECT document, ts_rank_cd(to_tsvector('english', document), plainto_tsquery(:query)) AS score
+            FROM langchain_pg_embedding
+            WHERE to_tsvector('english', document) @@ plainto_tsquery(:query)
+            ORDER BY score DESC
+            LIMIT 4;
+        """)
+
+        results = db.session.execute(search_query, {"query": query}).fetchall()
+
+        # Convert results into a list of (Document, Score)
+        processed_results = []
+        for row in results:
+            doc = Document(page_content=row[0], metadata={"retrieval_method": self.RETRIEVAL_METHOD})
+            score = row[1]
+            processed_results.append((doc, score))
+
+        # Normalize scores to the [0,1] range
+        scores = [score for _, score in processed_results]
+        if scores:
+            min_score, max_score = min(scores), max(scores)
+            if max_score > min_score:  # Avoid divide-by-zero
+                processed_results = [
+                    (doc, (score - min_score) / (max_score - min_score))
+                    for doc, score in processed_results
+                ]
+
+        results = self._process_results(processed_results)
+        return [SearchResult(doc, score) for doc, score in results]
 
 # because we currently cannot access usage_metadata for embedding calls nor use
 # get_openai_callback() in the same way we can for chat model calls...
@@ -192,6 +229,7 @@ class VectorStoreInterface:
         self.search_providers = [
             MMRSearchProvider(self.store),
             SimilaritySearchProvider(self.store),
+            BM25SearchProvider(self.store),
         ]
 
     def combine_small_chunks(self, chunks):
