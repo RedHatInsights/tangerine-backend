@@ -28,6 +28,7 @@ docling = "*"
 langchain-community = "*"
 prometheus-flask-exporter = "*"
 pypdf2 = "*"
+scikit-learn = "*"
 
 [dev-packages]
 black = "*"
