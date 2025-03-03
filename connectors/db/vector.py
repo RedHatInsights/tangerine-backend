@@ -12,6 +12,9 @@ from langchain_postgres.vectorstores import PGVector
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sqlalchemy import text
 
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
 import connectors.config as cfg
 from resources.metrics import get_counter
 
@@ -286,6 +289,29 @@ class VectorStoreInterface:
             except Exception:
                 log.exception("error adding documents to vector store for batch %d", current_batch)
 
+    def deduplicate_results(self, results, threshold=0.85):
+        """
+        Removes near-duplicate search results based on text similarity.
+        
+        - `threshold=0.85` means chunks with 85%+ text similarity are considered duplicates.
+        - Keeps only the highest-ranked unique chunk.
+        """
+        unique_results = []
+        seen_texts = []
+        
+        vectorizer = TfidfVectorizer().fit_transform([r.document.page_content for r in results])
+        similarities = cosine_similarity(vectorizer)
+
+        for i, result in enumerate(results):
+            text = result.document.page_content.strip()
+            if any(similarities[i, j] > threshold for j in range(i)):
+                continue  # Skip duplicate chunks
+            
+            seen_texts.append(text)
+            unique_results.append(result)
+        
+        return unique_results
+
     def search(self, query, agent_id: int):
         results = []
         search_filter = {"agent_id": str(agent_id), "active": "True"}
@@ -294,6 +320,9 @@ class VectorStoreInterface:
 
         for provider in self.search_providers:
             results.extend(provider.search(query, search_filter))
+
+        # Remove duplicates based on text similarity
+        results = self.deduplicate_results(results)
 
         # Sort the results by relevance score
         results.sort(key=lambda result: result.score, reverse=True)
