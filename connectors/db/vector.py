@@ -193,26 +193,28 @@ class VectorStoreInterface:
 
     def combine_small_chunks(self, chunks):
         """
-        Combine small chunks into the next chunk
-
-        Sometimes we see the text splitter create a chunk containing only a single line (like
-        a header), we will store these small chunks on the next chunk to avoid storing a
-        document with small context
+        Keep merging small chunks into the next one until the result is large enough.
         """
-        for idx, chunk in enumerate(chunks):
+        merged_chunks = []
+        buffer = ""
+
+        for chunk in chunks:
+            if len(chunk.strip()) == 0:  # Ignore empty chunks
+                continue
+
             if len(chunk) < 200:
-                # this chunk is less than 200 chars, move it to the next chunk
-                try:
-                    chunks[idx + 1] = f"{chunk}\n\n{chunks[idx + 1]}"
-                except IndexError:
-                    # we've reached the end and there is no 'next chunk', just give up
-                    break
-                # make note of its index and pop it later...
-                chunks[idx] = "<<removed>>"
+                buffer += chunk + "\n\n"  # Collect small chunks
+            else:
+                if buffer:
+                    chunk = buffer + chunk  # Merge collected buffer into this chunk
+                    buffer = ""  # Reset buffer
+                merged_chunks.append(chunk)
 
-        chunks = list(filter(lambda val: val != "<<removed>>", chunks))
+        # If anything is left in the buffer, add it to the last chunk
+        if buffer and merged_chunks:
+            merged_chunks[-1] += "\n\n" + buffer
 
-        return chunks
+        return merged_chunks
 
     def split_to_document_chunks(self, text_to_split, metadata):
         # find title if possible and add to metadata
