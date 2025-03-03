@@ -90,7 +90,7 @@ class MMRSearchProvider(SearchProvider):
         results = self.store.max_marginal_relevance_search_with_score(
             query=query,
             filter=search_filter,
-            lambda_mult=0.7,
+            lambda_mult=0.85,
             k=4,
         )
         results = self._process_results(results)
