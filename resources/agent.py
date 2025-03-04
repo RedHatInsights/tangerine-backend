@@ -145,12 +145,15 @@ class AgentChatApi(Resource):
         agent = Agent.get(id)
         if not agent:
             return {"message": "agent not found"}, 404
+        agent_name = agent.agent_name
 
         query = request.json.get("query")
         stream = request.json.get("stream") == "true"
         previous_messages = request.json.get("prevMsgs")
 
-        llm_response = llm.ask(agent.system_prompt, previous_messages, query, agent.id, stream)
+        llm_response = llm.ask(
+            agent.system_prompt, previous_messages, query, agent.id, agent_name, stream
+        )
 
         if stream:
             return Response(llm_response(), mimetype="application/json")
