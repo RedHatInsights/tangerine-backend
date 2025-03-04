@@ -136,7 +136,7 @@ For example, to utilize a third party model hosting service, change the embeddin
 
 ## Local Envionment Setup
 
-A development/test environment can be set up with or without docker compose. In both cases, Ollama may be able to make use of your NVIDIA or AMD GPU (see more information about GPU support [here](https://github.com/ollama/ollama/blob/main/docs/gpu.md). On a Mac, Ollama must be run as a standalone application outside of Docker containers since Docker Desktop does not support GPUs.
+A development/test environment can be set up with or without docker compose. In both cases, Ollama may be able to make use of your NVIDIA or AMD GPU (see more information about GPU support [here](https://github.com/ollama/ollama/blob/main/docs/gpu.md)). On a Mac, Ollama must be run as a standalone application outside of Docker containers since Docker Desktop does not support GPUs.
 
 ### With Docker Compose
 

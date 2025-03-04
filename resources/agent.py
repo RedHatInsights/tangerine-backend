@@ -149,18 +149,32 @@ class AgentChatApi(Resource):
         if not agent:
             return {"message": "agent not found"}, 404
 
-        question, session_uuid, stream, previous_messages, interaction_id, client = self._extract_request_data()
+        question, session_uuid, stream, previous_messages, interaction_id, client = (
+            self._extract_request_data()
+        )
         source_doc_chunks = self._retrieve_relevant_documents(agent, question)
         embedding = self._embed_question(question)
         llm_response = self._call_llm(agent, question, previous_messages, stream, interaction_id)
 
         if self._is_streaming_response(llm_response, stream):
             return self._handle_streaming_response(
-                llm_response, question, source_doc_chunks, embedding, session_uuid, interaction_id, client
+                llm_response,
+                question,
+                source_doc_chunks,
+                embedding,
+                session_uuid,
+                interaction_id,
+                client,
             )
 
         return self._handle_final_response(
-            llm_response, question, source_doc_chunks, embedding, session_uuid, interaction_id, client
+            llm_response,
+            question,
+            source_doc_chunks,
+            embedding,
+            session_uuid,
+            interaction_id,
+            client,
         )
 
     def _get_agent(self, agent_id):
@@ -191,13 +205,28 @@ class AgentChatApi(Resource):
         return vector_db.embeddings.embed_query(question)
 
     def _call_llm(self, agent, question, previous_messages, stream, interaction_id):
-        return llm.ask(agent.system_prompt, previous_messages, question, agent.id, stream=stream, interaction_id=interaction_id)
+        return llm.ask(
+            agent.system_prompt,
+            previous_messages,
+            question,
+            agent.id,
+            agent.agent_name,
+            stream=stream,
+            interaction_id=interaction_id,
+        )
 
     def _is_streaming_response(self, llm_response, stream):
         return stream and (callable(llm_response) or hasattr(llm_response, "__iter__"))
 
     def _handle_streaming_response(
-        self, llm_response, question, source_doc_chunks, embedding, session_uuid, interaction_id, client
+        self,
+        llm_response,
+        question,
+        source_doc_chunks,
+        embedding,
+        session_uuid,
+        interaction_id,
+        client,
     ):
 
         def accumulate_and_stream():
@@ -207,15 +236,36 @@ class AgentChatApi(Resource):
                 accumulated_response += text_content
                 yield raw_chunk
             self._log_interaction(
-                question, accumulated_response, source_doc_chunks, embedding, session_uuid, interaction_id, client
+                question,
+                accumulated_response,
+                source_doc_chunks,
+                embedding,
+                session_uuid,
+                interaction_id,
+                client,
             )
 
         return Response(stream_with_context(accumulate_and_stream()))
 
     def _handle_final_response(
-        self, llm_response, question, source_doc_chunks, embedding, session_uuid, interaction_id, client
+        self,
+        llm_response,
+        question,
+        source_doc_chunks,
+        embedding,
+        session_uuid,
+        interaction_id,
+        client,
     ):
-        self._log_interaction(question, llm_response, source_doc_chunks, embedding, session_uuid, interaction_id, client)
+        self._log_interaction(
+            question,
+            llm_response,
+            source_doc_chunks,
+            embedding,
+            session_uuid,
+            interaction_id,
+            client,
+        )
         return {"response": llm_response}, 200
 
     def _extract_text_from_chunk(self, raw_chunk):
@@ -233,7 +283,9 @@ class AgentChatApi(Resource):
     def _interaction_storage_enabled(self) -> bool:
         return config.STORE_INTERACTIONS is True
 
-    def _log_interaction(self, question, response, source_doc_chunks, embedding, session_uuid, interaction_id, client):
+    def _log_interaction(
+        self, question, response, source_doc_chunks, embedding, session_uuid, interaction_id, client
+    ):
         if self._interaction_storage_enabled() is False:
             return
         try:

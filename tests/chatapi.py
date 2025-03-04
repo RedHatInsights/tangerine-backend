@@ -81,7 +81,13 @@ def test_post_chat_non_streaming(agent_chat_api):
         mock_agent, mock_query, mock_previous_messages, False, mock_interaction_id
     )
     agent_chat_api._handle_final_response.assert_called_once_with(
-        mock_llm_response, mock_query, mock_source_doc_chunks, mock_embedding, mock_session_uuid, mock_interaction_id, mock_client
+        mock_llm_response,
+        mock_query,
+        mock_source_doc_chunks,
+        mock_embedding,
+        mock_session_uuid,
+        mock_interaction_id,
+        mock_client,
     )
 
 
@@ -130,5 +136,11 @@ def test_post_chat_streaming(agent_chat_api):
         mock_agent, mock_query, mock_previous_messages, True, mock_interaction_id
     )
     agent_chat_api._handle_streaming_response.assert_called_once_with(
-        mock_llm_response, mock_query, mock_source_doc_chunks, mock_embedding, mock_session_uuid, mock_interaction_id, mock_client
+        mock_llm_response,
+        mock_query,
+        mock_source_doc_chunks,
+        mock_embedding,
+        mock_session_uuid,
+        mock_interaction_id,
+        mock_client,
     )
