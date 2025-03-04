@@ -1,0 +1,15 @@
+{
+    "Servers": {
+        "1": {
+            "Name": "Tangerine Postgres",
+            "Group": "Servers",
+            "Host": "postgres",
+            "Port": 5432,
+            "MaintenanceDB": "citrus",
+            "Username": "citrus",
+            "PassFile": "/var/lib/pgadmin/pgpassfile",
+            "SSLMode": "prefer",
+            "ConnectNow": true
+        }
+    }
+}

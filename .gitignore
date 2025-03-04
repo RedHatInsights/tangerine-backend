@@ -3,6 +3,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+set_env.sh
+
 s3.yaml
 
 # C extensions
@@ -165,3 +167,7 @@ cython_debug/
 
 # local docker data
 data/
+
+# ignore local docker settings
+docker-compose-maas.yml
+

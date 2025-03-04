@@ -140,11 +140,11 @@ A development/test environment can be set up with or without docker compose. In 
 
 ### With Docker Compose
 
-> ***NOTE:***  Not supported with Mac, see [Without Docker Compose](#without-docker-compose) below.
-
-The docker compose file offers an easy way to spin up all components. [ollama](https://ollama.com) is used to host the LLM and embedding model. For utilization of your GPU, refer to the comments in the compose file to see which configurations to uncomment on the 'ollama' container.
+The docker compose file offers an easy way to spin up all components. [ollama](https://ollama.com) is used to host the LLM and embedding model. For utilization of your GPU, refer to the comments in the compose file to see which configurations to uncomment on the 'ollama' container. Postgres persists the data, and pgadmin allows you to query the database.
 
 You will need Docker version 27.5.1 on Fedora 40 and 41 to be able to use docker compose (not docker-compose) and for that You will need to reinstall latest docker version from the [fedora docker repo](https://docs.docker.com/engine/install/fedora/#install-using-the-repository) or follow the instructions here. 
+
+Docker 27.5.1 is confirmed working with macOS 15.3.
 
 To get the correct version of docker, add the repo:
 
@@ -197,6 +197,8 @@ Run through the postinstall steps https://docs.docker.com/engine/install/linux-p
    ```
 
 1. (optional) Follow these steps to start the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend#with-docker-compose)
+
+Note: You can access pgadmin at localhost:5050.
 
 #### Using huggingface text-embeddings-inference server to host embedding model (deprecated)
 
@@ -312,6 +314,15 @@ to use this to test different embedding models that are not supported by ollama,
     ```
 
 1. (optional) Follow these steps to start the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend#without-docker-compose)
+
+## Debugging in VSCode
+
+Run postgres and ollama either locally or in containers. Don't run the backend container. Click on "Run & Debug" in the left menu and then run the "Debug Tangerine Backend" debug target. You can now set breakpoints and inspect runtime state.
+
+There's a second debug target for the unit tests if you want to run those in a debugger.
+
+## Mac Development Tips
+Ollama running in Docker on Apple Silicon cannot make use of hardware acceleration. That means the LLM will be very slow to respond running in Docker, even on a very capable machine. However, running the model locally does make use of acceleration and is quite fast. If you are working on a Mac the best setup is to run the model through ollama locally and then the other deps like the database in Docker. The way the compose file is set up, the networking is all seemless. If you stop the ollama container and then ollama serve locally it will all just work together. You'll have the best local development setup if you combine the model running locally and tangerine-backend running in a debugger in VSCode with postgres and pgadmin running in Docker!
 
 ## Synchronizing Documents from S3
 
