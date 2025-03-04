@@ -3,13 +3,15 @@ import itertools
 import json
 import logging
 import math
+import re
 from abc import ABC, abstractmethod
 
 import httpx
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain.text_splitter import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
+
 from sqlalchemy import text
 
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -27,15 +29,16 @@ embed_prompt_tokens_metric = get_counter(
 )
 
 TXT_SEPARATORS = [
-    "\n\n## ",
+    "\n\n## ",   # Keep Markdown headers as a split point
     "\n\n### ",
     "\n\n#### ",
     "\n\n##### ",
     "\n\n###### ",
-    "\n\n",
-    "\n",
-    " ",
-    "",
+    "\n\n",      # Paragraph breaks
+    ". ",        # Sentence breaks (keeps full sentences together)
+    "? ",
+    "! ",
+    "; ",        # Semicolons can be useful split points in long lists
 ]
 
 
@@ -227,8 +230,8 @@ class VectorStoreInterface:
         except Exception:
             log.exception("error initializing vector store")
         self.search_providers = [
-            MMRSearchProvider(self.store),
-            SimilaritySearchProvider(self.store),
+            #MMRSearchProvider(self.store),
+            #SimilaritySearchProvider(self.store),
             BM25SearchProvider(self.store),
         ]
 
@@ -257,27 +260,48 @@ class VectorStoreInterface:
 
         return merged_chunks
 
-    def split_to_document_chunks(self, text_to_split, metadata):
-        # find title if possible and add to metadata
-        for line in text_to_split.splitlines():
-            if line.startswith("# "):
-                # we found a title header, add it to metadata
-                metadata["title"] = line.lstrip("# ").strip()
-                break
+
+    def has_markdown_headers(self, text):
+        """Checks if a document contains markdown headers."""
+        return bool(re.search(r"^#{1,6} ", text, re.MULTILINE))
+
+    def split_to_document_chunks(self, text, metadata, max_chunk_size=4000):
+        """Uses markdown-aware chunking and drops any chunk over a hard size limit."""
+
+        # Step 1: Use markdown-aware text splitting
+        if self.has_markdown_headers(text):
+            text_splitter = MarkdownHeaderTextSplitter(
+                headers_to_split_on=[
+                    ("#", "H1"),
+                    ("##", "H2"),
+                    ("###", "H3"),
+                    ("####", "H4"),
+                    ("#####", "H5"),
+                    ("######", "H6"),
+                ]
+            )
+
+            # MarkdownHeaderTextSplitter returns Documents, extract text first
+            markdown_chunks = text_splitter.split_text(text)
+            chunks = [doc.page_content for doc in markdown_chunks]  # Convert to raw text
+
         else:
-            metadata["title"] = metadata["full_path"]
+            text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=2000,  # Keep chunks readable
+                chunk_overlap=200,  # Small overlap for context
+                separators=["\n\n", ". ", "? ", "! "]
+            )
+            chunks = text_splitter.split_text(text)
 
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=self.vector_chunk_size,
-            chunk_overlap=self.vector_chunk_overlap,
-            separators=TXT_SEPARATORS,  # todo: split on more doc types
-        )
-
-        chunks = text_splitter.split_text(text_to_split)
+        # Step 2: Merge small chunks
         chunks = self.combine_small_chunks(chunks)
 
+        # Step 3: Apply a Hard Cutoff for Chunk Size
+        filtered_chunks = [chunk for chunk in chunks if len(chunk) <= max_chunk_size]
+
+        # Step 4: Convert to Document objects
         documents = []
-        for chunk in chunks:
+        for chunk in filtered_chunks:
             if cfg.EMBED_DOCUMENT_PREFIX:
                 chunk = f"{cfg.EMBED_DOCUMENT_PREFIX}: {chunk}"
             documents.append(Document(page_content=chunk, metadata=metadata))
@@ -378,7 +402,7 @@ class VectorStoreInterface:
 
     def _build_metadata_filter(self, metadata):
         filter_stmts = []
-
+    
         metadata_as_str = {key: str(val) for key, val in metadata.items()}
 
         for key in metadata_as_str.keys():
@@ -417,7 +441,7 @@ class VectorStoreInterface:
         self.store.delete(ids)
 
     def delete_document_chunks(self, search_filter: dict) -> dict:
-        results = self.get_ids_and_cmetadata(filter)
+        results = self.get_ids_and_cmetadata(search_filter)
 
         matching_docs = []
         for result in results:
