@@ -11,6 +11,7 @@ from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
 from langchain.text_splitter import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
+from decimal import Decimal
 
 from sqlalchemy import text
 
@@ -97,7 +98,7 @@ class MMRSearchProvider(SearchProvider):
             query=query,
             filter=search_filter,
             lambda_mult=0.85,
-            k=4,
+            k=8,
         )
         results = self._process_results(results)
         # Normalize (Invert distance-based scores)
@@ -114,49 +115,88 @@ class SimilaritySearchProvider(SearchProvider):
         results = self.store.similarity_search_with_score(
             query=query,
             filter=search_filter,
-            k=4,
+            k=8,
         )
         results = self._process_results(results)
         # Assume scores are already in 0-1 range (cosine similarity)
         return [SearchResult(doc, score) for doc, score in results]
 
-class BM25SearchProvider(SearchProvider):
-    """BM25 (Full-Text Search) Search Provider using PostgreSQL."""
 
-    RETRIEVAL_METHOD = "bm25"
+class HybridSearchProvider(SearchProvider):
+    """Hybrid Search combining Vector Similarity and Full-Text BM25 Search in PGVector."""
 
+    RETRIEVAL_METHOD = "hybrid"
+
+    def __init__(self, store):
+        super().__init__(store)
+        self.embeddings_model = OpenAIEmbeddings(
+            http_client=httpx.Client(transport=CustomTransport(httpx.HTTPTransport())),
+            model=cfg.EMBED_MODEL_NAME,
+            openai_api_base=cfg.EMBED_BASE_URL,
+            openai_api_key=cfg.EMBED_API_KEY,
+            check_embedding_ctx_length=False,
+        )
+
+    # This is based on a couple of different sources
+    # First, the PGVector hybrid search example project https://github.com/pgvector/pgvector-python/tree/master/examples/hybrid_search
+    # Second, LangChain's hybrid search docs https://python.langchain.com/docs/how_to/hybrid/
     def search(self, query, search_filter) -> list[SearchResult]:
-        """Runs BM25 text search and normalizes scores."""
-        # Perform a full-text search using PostgreSQL's ts_rank_cd function
-        search_query = text("""
-            SELECT document, ts_rank_cd(to_tsvector('english', document), plainto_tsquery(:query)) AS score
-            FROM langchain_pg_embedding
-            WHERE to_tsvector('english', document) @@ plainto_tsquery(:query)
+        """Hybrid search provider combining vector similarity and full-text BM25 search."""
+
+        # Get embedding for the quyery
+        query_embedding = self.embeddings_model.embed_query(query)
+        
+        # Convert list to vectors
+        query_embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
+
+        # I cannot claim to know exactly what this does and how and why
+        # I largely copied this from the PGVector hybrid search example project
+        hybrid_search_sql = text("""
+            WITH semantic_search AS (
+                SELECT id, document,
+                    -- Normalize vector similarity to [0,1]
+                    1.0 - (embedding <=> CAST(:embedding AS vector)) AS norm_vector_score,
+                    RANK() OVER (ORDER BY embedding <=> CAST(:embedding AS vector)) AS rank
+                FROM langchain_pg_embedding
+                ORDER BY embedding <=> CAST(:embedding AS vector)
+                LIMIT 20
+            ),
+            keyword_search AS (
+                SELECT id, document,
+                    -- Normalize BM25 scores by scaling to the highest score in the batch
+                    ts_rank_cd(to_tsvector('english', document), plainto_tsquery(:query)) /
+                    (SELECT MAX(ts_rank_cd(to_tsvector('english', document), plainto_tsquery(:query))) FROM langchain_pg_embedding) AS norm_bm25_score,
+                    RANK() OVER (ORDER BY ts_rank_cd(to_tsvector('english', document), plainto_tsquery(:query)) DESC) AS rank
+                FROM langchain_pg_embedding, plainto_tsquery('english', :query) query
+                WHERE to_tsvector('english', document) @@ query
+                ORDER BY ts_rank_cd(to_tsvector('english', document), query) DESC
+                LIMIT 20
+            )
+            SELECT
+                COALESCE(semantic_search.id, keyword_search.id) AS id,
+                -- Use normalized scores directly instead of reciprocal ranking
+                COALESCE(semantic_search.norm_vector_score, 0.0) * 0.5 +
+                COALESCE(keyword_search.norm_bm25_score, 0.0) * 0.5 AS score,
+                COALESCE(semantic_search.document, keyword_search.document) AS document
+            FROM semantic_search
+            FULL OUTER JOIN keyword_search ON semantic_search.id = keyword_search.id
             ORDER BY score DESC
-            LIMIT 4;
+            LIMIT 5;
         """)
 
-        results = db.session.execute(search_query, {"query": query}).fetchall()
+        results = db.session.execute(hybrid_search_sql, {"query": query, "embedding": query_embedding_str}).fetchall()
 
-        # Convert results into a list of (Document, Score)
+        # Process results into LangChain's SearchResult format
         processed_results = []
         for row in results:
-            doc = Document(page_content=row[0], metadata={"retrieval_method": self.RETRIEVAL_METHOD})
-            score = row[1]
+            doc = Document(page_content=row[2], metadata={"retrieval_method": self.RETRIEVAL_METHOD})
+            # Convert decimal to float to preserve compatibility with the other search providers
+            score = float(row[1]) if isinstance(row[1], Decimal) else row[1]  
             processed_results.append((doc, score))
-
-        # Normalize scores to the [0,1] range
-        scores = [score for _, score in processed_results]
-        if scores:
-            min_score, max_score = min(scores), max(scores)
-            if max_score > min_score:  # Avoid divide-by-zero
-                processed_results = [
-                    (doc, (score - min_score) / (max_score - min_score))
-                    for doc, score in processed_results
-                ]
 
         results = self._process_results(processed_results)
         return [SearchResult(doc, score) for doc, score in results]
+
 
 # because we currently cannot access usage_metadata for embedding calls nor use
 # get_openai_callback() in the same way we can for chat model calls...
@@ -230,9 +270,9 @@ class VectorStoreInterface:
         except Exception:
             log.exception("error initializing vector store")
         self.search_providers = [
-            #MMRSearchProvider(self.store),
-            #SimilaritySearchProvider(self.store),
-            BM25SearchProvider(self.store),
+            MMRSearchProvider(self.store),
+            SimilaritySearchProvider(self.store),
+            HybridSearchProvider(self.store),
         ]
 
     def combine_small_chunks(self, chunks):
