@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 
 import httpx
 from langchain_core.documents import Document
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
 from langchain.text_splitter import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 from decimal import Decimal
@@ -84,7 +84,7 @@ class MMRSearchProvider(SearchProvider):
             query=query,
             filter=search_filter,
             lambda_mult=0.85,
-            k=8,
+            k=4,
         )
         results = self._process_results(results)
         # Normalize (Invert distance-based scores)
@@ -101,7 +101,7 @@ class SimilaritySearchProvider(SearchProvider):
         results = self.store.similarity_search_with_score(
             query=query,
             filter=search_filter,
-            k=8,
+            k=4,
         )
         results = self._process_results(results)
         # Assume scores are already in 0-1 range (cosine similarity)
@@ -139,11 +139,13 @@ class HybridSearchProvider(SearchProvider):
         # I largely copied this from the PGVector hybrid search example project
         hybrid_search_sql = text("""
             WITH semantic_search AS (
-                SELECT id, document,
+                SELECT id, document, cmetadata, 
                     -- Normalize vector similarity to [0,1]
                     1.0 - (embedding <=> CAST(:embedding AS vector)) AS norm_vector_score,
                     RANK() OVER (ORDER BY embedding <=> CAST(:embedding AS vector)) AS rank
                 FROM langchain_pg_embedding
+                WHERE cmetadata->>'active' = 'True' AND
+                    cmetadata->>'agent_id' = :agent_id
                 ORDER BY embedding <=> CAST(:embedding AS vector)
                 LIMIT 20
             ),
@@ -167,10 +169,10 @@ class HybridSearchProvider(SearchProvider):
             FROM semantic_search
             FULL OUTER JOIN keyword_search ON semantic_search.id = keyword_search.id
             ORDER BY score DESC
-            LIMIT 5;
+            LIMIT 4;
         """)
 
-        results = db.session.execute(hybrid_search_sql, {"query": query, "embedding": query_embedding_str}).fetchall()
+        results = db.session.execute(hybrid_search_sql, {"query": query, "embedding": query_embedding_str, "agent_id": search_filter["agent_id"]}).fetchall()
 
         # Process results into LangChain's SearchResult format
         processed_results = []
@@ -291,10 +293,32 @@ class VectorStoreInterface:
         """Checks if a document contains markdown headers."""
         return bool(re.search(r"^#{1,6} ", text, re.MULTILINE))
 
+    def remove_tables_of_contents(self, chunks):
+        """Removes MKDocs-style TOCs and footers, even when containing Markdown links."""
+        TOC_PREFIXES = ["Skip to content", "Table of Contents"]
+        FOOTER_PATTERN = re.compile(r"Made with .*Material for MkDocs", re.IGNORECASE)
+
+        cleaned_chunks = []
+        for chunk in chunks:
+            stripped_chunk = chunk.strip()
+            
+            # Skip TOC-like chunks
+            if any(stripped_chunk.startswith(prefix) for prefix in TOC_PREFIXES):
+                continue
+            
+            # Skip footers with Markdown links
+            if FOOTER_PATTERN.search(stripped_chunk):
+                continue
+            
+            # Passed both checks, keep it
+            cleaned_chunks.append(chunk)
+
+        return cleaned_chunks
+
     def split_to_document_chunks(self, text, metadata, max_chunk_size=4000):
         """Uses markdown-aware chunking and drops any chunk over a hard size limit."""
 
-        # Step 1: Use markdown-aware text splitting
+        # Use markdown-aware text splitting
         if self.has_markdown_headers(text):
             text_splitter = MarkdownHeaderTextSplitter(
                 headers_to_split_on=[
@@ -319,13 +343,14 @@ class VectorStoreInterface:
             )
             chunks = text_splitter.split_text(text)
 
-        # Step 2: Merge small chunks
         chunks = self.combine_small_chunks(chunks)
+        
+        chunks = self.remove_tables_of_contents(chunks)
 
-        # Step 3: Apply a Hard Cutoff for Chunk Size
+        # Apply a Hard Cutoff for Chunk Size
         filtered_chunks = [chunk for chunk in chunks if len(chunk) <= max_chunk_size]
 
-        # Step 4: Convert to Document objects
+        # Convert to Document objects
         documents = []
         for chunk in filtered_chunks:
             if cfg.EMBED_DOCUMENT_PREFIX:
@@ -377,28 +402,92 @@ class VectorStoreInterface:
             except Exception:
                 log.exception("error adding documents to vector store for batch %d", current_batch)
 
-    def deduplicate_results(self, results, threshold=0.85):
+    def deduplicate_results(self, results, threshold=0.90):
         """
         Removes near-duplicate search results based on text similarity.
         
-        - `threshold=0.85` means chunks with 85%+ text similarity are considered duplicates.
+        - `threshold=0.90` means chunks with >= 90% text similarity are considered duplicates.
         - Keeps only the highest-ranked unique chunk.
         """
-        unique_results = []
-        seen_texts = []
-        
+        if not results:
+            return []
+
         vectorizer = TfidfVectorizer().fit_transform([r.document.page_content for r in results])
         similarities = cosine_similarity(vectorizer)
 
+        unique_results = []
+        seen_indices = set()
+
         for i, result in enumerate(results):
-            text = result.document.page_content.strip()
-            if any(similarities[i, j] > threshold for j in range(i)):
-                continue  # Skip duplicate chunks
-            
-            seen_texts.append(text)
+            if i in seen_indices:
+                continue  # Skip already marked duplicates
+
+            # Mark similar results as duplicates
+            for j in range(i + 1, len(results)):
+                if similarities[i, j] > threshold:
+                    seen_indices.add(j)
+
             unique_results.append(result)
-        
+
         return unique_results
+
+    def rank_results_with_llm(self, query, search_results):
+        """
+        Uses the LLM to rank search results based on relevance.
+        Falls back to score-based ranking if LLM fails.
+        """
+        if len(search_results) <= 1:
+            return search_results  # No need to rank if there's only one result
+
+        # Construct prompt
+        document_list = "\n".join([f"{i+1}. {result.document.page_content[:300]}" for i, result in enumerate(search_results)])
+        prompt = f"""
+        You are an AI search assistant. Rank the following search results from most to least relevant to the given query.
+
+        ### Query:
+        "{query}"
+
+        ### Documents:
+        {document_list}
+
+        ### Instructions for Ranking:
+        1. **Prioritize well-written prose** that directly answers the query.
+        2. **Do NOT rank tables of contents, lists of links, or navigation menus highly**, as they are not meaningful responses.
+        3. **Prefer documents that provide clear, informative, and explanatory content.**
+        4. **Ignore documents that only contain a collection of links, bullet points, or raw lists with no explanation.**
+        5. **If a document is highly repetitive or contains mostly boilerplate text, rank it lower.**
+        6. **Only return a comma-separated list of numbers corresponding to the ranking order. Do NOT include explanations or extra formatting.**
+        7. **If you are unsure about a document, you can skip it.**
+        8. **Skip any document that starts with the string "Skip to content"**
+
+        ### Example Output:
+        1, 3, 5, 2, 4
+        """
+
+        try:
+            reranker = ChatOpenAI(
+            model=cfg.LLM_MODEL_NAME,
+            openai_api_base=cfg.LLM_BASE_URL,
+            openai_api_key=cfg.LLM_API_KEY,
+            temperature=cfg.LLM_TEMPERATURE,
+            )
+            # Send to LLM and get response
+            llm_response = reranker.invoke(prompt)
+            ranking = [int(num.strip()) - 1 for num in llm_response.content.split(",")]
+
+            # Validate ranking output
+            if not ranking or max(ranking) >= len(search_results):
+                raise ValueError("Invalid model ranking response")
+
+            # Sort results based on LLM ranking
+            sorted_results = [search_results[i] for i in ranking if i < len(search_results)]
+            return sorted_results
+
+        except Exception as e:
+            print(f"model ranking failed: {e}. Falling back to score-based ranking.")
+
+            # Fallback: Sort by raw score (descending)
+            return sorted(search_results, key=lambda r: r.score, reverse=True)
 
     def search(self, query, agent_id: int):
         results = []
@@ -410,15 +499,15 @@ class VectorStoreInterface:
             results.extend(provider.search(query, search_filter))
 
         # Remove duplicates based on text similarity
-        results = self.deduplicate_results(results)
+        deduped_results = self.deduplicate_results(results)
 
         # Sort the results by relevance score
-        results.sort(key=lambda result: result.score, reverse=True)
+        sorted_results = self.rank_results_with_llm(query, deduped_results)
 
         # de-dupe, 'Document' is unhashable so check page content
         unique_results = []
         seen_pages = set()
-        for new_result in results:
+        for new_result in sorted_results:
             page_text = new_result.document.page_content
             if page_text not in seen_pages:
                 seen_pages.add(page_text)
