@@ -29,20 +29,6 @@ embed_prompt_tokens_metric = get_counter(
     "embed_prompt_tokens", "Embedding model prompt tokens usage"
 )
 
-TXT_SEPARATORS = [
-    "\n\n## ",   # Keep Markdown headers as a split point
-    "\n\n### ",
-    "\n\n#### ",
-    "\n\n##### ",
-    "\n\n###### ",
-    "\n\n",      # Paragraph breaks
-    ". ",        # Sentence breaks (keeps full sentences together)
-    "? ",
-    "! ",
-    "; ",        # Semicolons can be useful split points in long lists
-]
-
-
 class SearchResult:
     """Class to hold search results with document and score."""
 
