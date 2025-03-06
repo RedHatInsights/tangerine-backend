@@ -225,6 +225,7 @@ class VectorStoreInterface:
     def __init__(self):
         self.store = None
         self.vector_chunk_size = 2000
+        self.vector_min_chunk_size = 200
         self.vector_chunk_overlap = 200
         self.batch_size = 32
         self.db = db
@@ -264,17 +265,20 @@ class VectorStoreInterface:
             if len(chunk.strip()) == 0:  # Ignore empty chunks
                 continue
 
-            if len(chunk) < 200:
+            if len(chunk) < self.vector_min_chunk_size:
                 buffer += chunk + "\n\n"  # Collect small chunks
             else:
                 if buffer:
-                    chunk = buffer + chunk  # Merge collected buffer into this chunk
-                    buffer = ""  # Reset buffer
-                merged_chunks.append(chunk)
+                    if len(buffer) + len(chunk) < self.vector_chunk_size:
+                        chunk = buffer + chunk  # Merge collected buffer into this chunk
+                    else:
+                        merged_chunks.append(buffer)
+                    buffer = ""
+                    merged_chunks.append(chunk)
 
         # If anything is left in the buffer, add it to the last chunk
-        if buffer and merged_chunks:
-            merged_chunks[-1] += "\n\n" + buffer
+        if buffer:
+            merged_chunks.append("\n\n" + buffer)
 
         return merged_chunks
 
