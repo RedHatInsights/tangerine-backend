@@ -30,12 +30,10 @@ prometheus-flask-exporter = "*"
 pypdf2 = "*"
 
 [dev-packages]
-black = "*"
-isort = "*"
-flake8 = "*"
 ipython = "*"
 pytest = "*"
 pre-commit = "*"
+ruff = "*"
 
 [requires]
 python_version = "3.12"
