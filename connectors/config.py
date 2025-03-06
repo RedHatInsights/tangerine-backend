@@ -30,6 +30,8 @@ LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", 0.7))
 
 STORE_INTERACTIONS = os.getenv("STORE_INTERACTIONS", "false").lower() in ["1", "t", "true"]
 
+ENABLE_MODEL_RANKING = os.getenv("ENABLE_MODEL_RANKING", "false").lower() in ["1", "t", "true"]
+
 EMBED_BASE_URL = os.getenv("EMBED_BASE_URL", "http://localhost:11434/v1")
 EMBED_API_KEY = os.getenv("EMBED_API_KEY", "EMPTY")
 EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME", "nomic-embed-text")

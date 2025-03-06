@@ -6,13 +6,14 @@ import logging
 import math
 import re
 from abc import ABC, abstractmethod
+from decimal import Decimal
+
 
 import httpx
 from langchain_core.documents import Document
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
 from langchain.text_splitter import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
-from decimal import Decimal
 
 from sqlalchemy import text
 
@@ -454,28 +455,28 @@ class VectorStoreInterface:
         ### Example Output:
         1, 3, 5, 2, 4
         """
-            reranker = ChatOpenAI(
-            model=cfg.LLM_MODEL_NAME,
-            openai_api_base=cfg.LLM_BASE_URL,
-            openai_api_key=cfg.LLM_API_KEY,
-            temperature=cfg.LLM_TEMPERATURE,
-            )
-            try:
-                # Send to LLM and get response
-                llm_response = reranker.invoke(prompt)
-            except Exception as e:
-                print(f"model ranking failed: {e}. Falling back to score-based ranking.")
-                # Fallback: Sort by raw score (descending)
-                return sorted(search_results, key=lambda r: r.score, reverse=True)
-            ranking = [int(num.strip()) - 1 for num in llm_response.content.split(",")]
+        reranker = ChatOpenAI(
+                    model=cfg.LLM_MODEL_NAME,
+                    openai_api_base=cfg.LLM_BASE_URL,
+                    openai_api_key=cfg.LLM_API_KEY,
+                    temperature=cfg.LLM_TEMPERATURE,
+                    )
+        try:
+            # Send to LLM and get response
+            llm_response = reranker.invoke(prompt)
+        except Exception as e:
+            print(f"model ranking failed: {e}. Falling back to score-based ranking.")
+            # Fallback: Sort by raw score (descending)
+            return sorted(search_results, key=lambda r: r.score, reverse=True)
+        ranking = [int(num.strip()) - 1 for num in llm_response.content.split(",")]
 
-            # Validate ranking output
-            if not ranking or max(ranking) >= len(search_results):
-                raise ValueError("Invalid model ranking response")
+        # Validate ranking output
+        if not ranking or max(ranking) >= len(search_results):
+            raise ValueError("Invalid model ranking response")
 
-            # Sort results based on LLM ranking
-            sorted_results = [search_results[i] for i in ranking if i < len(search_results)]
-            return sorted_results
+        # Sort results based on LLM ranking
+        sorted_results = [search_results[i] for i in ranking if i < len(search_results)]
+        return sorted_results
 
     def search(self, query, agent_id: int):
         results = []
@@ -489,8 +490,11 @@ class VectorStoreInterface:
         # Remove duplicates based on text similarity
         deduped_results = self.deduplicate_results(results)
 
-        # Sort the results by relevance score
-        sorted_results = self.rank_results_with_llm(query, deduped_results)
+        # Rank the results using LLM if enabled, otherwise by score
+        if cfg.ENABLE_MODEL_RANKING:
+            sorted_results = self.rank_results_with_llm(query, deduped_results)
+        else:
+            sorted_results = sorted(deduped_results, key=lambda r: r.score, reverse=True)
 
         # de-dupe, 'Document' is unhashable so check page content
         unique_results = []
