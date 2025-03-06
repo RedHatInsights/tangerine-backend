@@ -30,9 +30,6 @@ pypdf2 = "*"
 scikit-learn = "*"
 
 [dev-packages]
-black = "*"
-isort = "*"
-flake8 = "*"
 ipython = "*"
 pytest = "*"
 ruff = "*"

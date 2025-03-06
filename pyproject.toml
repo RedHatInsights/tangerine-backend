@@ -1,0 +1,9 @@
+[tool.pytest.ini_options]
+addopts = ["--ignore=data/"]
+
+[tool.ruff.lint]
+line-length = 100
+indent-width = 4
+
+# Assume Python 3.9
+target-version = "py312"
