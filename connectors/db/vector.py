@@ -454,16 +454,19 @@ class VectorStoreInterface:
         ### Example Output:
         1, 3, 5, 2, 4
         """
-
-        try:
             reranker = ChatOpenAI(
             model=cfg.LLM_MODEL_NAME,
             openai_api_base=cfg.LLM_BASE_URL,
             openai_api_key=cfg.LLM_API_KEY,
             temperature=cfg.LLM_TEMPERATURE,
             )
-            # Send to LLM and get response
-            llm_response = reranker.invoke(prompt)
+            try:
+                # Send to LLM and get response
+                llm_response = reranker.invoke(prompt)
+            except Exception as e:
+                print(f"model ranking failed: {e}. Falling back to score-based ranking.")
+                # Fallback: Sort by raw score (descending)
+                return sorted(search_results, key=lambda r: r.score, reverse=True)
             ranking = [int(num.strip()) - 1 for num in llm_response.content.split(",")]
 
             # Validate ranking output
@@ -473,12 +476,6 @@ class VectorStoreInterface:
             # Sort results based on LLM ranking
             sorted_results = [search_results[i] for i in ranking if i < len(search_results)]
             return sorted_results
-
-        except Exception as e:
-            print(f"model ranking failed: {e}. Falling back to score-based ranking.")
-
-            # Fallback: Sort by raw score (descending)
-            return sorted(search_results, key=lambda r: r.score, reverse=True)
 
     def search(self, query, agent_id: int):
         results = []
