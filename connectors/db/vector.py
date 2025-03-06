@@ -407,16 +407,16 @@ class VectorStoreInterface:
         similarities = cosine_similarity(vectorizer)
 
         unique_results = []
-        seen_indices = set()
+        indicies_of_dups = set()
 
         for i, result in enumerate(results):
-            if i in seen_indices:
+            if i in indicies_of_dups:
                 continue  # Skip already marked duplicates
 
             # Mark similar results as duplicates
             for j in range(i + 1, len(results)):
                 if similarities[i, j] > threshold:
-                    seen_indices.add(j)
+                    indicies_of_dups.add(j)
 
             unique_results.append(result)
 
