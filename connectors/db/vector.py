@@ -288,28 +288,6 @@ class VectorStoreInterface:
         """Checks if a document contains markdown headers."""
         return bool(re.search(r"^#{1,6} ", text, re.MULTILINE))
 
-    def remove_tables_of_contents(self, chunks):
-        """Removes MKDocs-style TOCs and footers, even when containing Markdown links."""
-        TOC_PREFIXES = ["Skip to content", "Table of Contents"]
-        FOOTER_PATTERN = re.compile(r"Made with .*Material for MkDocs", re.IGNORECASE)
-
-        cleaned_chunks = []
-        for chunk in chunks:
-            stripped_chunk = chunk.strip()
-            
-            # Skip TOC-like chunks
-            if any(stripped_chunk.startswith(prefix) for prefix in TOC_PREFIXES):
-                continue
-            
-            # Skip footers with Markdown links
-            if FOOTER_PATTERN.search(stripped_chunk):
-                continue
-            
-            # Passed both checks, keep it
-            cleaned_chunks.append(chunk)
-
-        return cleaned_chunks
-
     def split_to_document_chunks(self, text, metadata, max_chunk_size=4000):
         """Uses markdown-aware chunking and drops any chunk over a hard size limit."""
 
@@ -340,8 +318,6 @@ class VectorStoreInterface:
 
         chunks = self.combine_small_chunks(chunks)
         
-        chunks = self.remove_tables_of_contents(chunks)
-
         # Convert to Document objects
         documents = []
         for chunk in chunks:
