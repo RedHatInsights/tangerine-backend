@@ -1,0 +1,46 @@
+name: gh-actions
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint:
+    pre-commit: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Run pre-commit
+      uses: pre-commit/action@v3
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pipenv'
+
+    - name: Install pipenv
+      run: curl https://raw.githubusercontent.com/pypa/pipenv/master/get-pipenv.py | python
+
+    - name: Install dependencies
+      run: pipenv install --system --deploy --dev
+
+    - name: Run pytest
+      run: |
+        pytest -v -s
