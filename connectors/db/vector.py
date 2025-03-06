@@ -341,12 +341,9 @@ class VectorStoreInterface:
         
         chunks = self.remove_tables_of_contents(chunks)
 
-        # Apply a Hard Cutoff for Chunk Size
-        filtered_chunks = [chunk for chunk in chunks if len(chunk) <= max_chunk_size]
-
         # Convert to Document objects
         documents = []
-        for chunk in filtered_chunks:
+        for chunk in chunks:
             if cfg.EMBED_DOCUMENT_PREFIX:
                 chunk = f"{cfg.EMBED_DOCUMENT_PREFIX}: {chunk}"
             documents.append(Document(page_content=chunk, metadata=metadata))
