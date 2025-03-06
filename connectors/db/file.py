@@ -216,7 +216,7 @@ def _html_to_md(content: str) -> str:
             element.decompose()
 
     # mkdocs: extract content found at <div class="md-content">
-    if doc_content := soup.find("article", class_="doc"):
+    if doc_content := soup.find("div", class_="md-content"):
         # remove "Edit this page" button
         edit_button = doc_content.find("a", title="Edit this page")
         if edit_button:
