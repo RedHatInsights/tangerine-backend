@@ -1,4 +1,5 @@
 import io
+import os
 import itertools
 import json
 import logging
@@ -112,8 +113,8 @@ class HybridSearchProvider(SearchProvider):
     """Hybrid Search combining Vector Similarity and Full-Text BM25 Search in PGVector."""
 
     RETRIEVAL_METHOD = "hybrid"
-    QUERY_FILE = "../../sql/hybrid_search.sql"
-
+    QUERY_FILE = os.path.join(os.path.dirname(__file__), "../../sql/hybrid_search.sql")
+    
     def __init__(self, store):
         super().__init__(store)
         self.sql_loaded = False
@@ -135,7 +136,7 @@ class HybridSearchProvider(SearchProvider):
                 self.sql_loaded = True
         except Exception:
             self.sql_loaded = False
-            log.exception("Error loading SQL file %s", filepath)
+            log.exception("Error loading SQL file %s", self.QUERY_FILE)
 
 
     # This is based on a couple of different sources
