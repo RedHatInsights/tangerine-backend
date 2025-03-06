@@ -35,6 +35,7 @@ isort = "*"
 flake8 = "*"
 ipython = "*"
 pytest = "*"
+pre-commit = "*"
 
 [requires]
 python_version = "3.12"
