@@ -112,9 +112,13 @@ class HybridSearchProvider(SearchProvider):
     """Hybrid Search combining Vector Similarity and Full-Text BM25 Search in PGVector."""
 
     RETRIEVAL_METHOD = "hybrid"
+    QUERY_FILE = "../../sql/hybrid_search.sql"
 
     def __init__(self, store):
         super().__init__(store)
+        self.sql_loaded = False
+        self.sql_query = ""
+        self._load_sql_file()
         self.embeddings_model = OpenAIEmbeddings(
             http_client=httpx.Client(transport=CustomTransport(httpx.HTTPTransport())),
             model=cfg.EMBED_MODEL_NAME,
@@ -122,6 +126,17 @@ class HybridSearchProvider(SearchProvider):
             openai_api_key=cfg.EMBED_API_KEY,
             check_embedding_ctx_length=False,
         )
+    
+    def _load_sql_file(self):
+        """Loads an SQL file into memory."""
+        try:
+            with open(self.QUERY_FILE, "r", encoding="utf-8") as file:
+                self.sql_query = file.read()
+                self.sql_loaded = True
+        except Exception:
+            self.sql_loaded = False
+            log.exception("Error loading SQL file %s", filepath)
+
 
     # This is based on a couple of different sources
     # First, the PGVector hybrid search example project https://github.com/pgvector/pgvector-python/tree/master/examples/hybrid_search
@@ -129,62 +144,36 @@ class HybridSearchProvider(SearchProvider):
     def search(self, query, search_filter) -> list[SearchResult]:
         """Hybrid search provider combining vector similarity and full-text BM25 search."""
 
-        # Get embedding for the quyery
-        query_embedding = self.embeddings_model.embed_query(query)
-        
-        # Convert list to vectors
-        query_embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
+        if not self.sql_loaded:
+            log.error("SQL file not loaded, cannot run hybrid search")
+            return []
 
-        # I cannot claim to know exactly what this does and how and why
-        # I largely copied this from the PGVector hybrid search example project
-        hybrid_search_sql = text("""
-            WITH semantic_search AS (
-                SELECT id, document, cmetadata, 
-                    -- Normalize vector similarity to [0,1]
-                    1.0 - (embedding <=> CAST(:embedding AS vector)) AS norm_vector_score,
-                    RANK() OVER (ORDER BY embedding <=> CAST(:embedding AS vector)) AS rank
-                FROM langchain_pg_embedding
-                WHERE cmetadata->>'active' = 'True' AND
-                    cmetadata->>'agent_id' = :agent_id
-                ORDER BY embedding <=> CAST(:embedding AS vector)
-                LIMIT 20
-            ),
-            keyword_search AS (
-                SELECT id, document,
-                    -- Normalize BM25 scores by scaling to the highest score in the batch
-                    ts_rank_cd(to_tsvector('english', document), plainto_tsquery(:query)) /
-                    (SELECT MAX(ts_rank_cd(to_tsvector('english', document), plainto_tsquery(:query))) FROM langchain_pg_embedding) AS norm_bm25_score,
-                    RANK() OVER (ORDER BY ts_rank_cd(to_tsvector('english', document), plainto_tsquery(:query)) DESC) AS rank
-                FROM langchain_pg_embedding, plainto_tsquery('english', :query) query
-                WHERE to_tsvector('english', document) @@ query
-                ORDER BY ts_rank_cd(to_tsvector('english', document), query) DESC
-                LIMIT 20
-            )
-            SELECT
-                COALESCE(semantic_search.id, keyword_search.id) AS id,
-                -- Use normalized scores directly instead of reciprocal ranking
-                COALESCE(semantic_search.norm_vector_score, 0.0) * 0.5 +
-                COALESCE(keyword_search.norm_bm25_score, 0.0) * 0.5 AS score,
-                COALESCE(semantic_search.document, keyword_search.document) AS document
-            FROM semantic_search
-            FULL OUTER JOIN keyword_search ON semantic_search.id = keyword_search.id
-            ORDER BY score DESC
-            LIMIT 4;
-        """)
+        try:
+            # Get embedding for the quyery
+            query_embedding = self.embeddings_model.embed_query(query)
+            
+            # Convert list to vectors
+            query_embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
 
-        results = db.session.execute(hybrid_search_sql, {"query": query, "embedding": query_embedding_str, "agent_id": search_filter["agent_id"]}).fetchall()
+            # I cannot claim to know exactly what this does and how and why
+            # I largely copied this from the PGVector hybrid search example project
+            hybrid_search_sql = text(self.sql_query)
 
-        # Process results into LangChain's SearchResult format
-        processed_results = []
-        for row in results:
-            doc = Document(page_content=row[2], metadata={"retrieval_method": self.RETRIEVAL_METHOD})
-            # Convert decimal to float to preserve compatibility with the other search providers
-            score = float(row[1]) if isinstance(row[1], Decimal) else row[1]  
-            processed_results.append((doc, score))
+            results = db.session.execute(hybrid_search_sql, {"query": query, "embedding": query_embedding_str, "agent_id": search_filter["agent_id"]}).fetchall()
 
-        results = self._process_results(processed_results)
-        return [SearchResult(doc, score) for doc, score in results]
+            # Process results into LangChain's SearchResult format
+            processed_results = []
+            for row in results:
+                doc = Document(page_content=row[2], metadata={"retrieval_method": self.RETRIEVAL_METHOD})
+                # Convert decimal to float to preserve compatibility with the other search providers
+                score = float(row[1]) if isinstance(row[1], Decimal) else row[1]  
+                processed_results.append((doc, score))
 
+            results = self._process_results(processed_results)
+            return [SearchResult(doc, score) for doc, score in results]
+        except Exception:
+            log.exception("Error running hybrid search")
+            return []
 
 # because we currently cannot access usage_metadata for embedding calls nor use
 # get_openai_callback() in the same way we can for chat model calls...
