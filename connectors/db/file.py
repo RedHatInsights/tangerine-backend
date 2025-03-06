@@ -209,9 +209,13 @@ def _html_to_md(content: str) -> str:
     """
     soup = BeautifulSoup(content, "lxml")
 
-    # look for document body so that header/footer/nav/etc. is ignored
+    # remove header/footer/nav
+    tags_to_remove = ("header", "footer", "nav")
+    for tag in tags_to_remove:
+        for element in soup.find_all(tag):
+            element.decompose()
 
-    # mkdocs: content is found at <div class="md-content">
+    # mkdocs: extract content found at <div class="md-content">
     if doc_content := soup.find("article", class_="doc"):
         # remove "Edit this page" button
         edit_button = doc_content.find("a", title="Edit this page")
@@ -222,7 +226,7 @@ def _html_to_md(content: str) -> str:
         for linenos_column in linenos_columns:
             linenos_column.decompose()
 
-    # antora: content found at <article class="doc">
+    # antora: extract content found at <article class="doc">
     elif doc_content := soup.find("article", class_="doc"):
         # remove "next page" nav at bottom of content
         pagination = doc_content.find("nav", class_="pagination")
@@ -230,7 +234,7 @@ def _html_to_md(content: str) -> str:
             pagination.decompose()
 
     else:
-        doc_content = content
+        doc_content = soup
 
     h = html2text.HTML2Text()
     h.ignore_images = True
