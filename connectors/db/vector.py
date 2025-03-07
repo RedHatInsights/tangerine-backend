@@ -263,24 +263,24 @@ class VectorStoreInterface:
         buffer = ""
 
         for chunk in chunks:
-            if len(chunk.strip()) == 0:  # Ignore empty chunks
+            chunk = chunk.strip()
+            if len(chunk) == 0:  # Ignore empty chunks
                 continue
 
-            if len(chunk) < self.vector_min_chunk_size:
-                buffer += chunk + "\n\n"  # Collect small chunks
-            else:
-                if buffer:
-                    if len(buffer) + len(chunk) < self.vector_chunk_size:
-                        chunk = buffer + chunk  # Merge collected buffer into this chunk
-                    else:
-                        merged_chunks.append(buffer)
-                    buffer = ""
-                    merged_chunks.append(chunk)
+            combined_size = len(buffer) + len(chunk)
+            if combined_size > self.max_chunk_size:
+                # the buffer is too big to add this additional chunk, append the buffer and reset
+                merged_chunks.append(buffer)
+                buffer = chunk
+                continue
 
-        # If anything is left in the buffer, add it to the last chunk
+            # the buffer is small enough, combine this chunk into it...
+            buffer += "\n\n" + chunk
+            buffer = buffer.strip()
+
+        # if anything is still left over in the buffer, append it
         if buffer:
-            merged_chunks.append("\n\n" + buffer)
-
+            merged_chunks.append(buffer)
         return merged_chunks
 
 
