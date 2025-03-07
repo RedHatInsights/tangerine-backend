@@ -54,16 +54,14 @@ class QualityDetector:
             except Exception:
                 log.exception("Error loading trained model, retraining...")
         self._train()
-    
+
     def _log_junk(self, specimen):
         """
         We've detected junk, log it to a file
         """
-        if not self.log_junk:
-            return
-        with open("junk.txt", "a") as file:
-            file.write(specimen + "\n\n\n\n")
-        
+        if self.log_junk:
+            with open("junk.txt", "a") as file:
+                file.write(specimen + "\n\n\n\n")
 
     def _train(self):
         """
@@ -86,7 +84,7 @@ class QualityDetector:
             log.debug("Detection model trained")
         except Exception:
             log.exception("Error training detection model")
-            
+
     def detect(self, specimen):
         """
         Detect the quality of the text
@@ -107,7 +105,7 @@ class QualityDetector:
         except Exception:
             log.exception("Error detecting quality")
             return None
-        
+
     def filter_by_quality(self, specimens, quality):
         """
         Filter specimens by quality

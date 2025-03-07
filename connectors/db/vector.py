@@ -31,8 +31,6 @@ embed_prompt_tokens_metric = get_counter(
     "embed_prompt_tokens", "Embedding model prompt tokens usage"
 )
 
-quality_detector = QualityDetector(log_junk=False)
-quality_detector.initialize_model()
 
 class SearchResult:
     """Class to hold search results with document and score."""
@@ -243,7 +241,9 @@ class VectorStoreInterface:
             check_embedding_ctx_length=False,
         )
 
-    def init_vector_store(self):
+        self.quality_detector = QualityDetector()
+
+    def initialize(self):
         try:
             self.store = PGVector(
                 collection_name=cfg.VECTOR_COLLECTION_NAME,
@@ -252,11 +252,14 @@ class VectorStoreInterface:
             )
         except Exception:
             log.exception("error initializing vector store")
+
         self.search_providers = [
             MMRSearchProvider(self.store),
             SimilaritySearchProvider(self.store),
             HybridSearchProvider(self.store),
         ]
+
+        self.quality_detector.initialize_model()
 
     def combine_small_chunks(self, chunks):
         """
@@ -324,7 +327,7 @@ class VectorStoreInterface:
 
         if cfg.ENABLE_QUALITY_DETECTION:
             desired_quality = "prose"
-            chunks = quality_detector.filter_by_quality(chunks, desired_quality)
+            chunks = self.quality_detector.filter_by_quality(chunks, desired_quality)
 
         chunks = self.combine_small_chunks(chunks)
 

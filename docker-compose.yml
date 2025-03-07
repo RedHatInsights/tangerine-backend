@@ -116,6 +116,7 @@ services:
       - EMBED_DOCUMENT_PREFUX="search_document"
       - STORE_INTERACTIONS=true
       - ENABLE_MODEL_RANKING=true
+      - ENABLE_QUALITY_DETECTION=true
     # for s3sync, store AWS env vars needed to access your s3 bucket here
   #  env_file: ".env"
     healthcheck:
