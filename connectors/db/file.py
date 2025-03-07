@@ -446,5 +446,4 @@ class File:
         log.error("cannot extract text for unsupported file type: %s", self.full_path)
         return ""
 
-quality_detector = QualityDetector(log_junk=False)
-quality_detector.initialize_model()
+

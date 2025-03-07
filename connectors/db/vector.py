@@ -24,12 +24,15 @@ import connectors.config as cfg
 from resources.metrics import get_counter
 
 from .agent import db
-from .file import File, quality_detector
+from .file import File, QualityDetector
 
 log = logging.getLogger("tangerine.db.vector")
 embed_prompt_tokens_metric = get_counter(
     "embed_prompt_tokens", "Embedding model prompt tokens usage"
 )
+
+quality_detector = QualityDetector(log_junk=False)
+quality_detector.initialize_model()
 
 class SearchResult:
     """Class to hold search results with document and score."""
@@ -358,8 +361,6 @@ class VectorStoreInterface:
         except Exception:
             log.exception("error creating document chunks")
             return
-
-        # Check for 
 
         total = len(chunks)
         batch_size = self.batch_size
