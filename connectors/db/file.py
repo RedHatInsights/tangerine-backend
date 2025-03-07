@@ -10,7 +10,6 @@ import mdformat
 import PyPDF2
 import pytablereader as ptr
 from bs4 import BeautifulSoup
-from docling.document_converter import DocumentConverter, DocumentStream
 from tabledata import TableData
 
 log = logging.getLogger("tangerine.file")
@@ -83,15 +82,6 @@ def _remove_large_md_code_blocks(text):
             lines.append(line)
 
     return "\n".join(lines)
-
-
-def _adoc_to_md(path, text):
-    converter = DocumentConverter()
-    textio = BytesIO(text.encode("utf-8"))
-    textio.seek(0)
-    ds = DocumentStream(name=path, stream=textio)
-    result = converter.convert(ds)
-    return result.document.export_to_markdown()
 
 
 def _get_table_row_lines(table: TableData) -> list[str]:
@@ -340,9 +330,6 @@ class File:
 
         if self.full_path.endswith(".md"):
             return _process_md(self.content, url=self.citation_url)
-
-        if self.full_path.endswith(".adoc"):
-            return _adoc_to_md(os.path.basename(self.full_path), self.content)
 
         if self.full_path.endswith(".txt") or self.full_path.endswith(".rst"):
             return self.content

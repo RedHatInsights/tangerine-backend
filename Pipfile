@@ -24,7 +24,6 @@ boto3 = "*"
 pydantic = "*"
 jinja2 = "*"
 pytablereader = {extras = ["md"], version = "*"}
-docling = "*"
 langchain-community = "*"
 prometheus-flask-exporter = "*"
 pypdf2 = "*"

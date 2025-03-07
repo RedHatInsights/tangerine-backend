@@ -115,7 +115,7 @@ class HybridSearchProvider(SearchProvider):
 
     RETRIEVAL_METHOD = "hybrid"
     QUERY_FILE = os.path.join(os.path.dirname(__file__), "../../sql/hybrid_search.sql")
-    
+
     def __init__(self, store):
         super().__init__(store)
         self.sql_loaded = False
@@ -128,7 +128,7 @@ class HybridSearchProvider(SearchProvider):
             openai_api_key=cfg.EMBED_API_KEY,
             check_embedding_ctx_length=False,
         )
-    
+
     def _load_sql_file(self):
         """Loads an SQL file into memory."""
         try:
@@ -153,7 +153,7 @@ class HybridSearchProvider(SearchProvider):
         try:
             # Get embedding for the quyery
             query_embedding = self.embeddings_model.embed_query(query)
-            
+
             # Convert list to vectors
             query_embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
 
@@ -168,7 +168,7 @@ class HybridSearchProvider(SearchProvider):
             for row in results:
                 doc = Document(page_content=row[2], metadata={"retrieval_method": self.RETRIEVAL_METHOD})
                 # Convert decimal to float to preserve compatibility with the other search providers
-                score = float(row[1]) if isinstance(row[1], Decimal) else row[1]  
+                score = float(row[1]) if isinstance(row[1], Decimal) else row[1]
                 processed_results.append((doc, score))
 
             results = self._process_results(processed_results)
@@ -289,36 +289,38 @@ class VectorStoreInterface:
         return bool(re.search(r"^#{1,6} ", text, re.MULTILINE))
 
     def split_to_document_chunks(self, text, metadata):
-        """Uses markdown-aware chunking and drops any chunk over a hard size limit."""
+        """Split documents into chunks. Use markdown-aware first splitter if text is markdown."""
 
-        # Use markdown-aware text splitting
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=self.splitter_chunk_size,
+            chunk_overlap=self.chunk_overlap,
+            separators=["\n\n", ". ", "? ", "! "]
+        )
+
+        md_splitter = MarkdownHeaderTextSplitter(
+            headers_to_split_on=[
+                ("#", "H1"),
+                ("##", "H2"),
+                ("###", "H3"),
+                ("####", "H4"),
+                ("#####", "H5"),
+                ("######", "H6"),
+            ]
+        )
+
         if self.has_markdown_headers(text):
-            text_splitter = MarkdownHeaderTextSplitter(
-                headers_to_split_on=[
-                    ("#", "H1"),
-                    ("##", "H2"),
-                    ("###", "H3"),
-                    ("####", "H4"),
-                    ("#####", "H5"),
-                    ("######", "H6"),
-                ]
-            )
-
-            # MarkdownHeaderTextSplitter returns Documents, extract text first
-            markdown_chunks = text_splitter.split_text(text)
-            chunks = [doc.page_content for doc in markdown_chunks]  # Convert to raw text
-
+            markdown_documents = md_splitter.split_text(text)
+            chunks = text_splitter.split_documents(markdown_documents)
         else:
-            text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=self.splitter_chunk_size,
-                chunk_overlap=self.chunk_overlap,
-                separators=["\n\n", ". ", "? ", "! "]
-            )
             chunks = text_splitter.split_text(text)
 
+        # convert back to plain text so we can combine them
+        # TODO: figure out how to combine but also retain md header metadata?
+        chunks = [chunk.page_content for chunk in chunks]
+
         chunks = self.combine_small_chunks(chunks)
-        
-        # Convert to Document objects
+
+        # Convert back to Document objects for call to 'embed_documents'
         documents = []
         for chunk in chunks:
             if cfg.EMBED_DOCUMENT_PREFIX:
@@ -373,7 +375,7 @@ class VectorStoreInterface:
     def deduplicate_results(self, results, threshold=0.90):
         """
         Removes near-duplicate search results based on text similarity.
-        
+
         - `threshold=0.90` means chunks with >= 90% text similarity are considered duplicates.
         - Keeps only the highest-ranked unique chunk.
         """
@@ -485,7 +487,7 @@ class VectorStoreInterface:
 
     def _build_metadata_filter(self, metadata):
         filter_stmts = []
-    
+
         metadata_as_str = {key: str(val) for key, val in metadata.items()}
 
         for key in metadata_as_str.keys():
