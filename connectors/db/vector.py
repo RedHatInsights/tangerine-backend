@@ -318,12 +318,13 @@ class VectorStoreInterface:
         else:
             chunks = text_splitter.split_text(text)
 
-        # convert back to plain text so we can combine them
+        # convert back to plain text so we can filter and combine them
         # TODO: figure out how to combine but also retain md header metadata?
         chunks = [chunk.page_content for chunk in chunks]
-        
-        desired_quality = "prose"
-        chunks = quality_detector.filter_by_quality(chunks, desired_quality)
+
+        if cfg.ENABLE_QUALITY_DETECTION:
+            desired_quality = "prose"
+            chunks = quality_detector.filter_by_quality(chunks, desired_quality)
 
         chunks = self.combine_small_chunks(chunks)
 
