@@ -5,10 +5,10 @@ from .file import File, validate_file_path, validate_source, QualityDetector
 from .vector import vector_db
 
 
-def embed_files(files: List[File], agent: Agent, qd) -> None:
+def embed_files(files: List[File], agent: Agent) -> None:
     for file in files:
         file.validate()
-        vector_db.add_file(file, agent.id, qd)
+        vector_db.add_file(file, agent.id)
 
 
 def add_filenames_to_agent(files: List[File], agent: Agent) -> None:

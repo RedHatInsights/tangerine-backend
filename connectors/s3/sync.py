@@ -95,7 +95,7 @@ def download_objs_concurrent(bucket: str, files: List[File], dest_dir: str) -> I
                 yield False
 
 
-def embed_file(app_context, file: File, tmpdir: str, agent_id: int, qd: QualityDetector) -> File:
+def embed_file(app_context, file: File, tmpdir: str, agent_id: int) -> File:
     """Adds an s3 object stored locally to agent"""
     app_context.push()
 
@@ -111,18 +111,18 @@ def embed_file(app_context, file: File, tmpdir: str, agent_id: int, qd: QualityD
             file.active = False
             file.pending_removal = False
 
-        embed_files([file], agent, qd)
+        embed_files([file], agent)
         return file
 
 
 def embed_files_concurrent(
-    bucket: str, files: List[File], tmpdir: str, agent_id: int, qd: QualityDetector
+    bucket: str, files: List[File], tmpdir: str, agent_id: int
 ) -> Iterator[Optional[File]]:
     max_workers = int(cfg.SQLALCHEMY_POOL_SIZE / 2)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         key_for_future = {
             executor.submit(
-                embed_file, current_app.app_context(), file, tmpdir, agent_id, qd
+                embed_file, current_app.app_context(), file, tmpdir, agent_id
             ): file.full_path
             for file in files
         }
@@ -295,7 +295,7 @@ def compare_files(
 
 
 def download_s3_files_and_embed(
-    bucket, files: List[File], agent_id: int, qd: QualityDetector
+    bucket, files: List[File], agent_id: int
 ) -> tuple[List[File], int, int]:
     log.debug("%d s3 objects to download", len(files))
 
@@ -309,7 +309,7 @@ def download_s3_files_and_embed(
             if not download_success:
                 download_errors += 1
 
-        for file in embed_files_concurrent(bucket, files, tmpdir, agent_id, qd):
+        for file in embed_files_concurrent(bucket, files, tmpdir, agent_id):
             if file:
                 completed_files.append(file)
             else:
@@ -326,9 +326,6 @@ def run(resync: bool = False) -> int:
 
     download_errors_for_agent = {}
     embed_errors_for_agent = {}
-
-    qd = QualityDetector()
-    qd.initialize_model()
 
     for agent_config in sync_config.agents:
         # check to see if agent already exists... if so, update... if not, create
@@ -363,7 +360,7 @@ def run(resync: bool = False) -> int:
 
             # download new docs for this agent and embed in vector DB
             _, download_errors, embed_errors = download_s3_files_and_embed(
-                agent_config.bucket, files_to_insert, agent.id, qd
+                agent_config.bucket, files_to_insert, agent.id
             )
 
             download_errors_for_agent[agent.id] = download_errors

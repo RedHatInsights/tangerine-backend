@@ -107,9 +107,7 @@ class AgentDocuments(Resource):
         def generate_progress():
             for file in files:
                 yield json.dumps({"file": file.display_name, "step": "start"}) + "\n"
-                qd = QualityDetector()
-                qd.initialize_model()
-                embed_files([file], agent, qd)
+                embed_files([file], agent)
                 add_filenames_to_agent([file], agent)
                 yield json.dumps({"file": file.display_name, "step": "end"}) + "\n"
 

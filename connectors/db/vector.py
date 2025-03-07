@@ -24,7 +24,7 @@ import connectors.config as cfg
 from resources.metrics import get_counter
 
 from .agent import db
-from .file import File, QualityDetector
+from .file import File, quality_detector
 
 log = logging.getLogger("tangerine.db.vector")
 embed_prompt_tokens_metric = get_counter(
@@ -288,7 +288,7 @@ class VectorStoreInterface:
         """Checks if a document contains markdown headers."""
         return bool(re.search(r"^#{1,6} ", text, re.MULTILINE))
 
-    def split_to_document_chunks(self, text, metadata, qd):
+    def split_to_document_chunks(self, text, metadata):
         """Split documents into chunks. Use markdown-aware splitter first if text is markdown."""
 
         text_splitter = RecursiveCharacterTextSplitter(
@@ -320,7 +320,7 @@ class VectorStoreInterface:
         chunks = [chunk.page_content for chunk in chunks]
         
         desired_quality = "prose"
-        chunks = qd.filter_by_quality(chunks, desired_quality)
+        chunks = quality_detector.filter_by_quality(chunks, desired_quality)
 
         chunks = self.combine_small_chunks(chunks)
 
@@ -333,7 +333,7 @@ class VectorStoreInterface:
 
         return documents
 
-    def create_document_chunks(self, file: File, agent_id: int, qd: QualityDetector):
+    def create_document_chunks(self, file: File, agent_id: int):
         log.debug("processing %s", file)
 
         text = file.extract_text()
@@ -347,17 +347,19 @@ class VectorStoreInterface:
         }
         metadata.update(file.metadata)
 
-        chunks = self.split_to_document_chunks(text, metadata, qd)
+        chunks = self.split_to_document_chunks(text, metadata)
 
         return chunks
 
-    def add_file(self, file: File, agent_id: int, qd: QualityDetector):
+    def add_file(self, file: File, agent_id: int):
         chunks = []
         try:
-            chunks = self.create_document_chunks(file, agent_id, qd)
+            chunks = self.create_document_chunks(file, agent_id)
         except Exception:
             log.exception("error creating document chunks")
             return
+
+        # Check for 
 
         total = len(chunks)
         batch_size = self.batch_size
