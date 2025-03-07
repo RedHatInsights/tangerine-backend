@@ -10,6 +10,8 @@ s3.yaml
 # C extensions
 *.so
 
+junk.txt
+
 # Distribution / packaging
 .Python
 build/

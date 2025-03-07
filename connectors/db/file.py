@@ -2,8 +2,10 @@ import logging
 import os
 import re
 import string
-from io import BytesIO, StringIO
+from io import StringIO
+import joblib
 from typing import Optional
+import json
 
 import html2text
 import mdformat
@@ -12,12 +14,119 @@ import pytablereader as ptr
 from bs4 import BeautifulSoup
 from tabledata import TableData
 
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+
 log = logging.getLogger("tangerine.file")
 
 # match example: [Text](something)
 LINK_REGEX = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 # match example: "http://something.com"
 ABSOLUTE_URL_REGEX = re.compile(r"[a-z0-9]*:\/\/.*")
+
+class QualityDetector:
+    """
+    QualityDetector uses a simple TF-IDF + Logistic Regression model to detect the quality of text
+    """
+    TRAINING_FILE = os.path.join(os.path.dirname(__file__), "../../json/quality_detection_training.json")
+    MODEL_FILE = os.path.join(os.path.dirname(__file__), "../../data/quality_detector.pkl")
+    VECTORIZER_FILE = os.path.join(os.path.dirname(__file__), "../../data/vectorizer.pkl")
+
+    def __init__(self, log_junk=False):
+        self.training_texts = []
+        self.training_labels = []
+        self.classifier = None
+        self.vectorizer = None
+        self.training_data_loaded = False
+        self.model_ready = False
+        self.log_junk = log_junk
+        self._load_training_data()
+
+    def initialize_model(self):
+        """Loads the trained model if available, otherwise trains a new one."""
+        if os.path.exists(self.MODEL_FILE) and os.path.exists(self.VECTORIZER_FILE):
+            try:
+                self.classifier = joblib.load(self.MODEL_FILE)
+                self.vectorizer = joblib.load(self.VECTORIZER_FILE)
+                self.model_ready = True
+                log.info("Loaded trained QualityDetector model successfully.")
+                return
+            except Exception:
+                log.exception("Error loading trained model, retraining...")
+        self._train()
+    
+    def _log_junk(self, specimen):
+        """
+        We've detected junk, log it to a file
+        """
+        if not self.log_junk:
+            return
+        with open("junk.txt", "a") as file:
+            file.write(specimen + "\n\n\n\n")
+        
+
+    def _train(self):
+        """
+        Train the model
+        """
+        if not self.training_data_loaded:
+            log.error("Can't train detection model. Training data not loaded")
+            return
+        # Train a simple TF-IDF + Logistic Regression model
+        self.model_ready = False
+        try:
+            self.vectorizer = TfidfVectorizer()
+            training_vectors = self.vectorizer.fit_transform(self.training_texts)
+            self.classifier = LogisticRegression()
+            self.classifier.fit(training_vectors, self.training_labels)
+            # Persist the trained model to disk
+            joblib.dump(self.classifier, self.MODEL_FILE)
+            joblib.dump(self.vectorizer, self.VECTORIZER_FILE)
+            self.model_ready = True
+            log.debug("Detection model trained")
+        except Exception:
+            log.exception("Error training detection model")
+            
+    def detect(self, specimen):
+        """
+        Detect the quality of the text
+        """
+        if not self.training_data_loaded:
+            log.error("Can't detect quality. Training data not loaded")
+            return
+        if not self.model_ready:
+            log.error("Can't detect quality. Model not ready")
+            return
+        detection_vectors = self.vectorizer.transform([specimen])
+        try:
+            quality = self.classifier.predict(detection_vectors)[0]
+            log.debug("Quality detected: %s", quality)
+            if quality == "junk":
+                self._log_junk(specimen)
+            return quality
+        except Exception:
+            log.exception("Error detecting quality")
+            return None
+        
+    def filter_by_quality(self, specimens, quality):
+        """
+        Filter specimens by quality
+        """
+        return [specimen for specimen in specimens if self.detect(specimen) == quality]
+
+    def _load_training_data(self):
+        """
+        Load training data
+        """
+        self.training_data_loaded = False
+        try:
+            with open(self.TRAINING_FILE, "r", encoding="utf-8") as file:
+                training_samples = json.load(file)
+            self.training_texts = [sample["text"] for sample in training_samples]
+            self.training_labels = [sample["label"] for sample in training_samples]
+            self.training_data_loaded = True
+        except Exception:
+            log.exception("Error loading training data")
 
 
 def validate_file_path(full_path: str) -> None:

@@ -24,7 +24,7 @@ import connectors.config as cfg
 from resources.metrics import get_counter
 
 from .agent import db
-from .file import File
+from .file import File, QualityDetector
 
 log = logging.getLogger("tangerine.db.vector")
 embed_prompt_tokens_metric = get_counter(
@@ -288,7 +288,7 @@ class VectorStoreInterface:
         """Checks if a document contains markdown headers."""
         return bool(re.search(r"^#{1,6} ", text, re.MULTILINE))
 
-    def split_to_document_chunks(self, text, metadata):
+    def split_to_document_chunks(self, text, metadata, qd):
         """Split documents into chunks. Use markdown-aware splitter first if text is markdown."""
 
         text_splitter = RecursiveCharacterTextSplitter(
@@ -298,6 +298,7 @@ class VectorStoreInterface:
         )
 
         md_splitter = MarkdownHeaderTextSplitter(
+            strip_headers=False,
             headers_to_split_on=[
                 ("#", "H1"),
                 ("##", "H2"),
@@ -317,6 +318,9 @@ class VectorStoreInterface:
         # convert back to plain text so we can combine them
         # TODO: figure out how to combine but also retain md header metadata?
         chunks = [chunk.page_content for chunk in chunks]
+        
+        desired_quality = "prose"
+        chunks = qd.filter_by_quality(chunks, desired_quality)
 
         chunks = self.combine_small_chunks(chunks)
 
@@ -329,7 +333,7 @@ class VectorStoreInterface:
 
         return documents
 
-    def create_document_chunks(self, file: File, agent_id: int):
+    def create_document_chunks(self, file: File, agent_id: int, qd: QualityDetector):
         log.debug("processing %s", file)
 
         text = file.extract_text()
@@ -343,14 +347,14 @@ class VectorStoreInterface:
         }
         metadata.update(file.metadata)
 
-        chunks = self.split_to_document_chunks(text, metadata)
+        chunks = self.split_to_document_chunks(text, metadata, qd)
 
         return chunks
 
-    def add_file(self, file: File, agent_id: int):
+    def add_file(self, file: File, agent_id: int, qd: QualityDetector):
         chunks = []
         try:
-            chunks = self.create_document_chunks(file, agent_id)
+            chunks = self.create_document_chunks(file, agent_id, qd)
         except Exception:
             log.exception("error creating document chunks")
             return

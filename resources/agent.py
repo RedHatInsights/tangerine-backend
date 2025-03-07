@@ -9,6 +9,7 @@ from connectors import config
 from connectors.config import DEFAULT_SYSTEM_PROMPT
 from connectors.db.agent import Agent
 from connectors.db.common import File, add_filenames_to_agent, embed_files, remove_files
+from connectors.db.file import QualityDetector
 from connectors.db.interactions import store_interaction
 from connectors.db.vector import vector_db
 from connectors.llm.interface import llm
@@ -106,7 +107,9 @@ class AgentDocuments(Resource):
         def generate_progress():
             for file in files:
                 yield json.dumps({"file": file.display_name, "step": "start"}) + "\n"
-                embed_files([file], agent)
+                qd = QualityDetector()
+                qd.initialize_model()
+                embed_files([file], agent, qd)
                 add_filenames_to_agent([file], agent)
                 yield json.dumps({"file": file.display_name, "step": "end"}) + "\n"
 

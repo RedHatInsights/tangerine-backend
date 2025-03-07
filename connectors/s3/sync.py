@@ -15,6 +15,7 @@ from pydantic import BaseModel
 import connectors.config as cfg
 from connectors.db.agent import Agent, db
 from connectors.db.common import File, embed_files
+from connectors.db.file import QualityDetector
 from connectors.db.vector import vector_db
 
 s3 = boto3.client("s3")
@@ -94,7 +95,7 @@ def download_objs_concurrent(bucket: str, files: List[File], dest_dir: str) -> I
                 yield False
 
 
-def embed_file(app_context, file: File, tmpdir: str, agent_id: int) -> File:
+def embed_file(app_context, file: File, tmpdir: str, agent_id: int, qd: QualityDetector) -> File:
     """Adds an s3 object stored locally to agent"""
     app_context.push()
 
@@ -110,18 +111,18 @@ def embed_file(app_context, file: File, tmpdir: str, agent_id: int) -> File:
             file.active = False
             file.pending_removal = False
 
-        embed_files([file], agent)
+        embed_files([file], agent, qd)
         return file
 
 
 def embed_files_concurrent(
-    bucket: str, files: List[File], tmpdir: str, agent_id: int
+    bucket: str, files: List[File], tmpdir: str, agent_id: int, qd: QualityDetector
 ) -> Iterator[Optional[File]]:
     max_workers = int(cfg.SQLALCHEMY_POOL_SIZE / 2)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         key_for_future = {
             executor.submit(
-                embed_file, current_app.app_context(), file, tmpdir, agent_id
+                embed_file, current_app.app_context(), file, tmpdir, agent_id, qd
             ): file.full_path
             for file in files
         }
@@ -294,7 +295,7 @@ def compare_files(
 
 
 def download_s3_files_and_embed(
-    bucket, files: List[File], agent_id: int
+    bucket, files: List[File], agent_id: int, qd: QualityDetector
 ) -> tuple[List[File], int, int]:
     log.debug("%d s3 objects to download", len(files))
 
@@ -308,7 +309,7 @@ def download_s3_files_and_embed(
             if not download_success:
                 download_errors += 1
 
-        for file in embed_files_concurrent(bucket, files, tmpdir, agent_id):
+        for file in embed_files_concurrent(bucket, files, tmpdir, agent_id, qd):
             if file:
                 completed_files.append(file)
             else:
@@ -325,6 +326,9 @@ def run(resync: bool = False) -> int:
 
     download_errors_for_agent = {}
     embed_errors_for_agent = {}
+
+    qd = QualityDetector()
+    qd.initialize_model()
 
     for agent_config in sync_config.agents:
         # check to see if agent already exists... if so, update... if not, create
@@ -359,7 +363,7 @@ def run(resync: bool = False) -> int:
 
             # download new docs for this agent and embed in vector DB
             _, download_errors, embed_errors = download_s3_files_and_embed(
-                agent_config.bucket, files_to_insert, agent.id
+                agent_config.bucket, files_to_insert, agent.id, qd
             )
 
             download_errors_for_agent[agent.id] = download_errors

@@ -1,14 +1,14 @@
 from typing import List
 
 from .agent import Agent
-from .file import File, validate_file_path, validate_source
+from .file import File, validate_file_path, validate_source, QualityDetector
 from .vector import vector_db
 
 
-def embed_files(files: List[File], agent: Agent) -> None:
+def embed_files(files: List[File], agent: Agent, qd) -> None:
     for file in files:
         file.validate()
-        vector_db.add_file(file, agent.id)
+        vector_db.add_file(file, agent.id, qd)
 
 
 def add_filenames_to_agent(files: List[File], agent: Agent) -> None:
