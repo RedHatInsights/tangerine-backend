@@ -76,6 +76,7 @@ class QualityDetector:
         try:
             joblib.dump(self.classifier, self.MODEL_FILE)
             joblib.dump(self.vectorizer, self.VECTORIZER_FILE)
+            log.debug("nlp data stored")
         except Exception:
             log.exception("error storing detection model")
 
@@ -90,6 +91,7 @@ class QualityDetector:
             self.training_texts = [sample["text"] for sample in training_samples]
             self.training_labels = [sample["label"] for sample in training_samples]
             self.training_data_loaded = True
+            log.debug("training data loaded")
         except Exception:
             log.exception("error loading training data")
 
@@ -126,7 +128,6 @@ class QualityDetector:
         detection_vectors = self.vectorizer.transform([specimen])
         try:
             quality = self.classifier.predict(detection_vectors)[0]
-            log.debug("quality detected: %s", quality)
         except Exception:
             log.exception("error detecting quality")
             quality = None
