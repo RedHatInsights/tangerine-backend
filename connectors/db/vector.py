@@ -289,7 +289,7 @@ class VectorStoreInterface:
         return bool(re.search(r"^#{1,6} ", text, re.MULTILINE))
 
     def split_to_document_chunks(self, text, metadata):
-        """Split documents into chunks. Use markdown-aware first splitter if text is markdown."""
+        """Split documents into chunks. Use markdown-aware splitter first if text is markdown."""
 
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.splitter_chunk_size,
