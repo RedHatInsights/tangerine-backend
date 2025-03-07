@@ -1,21 +1,20 @@
+import json
 import logging
 import os
 import re
 import string
 from io import StringIO
-import joblib
 from typing import Optional
-import json
 
 import html2text
+import joblib
 import mdformat
 import PyPDF2
 import pytablereader as ptr
 from bs4 import BeautifulSoup
-from tabledata import TableData
-
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
+from tabledata import TableData
 
 log = logging.getLogger("tangerine.file")
 
@@ -24,11 +23,15 @@ LINK_REGEX = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 # match example: "http://something.com"
 ABSOLUTE_URL_REGEX = re.compile(r"[a-z0-9]*:\/\/.*")
 
+
 class QualityDetector:
     """
     QualityDetector uses a simple TF-IDF + Logistic Regression model to detect the quality of text
     """
-    TRAINING_FILE = os.path.join(os.path.dirname(__file__), "../../json/quality_detection_training.json")
+
+    TRAINING_FILE = os.path.join(
+        os.path.dirname(__file__), "../../json/quality_detection_training.json"
+    )
     MODEL_FILE = os.path.join(os.path.dirname(__file__), "../../data/quality_detector.pkl")
     VECTORIZER_FILE = os.path.join(os.path.dirname(__file__), "../../data/vectorizer.pkl")
 
@@ -443,5 +446,3 @@ class File:
 
         log.error("cannot extract text for unsupported file type: %s", self.full_path)
         return ""
-
-

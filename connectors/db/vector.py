@@ -140,13 +140,13 @@ class HybridSearchProvider(SearchProvider):
             self.sql_loaded = False
             log.exception("Error loading SQL file %s", self.QUERY_FILE)
 
-
-    # This is based on a couple of different sources
-    # First, the PGVector hybrid search example project https://github.com/pgvector/pgvector-python/tree/master/examples/hybrid_search
-    # Second, LangChain's hybrid search docs https://python.langchain.com/docs/how_to/hybrid/
     def search(self, query, search_filter) -> list[SearchResult]:
-        """Hybrid search provider combining vector similarity and full-text BM25 search."""
+        """Hybrid search provider combining vector similarity and full-text BM25 search.
 
+        Based on:
+        * https://github.com/pgvector/pgvector-python/tree/master/examples/hybrid_search
+        * https://python.langchain.com/docs/how_to/hybrid/
+        """
         if not self.sql_loaded:
             log.error("SQL file not loaded, cannot run hybrid search")
             return []
@@ -158,16 +158,23 @@ class HybridSearchProvider(SearchProvider):
             # Convert list to vectors
             query_embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
 
-            # I cannot claim to know exactly what this does and how and why
-            # I largely copied this from the PGVector hybrid search example project
             hybrid_search_sql = text(self.sql_query)
 
-            results = db.session.execute(hybrid_search_sql, {"query": query, "embedding": query_embedding_str, "agent_id": search_filter["agent_id"]}).fetchall()
+            results = db.session.execute(
+                hybrid_search_sql,
+                {
+                    "query": query,
+                    "embedding": query_embedding_str,
+                    "agent_id": search_filter["agent_id"],
+                },
+            ).fetchall()
 
             # Process results into LangChain's SearchResult format
             processed_results = []
             for row in results:
-                doc = Document(page_content=row[2], metadata={"retrieval_method": self.RETRIEVAL_METHOD})
+                doc = Document(
+                    page_content=row[2], metadata={"retrieval_method": self.RETRIEVAL_METHOD}
+                )
                 # Convert decimal to float to preserve compatibility with the other search providers
                 score = float(row[1]) if isinstance(row[1], Decimal) else row[1]
                 processed_results.append((doc, score))
@@ -177,6 +184,7 @@ class HybridSearchProvider(SearchProvider):
         except Exception:
             log.exception("Error running hybrid search")
             return []
+
 
 # because we currently cannot access usage_metadata for embedding calls nor use
 # get_openai_callback() in the same way we can for chat model calls...
@@ -289,7 +297,6 @@ class VectorStoreInterface:
             merged_chunks.append(buffer)
         return merged_chunks
 
-
     def has_markdown_headers(self, text):
         """Checks if a document contains markdown headers."""
         return bool(re.search(r"^#{1,6} ", text, re.MULTILINE))
@@ -300,7 +307,7 @@ class VectorStoreInterface:
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.splitter_chunk_size,
             chunk_overlap=self.chunk_overlap,
-            separators=["\n\n", ". ", "? ", "! "]
+            separators=["\n\n", ". ", "? ", "! "],
         )
 
         md_splitter = MarkdownHeaderTextSplitter(
@@ -312,7 +319,7 @@ class VectorStoreInterface:
                 ("####", "H4"),
                 ("#####", "H5"),
                 ("######", "H6"),
-            ]
+            ],
         )
 
         if self.has_markdown_headers(text):
@@ -421,35 +428,24 @@ class VectorStoreInterface:
             return search_results  # No need to rank if there's only one result
 
         # Construct prompt
-        document_list = "\n".join([f"{i+1}. {result.document.page_content[:300]}" for i, result in enumerate(search_results)])
-        prompt = f"""
-        You are an AI search assistant. Rank the following search results from most to least relevant to the given query.
+        document_list = "\n".join(
+            [
+                f"{i+1}. {result.document.page_content[:300]}"
+                for i, result in enumerate(search_results)
+            ]
+        )
 
-        ### Query:
-        "{query}"
+        prompt = cfg.RERANK_PROMPT_TEMPLATE.format(
+            query=query,
+            document_list=document_list,
+        )
 
-        ### Documents:
-        {document_list}
-
-        ### Instructions for Ranking:
-        1. **Prioritize well-written prose** that directly answers the query.
-        2. **Do NOT rank tables of contents, lists of links, or navigation menus highly**, as they are not meaningful responses.
-        3. **Prefer documents that provide clear, informative, and explanatory content.**
-        4. **Ignore documents that only contain a collection of links, bullet points, or raw lists with no explanation.**
-        5. **If a document is highly repetitive or contains mostly boilerplate text, rank it lower.**
-        6. **Only return a comma-separated list of numbers corresponding to the ranking order. Do NOT include explanations or extra formatting.**
-        7. **If you are unsure about a document, you can skip it.**
-        8. **Skip any document that starts with the string "Skip to content"**
-
-        ### Example Output:
-        1, 3, 5, 2, 4
-        """
         reranker = ChatOpenAI(
-                    model=cfg.LLM_MODEL_NAME,
-                    openai_api_base=cfg.LLM_BASE_URL,
-                    openai_api_key=cfg.LLM_API_KEY,
-                    temperature=cfg.LLM_TEMPERATURE,
-                    )
+            model=cfg.LLM_MODEL_NAME,
+            openai_api_base=cfg.LLM_BASE_URL,
+            openai_api_key=cfg.LLM_API_KEY,
+            temperature=cfg.LLM_TEMPERATURE,
+        )
         try:
             # Send to LLM and get response
             llm_response = reranker.invoke(prompt)
