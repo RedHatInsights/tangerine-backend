@@ -288,7 +288,7 @@ class VectorStoreInterface:
         """Checks if a document contains markdown headers."""
         return bool(re.search(r"^#{1,6} ", text, re.MULTILINE))
 
-    def split_to_document_chunks(self, text, metadata, max_chunk_size=4000):
+    def split_to_document_chunks(self, text, metadata):
         """Uses markdown-aware chunking and drops any chunk over a hard size limit."""
 
         # Use markdown-aware text splitting
