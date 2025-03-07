@@ -52,6 +52,8 @@ S3_SYNC_EXPORT_METRICS_SLEEP_SECS = int(os.getenv("S3_SYNC_EXPORT_METRICS_SLEEP_
 
 METRICS_PREFIX = os.getenv("METRICS_PREFIX", "tangerine")
 
+STORE_QD_DATA = _is_true("STORE_QD_DATA")
+
 USER_PROMPT_TEMPLATE = """
 [INST]
 Question: {question}

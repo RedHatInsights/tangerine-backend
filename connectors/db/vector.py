@@ -1,24 +1,21 @@
 import io
-import os
 import itertools
 import json
 import logging
 import math
+import os
 import re
 from abc import ABC, abstractmethod
 from decimal import Decimal
 
-
 import httpx
+from langchain.text_splitter import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
-from langchain.text_splitter import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
-
-from sqlalchemy import text
-
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from sqlalchemy import text
 
 import connectors.config as cfg
 from resources.metrics import get_counter

@@ -16,6 +16,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from tabledata import TableData
 
+import connectors.config as cfg
+
 log = logging.getLogger("tangerine.file")
 
 # match example: [Text](something)
@@ -52,68 +54,30 @@ class QualityDetector:
                 self.classifier = joblib.load(self.MODEL_FILE)
                 self.vectorizer = joblib.load(self.VECTORIZER_FILE)
                 self.model_ready = True
-                log.info("Loaded trained QualityDetector model successfully.")
-                return
+                log.info("successfully loaded trained QualityDetector model from disk.")
             except Exception:
-                log.exception("Error loading trained model, retraining...")
-        self._train()
+                log.exception("error loading trained model from disk, retraining...")
+
+        if not self.model_ready:
+            self._train()
 
     def _log_junk(self, specimen):
         """
-        We've detected junk, log it to a file
+        Log detected junk to a file for local debugging
         """
-        if self.log_junk:
-            with open("junk.txt", "a") as file:
-                file.write(specimen + "\n\n\n\n")
+        if cfg.STORE_QD_DATA and self.log_junk:
+            try:
+                with open("junk.txt", "a") as fp:
+                    fp.write(specimen + "\n\n\n\n")
+            except OSError as err:
+                log.error("unable to log junk: %s", err)
 
-    def _train(self):
-        """
-        Train the model
-        """
-        if not self.training_data_loaded:
-            log.error("Can't train detection model. Training data not loaded")
-            return
-        # Train a simple TF-IDF + Logistic Regression model
-        self.model_ready = False
+    def _store(self):
         try:
-            self.vectorizer = TfidfVectorizer()
-            training_vectors = self.vectorizer.fit_transform(self.training_texts)
-            self.classifier = LogisticRegression()
-            self.classifier.fit(training_vectors, self.training_labels)
-            # Persist the trained model to disk
             joblib.dump(self.classifier, self.MODEL_FILE)
             joblib.dump(self.vectorizer, self.VECTORIZER_FILE)
-            self.model_ready = True
-            log.debug("Detection model trained")
         except Exception:
-            log.exception("Error training detection model")
-
-    def detect(self, specimen):
-        """
-        Detect the quality of the text
-        """
-        if not self.training_data_loaded:
-            log.error("Can't detect quality. Training data not loaded")
-            return
-        if not self.model_ready:
-            log.error("Can't detect quality. Model not ready")
-            return
-        detection_vectors = self.vectorizer.transform([specimen])
-        try:
-            quality = self.classifier.predict(detection_vectors)[0]
-            log.debug("Quality detected: %s", quality)
-            if quality == "junk":
-                self._log_junk(specimen)
-            return quality
-        except Exception:
-            log.exception("Error detecting quality")
-            return None
-
-    def filter_by_quality(self, specimens, quality):
-        """
-        Filter specimens by quality
-        """
-        return [specimen for specimen in specimens if self.detect(specimen) == quality]
+            log.exception("error storing detection model")
 
     def _load_training_data(self):
         """
@@ -127,7 +91,55 @@ class QualityDetector:
             self.training_labels = [sample["label"] for sample in training_samples]
             self.training_data_loaded = True
         except Exception:
-            log.exception("Error loading training data")
+            log.exception("error loading training data")
+
+    def _train(self):
+        """
+        Train the model
+        """
+        if not self.training_data_loaded:
+            raise Exception("training data must be loaded")
+
+        # Train a simple TF-IDF + Logistic Regression model
+        self.model_ready = False
+        try:
+            self.vectorizer = TfidfVectorizer()
+            training_vectors = self.vectorizer.fit_transform(self.training_texts)
+            self.classifier = LogisticRegression()
+            self.classifier.fit(training_vectors, self.training_labels)
+            self.model_ready = True
+            log.debug("detection model trained")
+            if cfg.STORE_QD_DATA:
+                self._store()
+        except Exception:
+            log.exception("error training detection model")
+
+    def detect(self, specimen):
+        """
+        Detect the quality of the text
+        """
+        if not self.training_data_loaded:
+            raise Exception("training data must be loaded")
+        if not self.model_ready:
+            raise Exception("model must be ready")
+
+        detection_vectors = self.vectorizer.transform([specimen])
+        try:
+            quality = self.classifier.predict(detection_vectors)[0]
+            log.debug("quality detected: %s", quality)
+        except Exception:
+            log.exception("error detecting quality")
+            quality = None
+
+        if quality == "junk":
+            self._log_junk(specimen)
+        return quality
+
+    def filter_by_quality(self, specimens, quality):
+        """
+        Filter specimens by quality
+        """
+        return [specimen for specimen in specimens if self.detect(specimen) == quality]
 
 
 def validate_file_path(full_path: str) -> None:
