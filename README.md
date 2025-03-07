@@ -22,7 +22,7 @@ Each agent is intended to answer questions related to a set of documents known a
   - [Without Docker Compose](#without-docker-compose)
 - [Synchronizing Documents from S3](#synchronizing-documents-from-s3)
   - [Continuous synchronization](#continuous-synchronization)
-- [Deploying to Open Shift](#deploying-to-open-shift)
+- [Deploying to OpenShift](#deploying-to-openshift)
 - [Run Tangerine Frontend Locally](#run-tangerine-frontend-locally)
 - [Available API Paths](#available-api-paths)
 
@@ -389,9 +389,9 @@ The s3 sync can be configured on a schedule to continually update your document 
    3. once the entire document set has been ingested and is ready to use, the metadata is flipped so that the new chunks have 'active: true', and the old chunks have 'active: false'
    4. finally, chunks with 'active: false' are removed from the vector DB
 
-## Deploying to Open Shift
+## Deploying to OpenShift
 
-This repository provides [Open Shift templates](openshift/) for all infrastructure components (except for the LLM hosting server). You may not need the templates for postgres or text-embeddings-inference server if you intend to provide those via other infrastructure or 3rd party services.
+This repository provides [OpenShift templates](openshift/) for all infrastructure components (except for the LLM hosting server). You may not need the templates for postgres or text-embeddings-inference server if you intend to provide those via other infrastructure or 3rd party services.
 
 ## Run Tangerine Frontend Locally
 
