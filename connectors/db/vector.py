@@ -310,8 +310,8 @@ class VectorStoreInterface:
 
         else:
             text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=2000,  # Keep chunks readable
-                chunk_overlap=200,  # Small overlap for context
+                chunk_size=self.splitter_chunk_size,
+                chunk_overlap=self.chunk_overlap,
                 separators=["\n\n", ". ", "? ", "! "]
             )
             chunks = text_splitter.split_text(text)
