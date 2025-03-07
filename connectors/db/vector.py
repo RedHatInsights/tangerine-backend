@@ -226,8 +226,8 @@ class VectorStoreInterface:
     def __init__(self):
         self.store = None
         self.vector_chunk_size = 2000
-        self.vector_min_chunk_size = 200
-        self.vector_chunk_overlap = 200
+        self.max_chunk_size = 2300
+        self.chunk_overlap = 200
         self.batch_size = 32
         self.db = db
         self.search_providers = []
