@@ -1,7 +1,7 @@
 from typing import List
 
 from .agent import Agent
-from .file import File, validate_file_path, validate_source, QualityDetector
+from .file import File, validate_file_path, validate_source
 from .vector import vector_db
 
 
