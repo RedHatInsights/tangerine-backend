@@ -1,3 +1,4 @@
+-- based on: https://github.com/pgvector/pgvector-python/blob/7e7a851d413d07cd7701ba7c411ed3093b531934/examples/hybrid_search/rrf.py#L24-L46
 WITH semantic_search AS (
     SELECT id, document, cmetadata,
         -- Normalize vector similarity to [0,1]
