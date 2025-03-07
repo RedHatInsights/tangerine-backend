@@ -225,7 +225,7 @@ class CustomTransport(httpx.BaseTransport):
 class VectorStoreInterface:
     def __init__(self):
         self.store = None
-        self.vector_chunk_size = 2000
+        self.splitter_chunk_size = 2000
         self.max_chunk_size = 2300
         self.chunk_overlap = 200
         self.batch_size = 32
