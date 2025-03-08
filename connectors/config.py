@@ -71,7 +71,7 @@ the given query.
 ### Query:
 "{query}"
 
-### Documents:
+### Search results:
 {document_list}
 
 ### Instructions for Ranking:

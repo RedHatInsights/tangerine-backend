@@ -80,6 +80,8 @@ class MMRSearchProvider(SearchProvider):
 
     def search(self, query, search_filter) -> list[SearchResult]:
         """Runs MMR search and normalizes scores."""
+        if cfg.EMBED_QUERY_PREFIX:
+            query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
         results = self.store.max_marginal_relevance_search_with_score(
             query=query,
             filter=search_filter,
@@ -98,6 +100,8 @@ class SimilaritySearchProvider(SearchProvider):
 
     def search(self, query, search_filter) -> list[SearchResult]:
         """Runs similarity search and ensures scores are normalized."""
+        if cfg.EMBED_QUERY_PREFIX:
+            query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
         results = self.store.similarity_search_with_score(
             query=query,
             filter=search_filter,
@@ -149,8 +153,11 @@ class HybridSearchProvider(SearchProvider):
             return []
 
         try:
-            # Get embedding for the quyery
-            query_embedding = self.embeddings_model.embed_query(query)
+            # Get embedding for the query
+            model_query = query
+            if cfg.EMBED_QUERY_PREFIX:
+                model_query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
+            query_embedding = self.embeddings_model.embed_query(model_query)
 
             # Convert list to vectors
             query_embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
@@ -419,7 +426,6 @@ class VectorStoreInterface:
     def _rerank_results(self, query, search_results):
         """
         Uses the LLM to rank search results based on relevance.
-        Falls back to score-based ranking if LLM fails.
         """
         if len(search_results) <= 1:
             return search_results  # No need to rank if there's only one result
@@ -427,7 +433,11 @@ class VectorStoreInterface:
         # Construct prompt
         document_list = "\n".join(
             [
-                f"{i+1}. {result.document.page_content[:300]}"
+                (
+                    f"--- Search Result {i+1} START ---\n"
+                    f"{result.document.page_content[:300]}\n"
+                    f"--- Search Result {i+1} END ---"
+                )
                 for i, result in enumerate(search_results)
             ]
         )
@@ -448,22 +458,20 @@ class VectorStoreInterface:
         llm_response = reranker.invoke(prompt)
         content = llm_response.content
 
-        ranking = [int(num.strip()) - 1 for num in content.split(",")]
-
-        # Validate ranking output
-        if not ranking or max(ranking) >= len(search_results):
-            raise ValueError(f"Invalid model ranking response: {content}")
+        valid_rankings = list(range(0, len(search_results)))
+        rankings = [int(num) - 1 for num in content.split(",")]
+        if not rankings or not all([r in valid_rankings for r in rankings]):
+            log.debug("valid_rankings: %s, rankings: %s")
+            raise ValueError(f"Invalid model rankings: {rankings}, model response: {content}")
 
         # Sort results based on LLM ranking
-        sorted_results = [search_results[i] for i in ranking]
+        sorted_results = [search_results[i] for i in rankings]
 
         return sorted_results
 
     def search(self, query, agent_id: int):
         results = []
         search_filter = {"agent_id": str(agent_id), "active": "True"}
-        if cfg.EMBED_QUERY_PREFIX:
-            query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
 
         for provider in self.search_providers:
             results.extend(provider.search(query, search_filter))
