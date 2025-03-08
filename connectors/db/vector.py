@@ -416,7 +416,7 @@ class VectorStoreInterface:
 
         return unique_results
 
-    def rank_results_with_llm(self, query, search_results):
+    def _rerank_results(self, query, search_results):
         """
         Uses the LLM to rank search results based on relevance.
         Falls back to score-based ranking if LLM fails.
@@ -443,21 +443,20 @@ class VectorStoreInterface:
             openai_api_key=cfg.LLM_API_KEY,
             temperature=cfg.LLM_TEMPERATURE,
         )
-        try:
-            # Send to LLM and get response
-            llm_response = reranker.invoke(prompt)
-        except Exception as e:
-            print(f"model ranking failed: {e}. Falling back to score-based ranking.")
-            # Fallback: Sort by raw score (descending)
-            return sorted(search_results, key=lambda r: r.score, reverse=True)
-        ranking = [int(num.strip()) - 1 for num in llm_response.content.split(",")]
+
+        # Send to LLM and get response
+        llm_response = reranker.invoke(prompt)
+        content = llm_response.content
+
+        ranking = [int(num.strip()) - 1 for num in content.split(",")]
 
         # Validate ranking output
         if not ranking or max(ranking) >= len(search_results):
-            raise ValueError("Invalid model ranking response")
+            raise ValueError(f"Invalid model ranking response: {content}")
 
         # Sort results based on LLM ranking
-        sorted_results = [search_results[i] for i in ranking if i < len(search_results)]
+        sorted_results = [search_results[i] for i in ranking]
+
         return sorted_results
 
     def search(self, query, agent_id: int):
@@ -473,21 +472,18 @@ class VectorStoreInterface:
         deduped_results = self.deduplicate_results(results)
 
         # Rank the results using LLM if enabled, otherwise by score
+        sorted_results = None
         if cfg.ENABLE_MODEL_RANKING:
-            sorted_results = self.rank_results_with_llm(query, deduped_results)
-        else:
+            try:
+                sorted_results = self._rerank_results(query, deduped_results)
+            except Exception:
+                log.exception("model re-ranking failed")
+
+        if not sorted_results:
+            log.debug("sorting results by score")
             sorted_results = sorted(deduped_results, key=lambda r: r.score, reverse=True)
 
-        # de-dupe, 'Document' is unhashable so check page content
-        unique_results = []
-        seen_pages = set()
-        for new_result in sorted_results:
-            page_text = new_result.document.page_content
-            if page_text not in seen_pages:
-                seen_pages.add(page_text)
-                unique_results.append(new_result)
-
-        return unique_results
+        return sorted_results
 
     def _build_metadata_filter(self, metadata):
         filter_stmts = []
