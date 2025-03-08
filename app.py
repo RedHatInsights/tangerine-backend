@@ -42,7 +42,7 @@ def create_app():
 
     with app.app_context():
         db.session.commit()
-        vector_db.init_vector_store()
+        vector_db.initialize()
         app.logger.info("vector store initiated.")
         db.create_all()
         app.logger.info("db tables initiated.")

@@ -3,10 +3,11 @@ import logging
 from flask import request
 from flask_restful import Resource
 
-from connectors.db.interactions import  store_user_feedback
-from connectors import config
+from connectors.db.interactions import store_user_feedback
+
 
 log = logging.getLogger("tangerine")
+
 
 class FeedbackApi(Resource):
     def post(self):
