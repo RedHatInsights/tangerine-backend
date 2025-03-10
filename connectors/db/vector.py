@@ -7,10 +7,12 @@ import os
 import re
 from abc import ABC, abstractmethod
 from decimal import Decimal
+from typing import Optional
 
 import httpx
 from langchain.text_splitter import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStore
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
@@ -30,7 +32,7 @@ embed_prompt_tokens_metric = get_counter(
 )
 
 
-def _get_query_embedding(store: VectorStore, query: str) -> list[float]:
+def _get_query_embedding(store: VectorStore, query: str) -> Optional[Embeddings]:
     if cfg.EMBED_QUERY_PREFIX:
         query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
     return store.embeddings.embed_query(query)
@@ -242,8 +244,10 @@ class VectorStoreInterface:
         self.batch_size = 32
         self.db = db
         self.search_providers = []
+        self.quality_detector = QualityDetector()
 
-        self.embeddings = OpenAIEmbeddings(
+    def initialize(self):
+        embeddings = OpenAIEmbeddings(
             http_client=httpx.Client(transport=CustomTransport(httpx.HTTPTransport())),
             model=cfg.EMBED_MODEL_NAME,
             openai_api_base=cfg.EMBED_BASE_URL,
@@ -251,14 +255,11 @@ class VectorStoreInterface:
             check_embedding_ctx_length=False,
         )
 
-        self.quality_detector = QualityDetector()
-
-    def initialize(self):
         try:
             self.store = PGVector(
                 collection_name=cfg.VECTOR_COLLECTION_NAME,
                 connection=cfg.DB_URI,
-                embeddings=self.embeddings,
+                embeddings=embeddings,
             )
         except Exception:
             log.exception("error initializing vector store")
