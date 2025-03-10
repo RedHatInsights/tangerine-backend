@@ -210,6 +210,7 @@ class AgentChatApi(Resource):
             previous_messages,
             question,
             agent.id,
+            agent.name,
             stream=stream,
             interaction_id=interaction_id,
         )

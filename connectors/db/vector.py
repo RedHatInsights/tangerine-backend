@@ -11,6 +11,7 @@ from decimal import Decimal
 import httpx
 from langchain.text_splitter import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
+from langchain_core.vectorstores import VectorStore
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -29,6 +30,12 @@ embed_prompt_tokens_metric = get_counter(
 )
 
 
+def _get_query_embedding(store: VectorStore, query: str) -> list[float]:
+    if cfg.EMBED_QUERY_PREFIX:
+        query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
+    return store.embeddings.embed_query(query)
+
+
 class SearchResult:
     """Class to hold search results with document and score."""
 
@@ -44,13 +51,13 @@ class SearchProvider(ABC):
 
     RETRIEVAL_METHOD = None
 
-    def __init__(self, store):
+    def __init__(self, store: VectorStore):
         if self.RETRIEVAL_METHOD is None:
             raise TypeError("Subclasses must set RETRIEVAL_METHOD to a non-None value")
         self.store = store
 
     @abstractmethod
-    def search(self, query, search_filter) -> list[SearchResult]:
+    def search(self, query, search_filter, query_embedding=None) -> list[SearchResult]:
         """Runs the search and returns results with normalized scores."""
         pass
 
@@ -78,17 +85,18 @@ class MMRSearchProvider(SearchProvider):
 
     RETRIEVAL_METHOD = "mmr"
 
-    def search(self, query, search_filter) -> list[SearchResult]:
+    def search(self, query, search_filter, query_embedding=None) -> list[SearchResult]:
         """Runs MMR search and normalizes scores."""
-        if cfg.EMBED_QUERY_PREFIX:
-            query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
-        results = self.store.max_marginal_relevance_search_with_score(
-            query=query,
+        query_embedding = query_embedding or _get_query_embedding(self.store, query)
+
+        results = self.store.max_marginal_relevance_search_with_score_by_vector(
+            embedding=query_embedding,
             filter=search_filter,
             lambda_mult=0.85,
             k=4,
         )
         results = self._process_results(results)
+
         # Normalize (Invert distance-based scores)
         return [SearchResult(doc, 1 - score) for doc, score in results]
 
@@ -98,16 +106,17 @@ class SimilaritySearchProvider(SearchProvider):
 
     RETRIEVAL_METHOD = "similarity"
 
-    def search(self, query, search_filter) -> list[SearchResult]:
+    def search(self, query, search_filter, query_embedding=None) -> list[SearchResult]:
         """Runs similarity search and ensures scores are normalized."""
-        if cfg.EMBED_QUERY_PREFIX:
-            query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
-        results = self.store.similarity_search_with_score(
-            query=query,
+        query_embedding = query_embedding or _get_query_embedding(self.store, query)
+
+        results = self.store.similarity_search_with_score_by_vector(
+            embedding=query_embedding,
             filter=search_filter,
             k=4,
         )
         results = self._process_results(results)
+
         # Assume scores are already in 0-1 range (cosine similarity)
         return [SearchResult(doc, score) for doc, score in results]
 
@@ -123,13 +132,6 @@ class HybridSearchProvider(SearchProvider):
         self.sql_loaded = False
         self.sql_query = ""
         self._load_sql_file()
-        self.embeddings_model = OpenAIEmbeddings(
-            http_client=httpx.Client(transport=CustomTransport(httpx.HTTPTransport())),
-            model=cfg.EMBED_MODEL_NAME,
-            openai_api_base=cfg.EMBED_BASE_URL,
-            openai_api_key=cfg.EMBED_API_KEY,
-            check_embedding_ctx_length=False,
-        )
 
     def _load_sql_file(self):
         """Loads an SQL file into memory."""
@@ -141,7 +143,7 @@ class HybridSearchProvider(SearchProvider):
             self.sql_loaded = False
             log.exception("Error loading SQL file %s", self.QUERY_FILE)
 
-    def search(self, query, search_filter) -> list[SearchResult]:
+    def search(self, query, search_filter, query_embedding=None) -> list[SearchResult]:
         """Hybrid search provider combining vector similarity and full-text BM25 search.
 
         Based on:
@@ -153,11 +155,7 @@ class HybridSearchProvider(SearchProvider):
             return []
 
         try:
-            # Get embedding for the query
-            model_query = query
-            if cfg.EMBED_QUERY_PREFIX:
-                model_query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
-            query_embedding = self.embeddings_model.embed_query(model_query)
+            query_embedding = query_embedding or _get_query_embedding(self.store, query)
 
             # Convert list to vectors
             query_embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
@@ -473,8 +471,9 @@ class VectorStoreInterface:
         results = []
         search_filter = {"agent_id": str(agent_id), "active": "True"}
 
+        query_embedding = _get_query_embedding(self.store, query)
         for provider in self.search_providers:
-            results.extend(provider.search(query, search_filter))
+            results.extend(provider.search(query, search_filter, query_embedding))
 
         # Remove duplicates based on text similarity
         deduped_results = self.deduplicate_results(results)

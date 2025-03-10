@@ -99,7 +99,14 @@ class LLMInterface:
         LLMInterface._record_metrics(cb, processing_start, completion_start, completion_end)
 
     def ask(
-        self, system_prompt, previous_messages, question, agent_id, stream, interaction_id=None
+        self,
+        system_prompt,
+        previous_messages,
+        question,
+        agent_id,
+        agent_name,
+        stream,
+        interaction_id=None,
     ):
         log.debug("querying vector DB")
         results = vector_db.search(question, agent_id)
