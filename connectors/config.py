@@ -64,31 +64,7 @@ Answer the above question using the below search results as context:
 [/INST]
 """.strip()
 
-RERANK_PROMPT_TEMPLATE = """
-You are an AI search assistant. Rank the following search results from most to least relevant to
-the given query.
-
-### Query:
-"{query}"
-
-### Search results:
-{document_list}
-
-### Instructions for Ranking:
-1. **Prioritize well-written prose** that directly answers the query.
-2. **Do NOT rank tables of contents, lists of links, or navigation menus highly**, as they are not meaningful responses.
-3. **Prefer documents that provide clear, informative, and explanatory content.**
-4. **Ignore documents that only contain a collection of links, bullet points, or raw lists with no explanation.**
-5. **If a document is highly repetitive or contains mostly boilerplate text, rank it lower.**
-6. **Only return a comma-separated list of numbers corresponding to the ranking order. Do NOT include explanations or extra formatting.**
-7. **If you are unsure about a document, you can skip it.**
-8. **Skip any document that starts with the string "Skip to content"**
-
-### Example Output:
-1, 3, 5, 2, 4
-""".strip()
-
-_system_prompt = """
+_chat_system_prompt = """
 <s>[INST] You are a helpful assistant that helps software developers quickly find answers to their
 questions by reviewing technical documents. You will be provided with a question and search results
 that are relevant for answering the question. The start marker for each search result is similar to
@@ -107,5 +83,33 @@ information available to be able to answer your question." Answers must consider
 """
 
 DEFAULT_SYSTEM_PROMPT = (
-    os.getenv("DEFAULT_SYSTEM_PROMPT", _system_prompt).replace("\n", " ").strip()
+    os.getenv("DEFAULT_SYSTEM_PROMPT", _chat_system_prompt).replace("\n", " ").strip()
 )
+
+RERANK_SYSTEM_PROMPT = """
+<s>[INST] You are an AI search assistant. You are given search results and a user query. Rank the given
+search results from most to least relevant to the given query.
+
+Your instructions for ranking:
+1. **Prioritize well-written prose** that directly answers the query.
+2. **Do NOT rank tables of contents, lists of links, or navigation menus highly**, as they are not meaningful responses.
+3. **Prefer documents that provide clear, informative, and explanatory content.**
+4. **Ignore documents that only contain a collection of links, bullet points, or raw lists with no explanation.**
+5. **If a document is highly repetitive or contains mostly boilerplate text, rank it lower.**
+6. **Only return a comma-separated list of numbers corresponding to the ranking order. Do NOT include explanations or extra formatting.**
+7. **If you are unsure about a document, you can skip it.**
+8. **Skip any document that starts with the string "Skip to content"**
+
+Example Output:
+1, 3, 5, 2, 4
+[/INST]
+""".strip()
+
+RERANK_PROMPT_TEMPLATE = """
+[INST]
+User query: "{query}"
+
+Search results:
+{context}
+[/INST]
+""".strip()

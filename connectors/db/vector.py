@@ -14,13 +14,14 @@ from langchain.text_splitter import MarkdownHeaderTextSplitter, RecursiveCharact
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStore
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sqlalchemy import text
 
 import connectors.config as cfg
+import connectors.llm.interface as llm
 from resources.metrics import get_counter
 
 from .agent import db
@@ -419,45 +420,16 @@ class VectorStoreInterface:
         """
         Uses the LLM to rank search results based on relevance.
         """
-        if len(search_results) <= 1:
-            return search_results  # No need to rank if there's only one result
-
-        # Construct prompt
-        document_list = "\n".join(
-            [
-                (
-                    f"--- Search Result {i+1} START ---\n"
-                    f"{result.document.page_content[:300]}\n"
-                    f"--- Search Result {i+1} END ---"
-                )
-                for i, result in enumerate(search_results)
-            ]
-        )
-
-        prompt = cfg.RERANK_PROMPT_TEMPLATE.format(
-            query=query,
-            document_list=document_list,
-        )
-
-        reranker = ChatOpenAI(
-            model=cfg.LLM_MODEL_NAME,
-            openai_api_base=cfg.LLM_BASE_URL,
-            openai_api_key=cfg.LLM_API_KEY,
-            temperature=cfg.LLM_TEMPERATURE,
-        )
-
-        # Send to LLM and get response
-        llm_response = reranker.invoke(prompt)
-        content = llm_response.content
+        response = llm.rerank(query, search_results)
 
         valid_rankings = list(range(0, len(search_results)))
-        rankings = [int(num) - 1 for num in content.split(",")]
+        rankings = [int(num) - 1 for num in response.split(",")]
         log.debug("model response rankings: %s, valid rankings: %s", rankings, valid_rankings)
         if not rankings or not all([r in valid_rankings for r in rankings]):
             raise ValueError(
                 f"Invalid model rankings: {rankings}, "
                 f"valid rankings: {valid_rankings}, "
-                f"model response: {content}"
+                f"model response: {response}"
             )
 
         # Sort results based on LLM ranking

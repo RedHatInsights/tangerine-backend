@@ -4,14 +4,15 @@ import uuid
 
 from flask import Response, request, stream_with_context
 from flask_restful import Resource
+from langchain_core.documents import Document
 
+import connectors.llm.interface as llm
 from connectors import config
 from connectors.config import DEFAULT_SYSTEM_PROMPT
 from connectors.db.agent import Agent
 from connectors.db.common import File, add_filenames_to_agent, embed_files, remove_files
 from connectors.db.interactions import store_interaction
 from connectors.db.vector import vector_db
-from connectors.llm.interface import llm
 
 log = logging.getLogger("tangerine")
 
@@ -149,21 +150,22 @@ class AgentChatApi(Resource):
         if not agent:
             return {"message": "agent not found"}, 404
 
+        log.debug("querying vector DB")
         question, session_uuid, stream, previous_messages, interaction_id, client = (
             self._extract_request_data()
         )
         embedding = self._embed_question(question)
-        source_doc_chunks = self._retrieve_relevant_documents(agent, question, embedding)
+        search_results = self._get_search_results(question, embedding, agent.id)
         llm_response = self._call_llm(
-            agent, question, embedding, previous_messages, stream, interaction_id
+            agent, previous_messages, question, search_results, stream, interaction_id
         )
 
         if self._is_streaming_response(llm_response, stream):
             return self._handle_streaming_response(
                 llm_response,
                 question,
-                source_doc_chunks,
                 embedding,
+                search_results,
                 session_uuid,
                 interaction_id,
                 client,
@@ -172,8 +174,8 @@ class AgentChatApi(Resource):
         return self._handle_final_response(
             llm_response,
             question,
-            source_doc_chunks,
             embedding,
+            search_results,
             session_uuid,
             interaction_id,
             client,
@@ -191,8 +193,25 @@ class AgentChatApi(Resource):
         client = request.json.get("client", "unknown")
         return question, session_uuid, stream, previous_messages, interaction_id, client
 
-    def _retrieve_relevant_documents(self, agent, question, embedding):
-        retrieved_chunks = vector_db.search(question, embedding, agent.id)
+    def _embed_question(self, question):
+        return vector_db.embed_query(question)
+
+    def _call_llm(self, agent, previous_messages, question, search_results, stream, interaction_id):
+        return llm.ask(
+            agent,
+            previous_messages,
+            question,
+            search_results,
+            stream=stream,
+            interaction_id=interaction_id,
+        )
+
+    @staticmethod
+    def _is_streaming_response(llm_response, stream):
+        return stream and (callable(llm_response) or hasattr(llm_response, "__iter__"))
+
+    @staticmethod
+    def _parse_search_results(search_results: list[Document]) -> list[dict]:
         return [
             {
                 "text": doc.document.page_content,
@@ -200,35 +219,24 @@ class AgentChatApi(Resource):
                 "score": doc.document.metadata.get("relevance_score"),
                 "retrieval_method": doc.document.metadata.get("retrieval_method"),
             }
-            for doc in retrieved_chunks
+            for doc in search_results
         ]
 
-    def _embed_question(self, question):
-        return vector_db.embed_query(question)
-
-    def _call_llm(self, agent, question, embedding, previous_messages, stream, interaction_id):
-        return llm.ask(
-            agent,
-            previous_messages,
-            question,
-            embedding,
-            stream=stream,
-            interaction_id=interaction_id,
-        )
-
-    def _is_streaming_response(self, llm_response, stream):
-        return stream and (callable(llm_response) or hasattr(llm_response, "__iter__"))
+    @staticmethod
+    def _get_search_results(question, embedding, agent_id):
+        return vector_db.search(question, embedding, agent_id)
 
     def _handle_streaming_response(
         self,
         llm_response,
         question,
-        source_doc_chunks,
         embedding,
+        search_results,
         session_uuid,
         interaction_id,
         client,
     ):
+        source_doc_info = self._parse_search_results(search_results)
 
         def accumulate_and_stream():
             accumulated_response = ""
@@ -239,7 +247,7 @@ class AgentChatApi(Resource):
             self._log_interaction(
                 question,
                 accumulated_response,
-                source_doc_chunks,
+                source_doc_info,
                 embedding,
                 session_uuid,
                 interaction_id,
@@ -252,16 +260,18 @@ class AgentChatApi(Resource):
         self,
         llm_response,
         question,
-        source_doc_chunks,
+        search_results,
         embedding,
         session_uuid,
         interaction_id,
         client,
     ):
+        source_doc_info = self._parse_search_results(search_results)
+
         self._log_interaction(
             question,
             llm_response,
-            source_doc_chunks,
+            source_doc_info,
             embedding,
             session_uuid,
             interaction_id,
@@ -285,7 +295,7 @@ class AgentChatApi(Resource):
         return config.STORE_INTERACTIONS is True
 
     def _log_interaction(
-        self, question, response, source_doc_chunks, embedding, session_uuid, interaction_id, client
+        self, question, response, source_doc_info, embedding, session_uuid, interaction_id, client
     ):
         if self._interaction_storage_enabled() is False:
             return
@@ -293,7 +303,7 @@ class AgentChatApi(Resource):
             store_interaction(
                 question=question,
                 llm_response=response,
-                source_doc_chunks=source_doc_chunks,
+                source_doc_chunks=source_doc_info,
                 question_embedding=embedding,
                 session_uuid=session_uuid,
                 interaction_id=interaction_id,
