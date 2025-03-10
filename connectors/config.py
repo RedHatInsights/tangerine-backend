@@ -1,3 +1,5 @@
+# flake8: noqa: E501
+
 import os
 
 
@@ -28,7 +30,9 @@ LLM_API_KEY = os.getenv("LLM_API_KEY", "EMPTY")
 LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "mistral")
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", 0.7))
 
-STORE_INTERACTIONS = os.getenv("STORE_INTERACTIONS", "false").lower() in ["1", "t", "true"]
+STORE_INTERACTIONS = _is_true("STORE_INTERACTIONS")
+ENABLE_MODEL_RANKING = _is_true("ENABLE_MODEL_RANKING")
+ENABLE_QUALITY_DETECTION = _is_true("ENABLE_QUALITY_DETECTION")
 
 EMBED_BASE_URL = os.getenv("EMBED_BASE_URL", "http://localhost:11434/v1")
 EMBED_API_KEY = os.getenv("EMBED_API_KEY", "EMPTY")
@@ -48,6 +52,8 @@ S3_SYNC_EXPORT_METRICS_SLEEP_SECS = int(os.getenv("S3_SYNC_EXPORT_METRICS_SLEEP_
 
 METRICS_PREFIX = os.getenv("METRICS_PREFIX", "tangerine")
 
+STORE_QD_DATA = _is_true("STORE_QD_DATA")
+
 USER_PROMPT_TEMPLATE = """
 [INST]
 Question: {question}
@@ -56,13 +62,33 @@ Answer the above question using the below search results as context:
 
 {context}
 [/INST]
-""".lstrip(
-    "\n"
-).rstrip(
-    "\n"
-)
+""".strip()
 
-_prompt = """
+RERANK_PROMPT_TEMPLATE = """
+You are an AI search assistant. Rank the following search results from most to least relevant to
+the given query.
+
+### Query:
+"{query}"
+
+### Search results:
+{document_list}
+
+### Instructions for Ranking:
+1. **Prioritize well-written prose** that directly answers the query.
+2. **Do NOT rank tables of contents, lists of links, or navigation menus highly**, as they are not meaningful responses.
+3. **Prefer documents that provide clear, informative, and explanatory content.**
+4. **Ignore documents that only contain a collection of links, bullet points, or raw lists with no explanation.**
+5. **If a document is highly repetitive or contains mostly boilerplate text, rank it lower.**
+6. **Only return a comma-separated list of numbers corresponding to the ranking order. Do NOT include explanations or extra formatting.**
+7. **If you are unsure about a document, you can skip it.**
+8. **Skip any document that starts with the string "Skip to content"**
+
+### Example Output:
+1, 3, 5, 2, 4
+""".strip()
+
+_system_prompt = """
 <s>[INST] You are a helpful assistant that helps software developers quickly find answers to their
 questions by reviewing technical documents. You will be provided with a question and search results
 that are relevant for answering the question. The start marker for each search result is similar to
@@ -80,4 +106,6 @@ information available to be able to answer your question." Answers must consider
 [/INST]
 """
 
-DEFAULT_SYSTEM_PROMPT = os.getenv("DEFAULT_SYSTEM_PROMPT", _prompt).lstrip("\n").replace("\n", " ")
+DEFAULT_SYSTEM_PROMPT = (
+    os.getenv("DEFAULT_SYSTEM_PROMPT", _system_prompt).replace("\n", " ").strip()
+)

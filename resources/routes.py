@@ -10,4 +10,4 @@ def initialize_routes(api):
     api.add_resource(AgentDocuments, "/api/agents/<id>/documents")
     api.add_resource(AgentChatApi, "/api/agents/<id>/chat", methods=["GET", "POST"])
     api.add_resource(PingApi, "/ping", methods=["GET"])
-    api.add_resource(FeedbackApi, "/api/feedback",methods=["POST"])
+    api.add_resource(FeedbackApi, "/api/feedback", methods=["POST"])

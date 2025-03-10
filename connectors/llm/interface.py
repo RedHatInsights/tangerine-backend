@@ -10,6 +10,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 import connectors.config as cfg
+from connectors.db.agent import Agent
 from connectors.db.vector import vector_db
 from resources.metrics import get_counter, get_gauge
 
@@ -98,9 +99,17 @@ class LLMInterface:
 
         LLMInterface._record_metrics(cb, processing_start, completion_start, completion_end)
 
-    def ask(self, system_prompt, previous_messages, question, agent_id, agent_name, stream, interaction_id=None):
+    def ask(
+        self,
+        agent: Agent,
+        previous_messages,
+        question,
+        embedding,
+        stream,
+        interaction_id=None,
+    ):
         log.debug("querying vector DB")
-        results = vector_db.search(question, agent_id)
+        results = vector_db.search(question, embedding, agent.id)
 
         prompt_params = {"question": question}
         prompt = ChatPromptTemplate.from_template("{question}")
@@ -111,15 +120,20 @@ class LLMInterface:
         if len(results) == 0:
             log.debug("unable to find results")
             context_text = "No matching search results found"
-            llm_no_answer.labels(agent_id=agent_id, agent_name=agent_name).inc()
+            llm_no_answer.labels(agent_id=agent.id, agent_name=agent.agent_name).inc()
         else:
-            agent_response_counter.labels(agent_id=agent_id, agent_name=agent_name).inc()
+            agent_response_counter.labels(agent_id=agent.id, agent_name=agent.agent_name).inc()
             log.debug("fetched %d relevant search results from vector db", len(results))
             for i, doc in enumerate(results):
                 page_content = doc.document.page_content
                 metadata = doc.document.metadata
-                extra_doc_info.append({"interactionId": interaction_id, "metadata": metadata, "page_content": page_content})
-                
+                extra_doc_info.append(
+                    {
+                        "interactionId": interaction_id,
+                        "metadata": metadata,
+                        "page_content": page_content,
+                    }
+                )
 
                 context_text += f"\n<<Search result {i+1}"
                 if "title" in metadata:
@@ -132,7 +146,7 @@ class LLMInterface:
 
         # Adding system prompt and memory
         msg_list = []
-        msg_list.append(SystemMessage(content=system_prompt or cfg.DEFAULT_SYSTEM_PROMPT))
+        msg_list.append(SystemMessage(content=agent.system_prompt or cfg.DEFAULT_SYSTEM_PROMPT))
         if previous_messages:
             for msg in previous_messages:
                 if msg["sender"] == "human":
