@@ -459,9 +459,13 @@ class VectorStoreInterface:
 
         valid_rankings = list(range(0, len(search_results)))
         rankings = [int(num) - 1 for num in content.split(",")]
+        log.debug("model response rankings: %s, valid rankings: %s", rankings)
         if not rankings or not all([r in valid_rankings for r in rankings]):
-            log.debug("valid_rankings: %s, rankings: %s")
-            raise ValueError(f"Invalid model rankings: {rankings}, model response: {content}")
+            raise ValueError(
+                f"Invalid model rankings: {rankings}, "
+                f"valid rankings: {valid_rankings}, "
+                f"model response: {content}"
+            )
 
         # Sort results based on LLM ranking
         sorted_results = [search_results[i] for i in rankings]
