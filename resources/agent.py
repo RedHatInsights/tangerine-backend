@@ -152,9 +152,11 @@ class AgentChatApi(Resource):
         question, session_uuid, stream, previous_messages, interaction_id, client = (
             self._extract_request_data()
         )
-        source_doc_chunks = self._retrieve_relevant_documents(agent, question)
         embedding = self._embed_question(question)
-        llm_response = self._call_llm(agent, question, previous_messages, stream, interaction_id)
+        source_doc_chunks = self._retrieve_relevant_documents(agent, question, embedding)
+        llm_response = self._call_llm(
+            agent, question, embedding, previous_messages, stream, interaction_id
+        )
 
         if self._is_streaming_response(llm_response, stream):
             return self._handle_streaming_response(
@@ -189,8 +191,8 @@ class AgentChatApi(Resource):
         client = request.json.get("client", "unknown")
         return question, session_uuid, stream, previous_messages, interaction_id, client
 
-    def _retrieve_relevant_documents(self, agent, question):
-        retrieved_chunks = vector_db.search(question, agent.id)
+    def _retrieve_relevant_documents(self, agent, question, embedding):
+        retrieved_chunks = vector_db.search(question, embedding, agent.id)
         return [
             {
                 "text": doc.document.page_content,
@@ -202,15 +204,14 @@ class AgentChatApi(Resource):
         ]
 
     def _embed_question(self, question):
-        return vector_db.embeddings.embed_query(question)
+        return vector_db.embed_query(question)
 
-    def _call_llm(self, agent, question, previous_messages, stream, interaction_id):
+    def _call_llm(self, agent, question, embedding, previous_messages, stream, interaction_id):
         return llm.ask(
-            agent.system_prompt,
+            agent,
             previous_messages,
             question,
-            agent.id,
-            agent.name,
+            embedding,
             stream=stream,
             interaction_id=interaction_id,
         )

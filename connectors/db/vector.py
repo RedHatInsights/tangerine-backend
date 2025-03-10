@@ -32,12 +32,6 @@ embed_prompt_tokens_metric = get_counter(
 )
 
 
-def _get_query_embedding(store: VectorStore, query: str) -> Optional[Embeddings]:
-    if cfg.EMBED_QUERY_PREFIX:
-        query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
-    return store.embeddings.embed_query(query)
-
-
 class SearchResult:
     """Class to hold search results with document and score."""
 
@@ -65,7 +59,7 @@ class SearchProvider(ABC):
 
     def _add_retrieval_method(self, docs):
         """Add retrieval method to each document's metadata."""
-        for doc, _score in docs:
+        for doc, _ in docs:
             doc.metadata["retrieval_method"] = self.RETRIEVAL_METHOD
         return docs
 
@@ -87,10 +81,8 @@ class MMRSearchProvider(SearchProvider):
 
     RETRIEVAL_METHOD = "mmr"
 
-    def search(self, query, search_filter, query_embedding=None) -> list[SearchResult]:
+    def search(self, query, search_filter, query_embedding) -> list[SearchResult]:
         """Runs MMR search and normalizes scores."""
-        query_embedding = query_embedding or _get_query_embedding(self.store, query)
-
         results = self.store.max_marginal_relevance_search_with_score_by_vector(
             embedding=query_embedding,
             filter=search_filter,
@@ -108,10 +100,8 @@ class SimilaritySearchProvider(SearchProvider):
 
     RETRIEVAL_METHOD = "similarity"
 
-    def search(self, query, search_filter, query_embedding=None) -> list[SearchResult]:
+    def search(self, query, search_filter, query_embedding) -> list[SearchResult]:
         """Runs similarity search and ensures scores are normalized."""
-        query_embedding = query_embedding or _get_query_embedding(self.store, query)
-
         results = self.store.similarity_search_with_score_by_vector(
             embedding=query_embedding,
             filter=search_filter,
@@ -145,7 +135,7 @@ class HybridSearchProvider(SearchProvider):
             self.sql_loaded = False
             log.exception("Error loading SQL file %s", self.QUERY_FILE)
 
-    def search(self, query, search_filter, query_embedding=None) -> list[SearchResult]:
+    def search(self, query, search_filter, query_embedding) -> list[SearchResult]:
         """Hybrid search provider combining vector similarity and full-text BM25 search.
 
         Based on:
@@ -157,8 +147,6 @@ class HybridSearchProvider(SearchProvider):
             return []
 
         try:
-            query_embedding = query_embedding or _get_query_embedding(self.store, query)
-
             # Convert list to vectors
             query_embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
 
@@ -246,8 +234,7 @@ class VectorStoreInterface:
         self.search_providers = []
         self.quality_detector = QualityDetector()
 
-    def initialize(self):
-        embeddings = OpenAIEmbeddings(
+        self._embeddings = OpenAIEmbeddings(
             http_client=httpx.Client(transport=CustomTransport(httpx.HTTPTransport())),
             model=cfg.EMBED_MODEL_NAME,
             openai_api_base=cfg.EMBED_BASE_URL,
@@ -255,11 +242,12 @@ class VectorStoreInterface:
             check_embedding_ctx_length=False,
         )
 
+    def initialize(self):
         try:
             self.store = PGVector(
                 collection_name=cfg.VECTOR_COLLECTION_NAME,
                 connection=cfg.DB_URI,
-                embeddings=embeddings,
+                embeddings=self._embeddings,
             )
         except Exception:
             log.exception("error initializing vector store")
@@ -271,6 +259,11 @@ class VectorStoreInterface:
         ]
 
         self.quality_detector.initialize_model()
+
+    def embed_query(self, query: str) -> Optional[Embeddings]:
+        if cfg.EMBED_QUERY_PREFIX:
+            query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
+        return self._embeddings.embed_query(query)
 
     def combine_small_chunks(self, chunks):
         """
@@ -459,7 +452,7 @@ class VectorStoreInterface:
 
         valid_rankings = list(range(0, len(search_results)))
         rankings = [int(num) - 1 for num in content.split(",")]
-        log.debug("model response rankings: %s, valid rankings: %s", rankings)
+        log.debug("model response rankings: %s, valid rankings: %s", rankings, valid_rankings)
         if not rankings or not all([r in valid_rankings for r in rankings]):
             raise ValueError(
                 f"Invalid model rankings: {rankings}, "
@@ -472,11 +465,11 @@ class VectorStoreInterface:
 
         return sorted_results
 
-    def search(self, query, agent_id: int):
+    def search(self, query, embedding, agent_id: int):
         results = []
         search_filter = {"agent_id": str(agent_id), "active": "True"}
 
-        query_embedding = _get_query_embedding(self.store, query)
+        query_embedding = embedding or self.embed_query(query)
         for provider in self.search_providers:
             results.extend(provider.search(query, search_filter, query_embedding))
 
