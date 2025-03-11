@@ -116,7 +116,9 @@ RERANK_PROMPT_TEMPLATE = """
 [INST]
 Query: {query}
 
-Provide the ranking for the following search results:
+Provide the ranking for the following search results. Your ranking output MUST be a comma-separated list of numbers with no notes, explanations, or special formatting.
+
+The output format MUST look similar to this: 1, 3, 5, 2, 4
 
 {context}
 [/INST]
