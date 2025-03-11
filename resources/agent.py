@@ -281,13 +281,13 @@ class AgentChatApi(Resource):
 
     def _extract_text_from_chunk(self, raw_chunk):
         try:
-            # I know how this looks
             # the raw_chunk is a string that looks like this:
             # data: {"text_content": "Hello, how can I help you today?"}\r\n
-            # We need to extract the JSON part from it
-            return json.loads(raw_chunk.split("data:")[1].split("\r")[0]).get("text_content", "")
+            # we need to extract the text_content from it for logging interactions
+            _, data = raw_chunk.split("data:")
+            return json.loads(data.strip()).get("text_content", "")
         except Exception:
-            log.exception("Error parsing chunk")
+            log.exception("error extracting text_content from chunk")
             return ""
 
     # Looks like a silly function but it makes it easier to mock in tests

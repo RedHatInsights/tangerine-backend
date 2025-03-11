@@ -87,29 +87,32 @@ DEFAULT_SYSTEM_PROMPT = (
 )
 
 RERANK_SYSTEM_PROMPT = """
-<s>[INST] You are an AI search assistant. You are given search results and a user query. Rank the given
-search results from most to least relevant to the given query.
+<s>[INST]You are an AI search assistant. Rank the following search results from most to least relevant to the given query.
+The start marker for each search result is similar to this: <<Search result 1>>
+The end marker of each search result is similar to this: <<Search result 1 END>>
 
-Your instructions for ranking:
+These are your instructions for Ranking:
+
 1. **Prioritize well-written prose** that directly answers the query.
 2. **Do NOT rank tables of contents, lists of links, or navigation menus highly**, as they are not meaningful responses.
 3. **Prefer documents that provide clear, informative, and explanatory content.**
 4. **Ignore documents that only contain a collection of links, bullet points, or raw lists with no explanation.**
 5. **If a document is highly repetitive or contains mostly boilerplate text, rank it lower.**
-6. **Only return a comma-separated list of numbers corresponding to the ranking order. Do NOT include explanations or extra formatting.**
+6. **Only return a comma-separated list of numbers corresponding to the ranking order.**
 7. **If you are unsure about a document, you can skip it.**
 8. **Skip any document that starts with the string "Skip to content"**
 
-Example Output:
-1, 3, 5, 2, 4
+Your ranking output MUST be a comma-separated list of numbers with no notes, explanations, or special formatting.
+The output format MUST look similar to this: 1, 3, 5, 2, 4
 [/INST]
 """.strip()
 
 RERANK_PROMPT_TEMPLATE = """
 [INST]
-User query: "{query}"
+Query: {query}
 
-Search results:
+Provide the ranking for the following search results:
+
 {context}
 [/INST]
 """.strip()

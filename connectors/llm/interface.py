@@ -3,10 +3,8 @@ import logging
 import time
 from typing import Generator
 
-from langchain_community.callbacks.manager import get_openai_callback
 from langchain_community.callbacks.openai_info import OpenAICallbackHandler
 from langchain_core.documents import Document
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
@@ -109,20 +107,21 @@ def _get_response(
     completion_start = 0.0
     processing_start = time.time()
 
-    with get_openai_callback() as cb:
-        for chunk in chain.stream(prompt_params, stream_usage=True):
-            if not completion_start:
-                # this is the first output token received
-                completion_start = time.time()
-            if len(chunk.content):
-                text_content = {"text_content": chunk.content}
-                yield text_content
+    handler = OpenAICallbackHandler()
+    config = {"callbacks": [handler]}
+    for chunk in chain.stream(prompt_params, stream_usage=True, config=config):
+        if not completion_start:
+            # this is the first output token received
+            completion_start = time.time()
+        if len(chunk.content):
+            text_content = {"text_content": chunk.content}
+            yield text_content
 
         # end for
         completion_end = time.time()
 
     # end with
-    _record_metrics(cb, processing_start, completion_start, completion_end)
+    _record_metrics(handler, processing_start, completion_start, completion_end)
 
 
 def rerank(query, search_results):
@@ -132,10 +131,10 @@ def rerank(query, search_results):
 
     context, _ = _build_context(search_results, 300)
 
-    prompt = ChatPromptTemplate.from_template(cfg.RERANK_PROMPT_TEMPLATE)
+    prompt = ChatPromptTemplate(
+        [("system", cfg.RERANK_SYSTEM_PROMPT), ("user", cfg.RERANK_PROMPT_TEMPLATE)]
+    )
     prompt_params = {"query": query, "context": context}
-
-    prompt.messages = SystemMessage(content=cfg.RERANK_SYSTEM_PROMPT) + prompt.messages
 
     llm_response = _get_response(prompt, prompt_params)
 
@@ -169,28 +168,23 @@ def ask(
     for m in search_metadata:
         m["interactionId"] = interaction_id
 
-    prompt = ChatPromptTemplate.from_template(cfg.USER_PROMPT_TEMPLATE)
-    prompt_params = {"context": search_context, "question": question}
-
-    # Adding system prompt and chat history
-    msg_list = []
-    msg_list.append(SystemMessage(content=agent.system_prompt or cfg.DEFAULT_SYSTEM_PROMPT))
+    msg_list = [("system", agent.system_prompt or cfg.DEFAULT_SYSTEM_PROMPT)]
     if previous_messages:
         for msg in previous_messages:
             if msg["sender"] == "human":
-                msg_list.append(HumanMessage(content=f"[INST] {msg['text']} [/INST]"))
+                msg_list.append(("human", f"[INST] {msg['text']} [/INST]"))
             if msg["sender"] == "ai":
-                msg_list.append(AIMessage(content=f"{msg['text']}</s>"))
-    prompt.messages = msg_list + prompt.messages
+                msg_list.append(("ai", f"{msg['text']}</s>"))
+    msg_list.append(("human", cfg.USER_PROMPT_TEMPLATE))
 
-    log.debug("prompting llm...")
-    llm_response = _get_response(prompt, prompt_params)
+    prompt_params = {"context": search_context, "question": question}
+    llm_response = _get_response(ChatPromptTemplate(msg_list), prompt_params)
 
     def api_response_generator():
         for data in llm_response:
             yield f"data: {json.dumps(data)}\r\n"
         # final piece of content returned is the search metadata
-        yield {"search_metadata": search_metadata}
+        yield f"data: {json.dumps({"search_metadata": search_metadata})}\r\n"
 
     if stream:
         log.debug("streaming response...")
