@@ -3,6 +3,7 @@ import logging
 import time
 from typing import Generator
 
+from langchain_community.callbacks.manager import get_openai_callback
 from langchain_community.callbacks.openai_info import OpenAICallbackHandler
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
@@ -100,6 +101,7 @@ def _get_response(
         openai_api_base=cfg.LLM_BASE_URL,
         openai_api_key=cfg.LLM_API_KEY,
         temperature=cfg.LLM_TEMPERATURE,
+        stream_usage=True,
     )
 
     chain = prompt | chat
@@ -107,21 +109,20 @@ def _get_response(
     completion_start = 0.0
     processing_start = time.time()
 
-    handler = OpenAICallbackHandler()
-    config = {"callbacks": [handler]}
-    for chunk in chain.stream(prompt_params, stream_usage=True, config=config):
-        if not completion_start:
-            # this is the first output token received
-            completion_start = time.time()
-        if len(chunk.content):
-            text_content = {"text_content": chunk.content}
-            yield text_content
+    with get_openai_callback() as cb:
+        for chunk in chain.stream(prompt_params):
+            if not completion_start:
+                # this is the first output token received
+                completion_start = time.time()
+            if len(chunk.content):
+                text_content = {"text_content": chunk.content}
+                yield text_content
 
-        # end for
-        completion_end = time.time()
+            # end for
+            completion_end = time.time()
 
-    # end with
-    _record_metrics(handler, processing_start, completion_start, completion_end)
+        # end with
+    _record_metrics(cb, processing_start, completion_start, completion_end)
 
 
 def rerank(query, search_results):
