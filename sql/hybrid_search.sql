@@ -30,4 +30,4 @@ SELECT
 FROM semantic_search
 FULL OUTER JOIN keyword_search ON semantic_search.id = keyword_search.id
 ORDER BY score DESC
-LIMIT 4;
+LIMIT 3;

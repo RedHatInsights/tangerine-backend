@@ -88,7 +88,7 @@ class MMRSearchProvider(SearchProvider):
             embedding=query_embedding,
             filter=search_filter,
             lambda_mult=0.85,
-            k=4,
+            k=3,
         )
         results = self._process_results(results)
 
@@ -106,12 +106,12 @@ class SimilaritySearchProvider(SearchProvider):
         results = self.store.similarity_search_with_score_by_vector(
             embedding=query_embedding,
             filter=search_filter,
-            k=4,
+            k=3,
         )
         results = self._process_results(results)
 
         # Assume scores are already in 0-1 range (cosine similarity)
-        return [SearchResult(doc, score) for doc, score in results]
+        return [SearchResult(doc, score) for doc, score in results if score >= 0.3]
 
 
 class HybridSearchProvider(SearchProvider):
