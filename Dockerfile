@@ -45,6 +45,8 @@ USER 1001
 
 ADD connectors ./connectors
 ADD resources ./resources
+ADD sql ./sql
+ADD json ./json
 ADD app.py .
 
 EXPOSE 8000

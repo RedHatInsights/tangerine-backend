@@ -33,6 +33,7 @@ class QuestionEmbedding(db.Model):
     )
     question_embedding = db.Column(Vector(768), nullable=False)
 
+
 class UserFeedback(db.Model):
     __tablename__ = "user_feedback"
 
@@ -42,12 +43,14 @@ class UserFeedback(db.Model):
     like = db.Column(db.Boolean, nullable=False)
     dislike = db.Column(db.Boolean, nullable=False)
     feedback = db.Column(db.Text, nullable=True)
+
     def __init__(self, interaction_id, like, dislike, feedback):
         self.interaction_id = interaction_id
         self.like = like
         self.dislike = dislike
         self.feedback = feedback
         self.timestamp = db.func.current_timestamp()
+
 
 def store_user_feedback(
     interaction_id,
@@ -73,6 +76,7 @@ def store_user_feedback(
     )
     insert(feedback_record, "Feedback")
     return feedback_record.id
+
 
 class Interaction(db.Model):
     __tablename__ = "interactions"

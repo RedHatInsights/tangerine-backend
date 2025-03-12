@@ -3,14 +3,15 @@ import logging
 from flask import request
 from flask_restful import Resource
 
-from connectors.db.interactions import  store_user_feedback
-from connectors import config
+import connectors.config as cfg
+from connectors.db.interactions import store_user_feedback
 
 log = logging.getLogger("tangerine")
 
+
 class FeedbackApi(Resource):
     def post(self):
-        if config.STORE_INTERACTIONS is False:
+        if cfg.STORE_INTERACTIONS is False:
             return {"message": "feedback is disabled"}, 400
         interaction_id = request.json.get("interactionId")
         like = request.json.get("like")

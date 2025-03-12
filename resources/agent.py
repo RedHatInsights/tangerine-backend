@@ -4,14 +4,15 @@ import uuid
 
 from flask import Response, request, stream_with_context
 from flask_restful import Resource
+from langchain_core.documents import Document
 
+import connectors.llm.interface as llm
 from connectors import config
 from connectors.config import DEFAULT_SYSTEM_PROMPT
 from connectors.db.agent import Agent
 from connectors.db.common import File, add_filenames_to_agent, embed_files, remove_files
 from connectors.db.interactions import store_interaction
 from connectors.db.vector import vector_db
-from connectors.llm.interface import llm
 
 log = logging.getLogger("tangerine")
 
@@ -148,19 +149,36 @@ class AgentChatApi(Resource):
         agent = self._get_agent(id)
         if not agent:
             return {"message": "agent not found"}, 404
-        
-        question, session_uuid, stream, previous_messages, interaction_id, client = self._extract_request_data()
-        source_doc_chunks = self._retrieve_relevant_documents(agent, question)
+
+        log.debug("querying vector DB")
+        question, session_uuid, stream, previous_messages, interaction_id, client = (
+            self._extract_request_data()
+        )
         embedding = self._embed_question(question)
-        llm_response = self._call_llm(agent, question, previous_messages, stream, interaction_id)
+        search_results = self._get_search_results(question, embedding, agent.id)
+        llm_response = self._call_llm(
+            agent, previous_messages, question, search_results, stream, interaction_id
+        )
 
         if self._is_streaming_response(llm_response, stream):
             return self._handle_streaming_response(
-                llm_response, question, source_doc_chunks, embedding, session_uuid, interaction_id, client
+                llm_response,
+                question,
+                embedding,
+                search_results,
+                session_uuid,
+                interaction_id,
+                client,
             )
 
         return self._handle_final_response(
-            llm_response, question, source_doc_chunks, embedding, session_uuid, interaction_id, client
+            llm_response,
+            question,
+            embedding,
+            search_results,
+            session_uuid,
+            interaction_id,
+            client,
         )
 
     def _get_agent(self, agent_id):
@@ -175,8 +193,25 @@ class AgentChatApi(Resource):
         client = request.json.get("client", "unknown")
         return question, session_uuid, stream, previous_messages, interaction_id, client
 
-    def _retrieve_relevant_documents(self, agent, question):
-        retrieved_chunks = vector_db.search(question, agent.id)
+    def _embed_question(self, question):
+        return vector_db.embed_query(question)
+
+    def _call_llm(self, agent, previous_messages, question, search_results, stream, interaction_id):
+        return llm.ask(
+            agent,
+            previous_messages,
+            question,
+            search_results,
+            stream=stream,
+            interaction_id=interaction_id,
+        )
+
+    @staticmethod
+    def _is_streaming_response(llm_response, stream):
+        return stream and (callable(llm_response) or hasattr(llm_response, "__iter__"))
+
+    @staticmethod
+    def _parse_search_results(search_results: list[Document]) -> list[dict]:
         return [
             {
                 "text": doc.document.page_content,
@@ -184,21 +219,24 @@ class AgentChatApi(Resource):
                 "score": doc.document.metadata.get("relevance_score"),
                 "retrieval_method": doc.document.metadata.get("retrieval_method"),
             }
-            for doc in retrieved_chunks
+            for doc in search_results
         ]
 
-    def _embed_question(self, question):
-        return vector_db.embeddings.embed_query(question)
-
-    def _call_llm(self, agent, question, previous_messages, stream, interaction_id):
-        return llm.ask(agent.system_prompt, previous_messages, question, agent.id, agent.agent_name, stream=stream, interaction_id=interaction_id)
-
-    def _is_streaming_response(self, llm_response, stream):
-        return stream and (callable(llm_response) or hasattr(llm_response, "__iter__"))
+    @staticmethod
+    def _get_search_results(question, embedding, agent_id):
+        return vector_db.search(question, embedding, agent_id)
 
     def _handle_streaming_response(
-        self, llm_response, question, source_doc_chunks, embedding, session_uuid, interaction_id, client
+        self,
+        llm_response,
+        question,
+        embedding,
+        search_results,
+        session_uuid,
+        interaction_id,
+        client,
     ):
+        source_doc_info = self._parse_search_results(search_results)
 
         def accumulate_and_stream():
             accumulated_response = ""
@@ -207,40 +245,65 @@ class AgentChatApi(Resource):
                 accumulated_response += text_content
                 yield raw_chunk
             self._log_interaction(
-                question, accumulated_response, source_doc_chunks, embedding, session_uuid, interaction_id, client
+                question,
+                accumulated_response,
+                source_doc_info,
+                embedding,
+                session_uuid,
+                interaction_id,
+                client,
             )
 
         return Response(stream_with_context(accumulate_and_stream()))
 
     def _handle_final_response(
-        self, llm_response, question, source_doc_chunks, embedding, session_uuid, interaction_id, client
+        self,
+        llm_response,
+        question,
+        search_results,
+        embedding,
+        session_uuid,
+        interaction_id,
+        client,
     ):
-        self._log_interaction(question, llm_response, source_doc_chunks, embedding, session_uuid, interaction_id, client)
+        source_doc_info = self._parse_search_results(search_results)
+
+        self._log_interaction(
+            question,
+            llm_response,
+            source_doc_info,
+            embedding,
+            session_uuid,
+            interaction_id,
+            client,
+        )
         return {"response": llm_response}, 200
 
     def _extract_text_from_chunk(self, raw_chunk):
         try:
-            # I know how this looks
             # the raw_chunk is a string that looks like this:
             # data: {"text_content": "Hello, how can I help you today?"}\r\n
-            # We need to extract the JSON part from it
-            return json.loads(raw_chunk.split("data:")[1].split("\r")[0]).get("text_content", "")
+            # we need to extract the text_content from it for logging interactions
+            _, data = raw_chunk.split("data:")
+            return json.loads(data.strip()).get("text_content", "")
         except Exception:
-            log.exception("Error parsing chunk")
+            log.exception("error extracting text_content from chunk")
             return ""
 
     # Looks like a silly function but it makes it easier to mock in tests
     def _interaction_storage_enabled(self) -> bool:
         return config.STORE_INTERACTIONS is True
 
-    def _log_interaction(self, question, response, source_doc_chunks, embedding, session_uuid, interaction_id, client):
+    def _log_interaction(
+        self, question, response, source_doc_info, embedding, session_uuid, interaction_id, client
+    ):
         if self._interaction_storage_enabled() is False:
             return
         try:
             store_interaction(
                 question=question,
                 llm_response=response,
-                source_doc_chunks=source_doc_chunks,
+                source_doc_chunks=source_doc_info,
                 question_embedding=embedding,
                 session_uuid=session_uuid,
                 interaction_id=interaction_id,

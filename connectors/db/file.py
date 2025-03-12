@@ -1,17 +1,22 @@
+import json
 import logging
 import os
 import re
 import string
-from io import BytesIO, StringIO
+from io import StringIO
 from typing import Optional
 
 import html2text
+import joblib
 import mdformat
 import PyPDF2
 import pytablereader as ptr
 from bs4 import BeautifulSoup
-from docling.document_converter import DocumentConverter, DocumentStream
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
 from tabledata import TableData
+
+import connectors.config as cfg
 
 log = logging.getLogger("tangerine.file")
 
@@ -19,6 +24,128 @@ log = logging.getLogger("tangerine.file")
 LINK_REGEX = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 # match example: "http://something.com"
 ABSOLUTE_URL_REGEX = re.compile(r"[a-z0-9]*:\/\/.*")
+
+
+class QualityDetector:
+    """
+    QualityDetector uses a simple TF-IDF + Logistic Regression model to detect the quality of text
+
+    This feature is still a work-in-progress
+    """
+
+    TRAINING_FILE = os.path.join(
+        os.path.dirname(__file__), "../../json/quality_detection_training.json"
+    )
+    MODEL_FILE = os.path.join(os.path.dirname(__file__), "../../data/quality_detector.pkl")
+    VECTORIZER_FILE = os.path.join(os.path.dirname(__file__), "../../data/vectorizer.pkl")
+
+    def __init__(self, log_junk=False):
+        self.training_texts = []
+        self.training_labels = []
+        self.classifier = None
+        self.vectorizer = None
+        self.training_data_loaded = False
+        self.model_ready = False
+        self.log_junk = log_junk
+
+    def initialize_model(self):
+        """Loads the trained model if available, otherwise trains a new one."""
+        self._load_training_data()
+
+        if os.path.exists(self.MODEL_FILE) and os.path.exists(self.VECTORIZER_FILE):
+            try:
+                self.classifier = joblib.load(self.MODEL_FILE)
+                self.vectorizer = joblib.load(self.VECTORIZER_FILE)
+                self.model_ready = True
+                log.info("successfully loaded trained QualityDetector model from disk.")
+            except Exception:
+                log.exception("error loading trained model from disk, retraining...")
+
+        if not self.model_ready:
+            self._train()
+
+    def _log_junk(self, specimen):
+        """
+        Log detected junk to a file for local debugging
+        """
+        if cfg.DEBUG_VERBOSE:
+            log.debug("\ndiscarded chunk:\n%s\n", specimen)
+        if cfg.STORE_QD_DATA and self.log_junk:
+            try:
+                with open("junk.txt", "a") as fp:
+                    fp.write(specimen + "\n\n\n\n")
+            except OSError as err:
+                log.error("unable to log junk: %s", err)
+
+    def _store(self):
+        try:
+            joblib.dump(self.classifier, self.MODEL_FILE)
+            joblib.dump(self.vectorizer, self.VECTORIZER_FILE)
+            log.debug("nlp data stored")
+        except Exception:
+            log.exception("error storing detection model")
+
+    def _load_training_data(self):
+        """
+        Load training data
+        """
+        self.training_data_loaded = False
+        try:
+            with open(self.TRAINING_FILE, "r", encoding="utf-8") as file:
+                training_samples = json.load(file)
+            self.training_texts = [sample["text"] for sample in training_samples]
+            self.training_labels = [sample["label"] for sample in training_samples]
+            self.training_data_loaded = True
+            log.debug("training data loaded")
+        except Exception:
+            log.exception("error loading training data")
+
+    def _train(self):
+        """
+        Train the model
+        """
+        if not self.training_data_loaded:
+            raise Exception("training data must be loaded")
+
+        # Train a simple TF-IDF + Logistic Regression model
+        self.model_ready = False
+        try:
+            self.vectorizer = TfidfVectorizer()
+            training_vectors = self.vectorizer.fit_transform(self.training_texts)
+            self.classifier = LogisticRegression()
+            self.classifier.fit(training_vectors, self.training_labels)
+            self.model_ready = True
+            log.debug("detection model trained")
+            if cfg.STORE_QD_DATA:
+                self._store()
+        except Exception:
+            log.exception("error training detection model")
+
+    def detect(self, specimen):
+        """
+        Detect the quality of the text
+        """
+        if not self.training_data_loaded:
+            raise Exception("training data must be loaded")
+        if not self.model_ready:
+            raise Exception("model must be ready")
+
+        detection_vectors = self.vectorizer.transform([specimen])
+        try:
+            quality = self.classifier.predict(detection_vectors)[0]
+        except Exception:
+            log.exception("error detecting quality")
+            quality = None
+
+        if quality == "junk":
+            self._log_junk(specimen)
+        return quality
+
+    def filter_by_quality(self, specimens, quality):
+        """
+        Filter specimens by quality
+        """
+        return [specimen for specimen in specimens if self.detect(specimen) == quality]
 
 
 def validate_file_path(full_path: str) -> None:
@@ -83,15 +210,6 @@ def _remove_large_md_code_blocks(text):
             lines.append(line)
 
     return "\n".join(lines)
-
-
-def _adoc_to_md(path, text):
-    converter = DocumentConverter()
-    textio = BytesIO(text.encode("utf-8"))
-    textio.seek(0)
-    ds = DocumentStream(name=path, stream=textio)
-    result = converter.convert(ds)
-    return result.document.export_to_markdown()
 
 
 def _get_table_row_lines(table: TableData) -> list[str]:
@@ -209,10 +327,14 @@ def _html_to_md(content: str) -> str:
     """
     soup = BeautifulSoup(content, "lxml")
 
-    # look for document body so that header/footer/nav/etc. is ignored
+    # remove header/footer/nav
+    tags_to_remove = ("header", "footer", "nav")
+    for tag in tags_to_remove:
+        for element in soup.find_all(tag):
+            element.decompose()
 
-    # mkdocs: content is found at <div class="md-content">
-    if doc_content := soup.find("article", class_="doc"):
+    # mkdocs: extract content found at <div class="md-content">
+    if doc_content := soup.find("div", class_="md-content"):
         # remove "Edit this page" button
         edit_button = doc_content.find("a", title="Edit this page")
         if edit_button:
@@ -222,7 +344,7 @@ def _html_to_md(content: str) -> str:
         for linenos_column in linenos_columns:
             linenos_column.decompose()
 
-    # antora: content found at <article class="doc">
+    # antora: extract content found at <article class="doc">
     elif doc_content := soup.find("article", class_="doc"):
         # remove "next page" nav at bottom of content
         pagination = doc_content.find("nav", class_="pagination")
@@ -230,7 +352,7 @@ def _html_to_md(content: str) -> str:
             pagination.decompose()
 
     else:
-        doc_content = content
+        doc_content = soup
 
     h = html2text.HTML2Text()
     h.ignore_images = True
@@ -336,9 +458,6 @@ class File:
 
         if self.full_path.endswith(".md"):
             return _process_md(self.content, url=self.citation_url)
-
-        if self.full_path.endswith(".adoc"):
-            return _adoc_to_md(os.path.basename(self.full_path), self.content)
 
         if self.full_path.endswith(".txt") or self.full_path.endswith(".rst"):
             return self.content

@@ -5,6 +5,7 @@ import sys
 import time
 
 import click
+import langchain
 from flask import Flask, current_app
 from flask.cli import with_appcontext
 from flask_cors import CORS
@@ -25,6 +26,9 @@ def create_app():
     logging.basicConfig(level=getattr(logging, cfg.LOG_LEVEL_GLOBAL))
     logging.getLogger("tangerine").setLevel(cfg.LOG_LEVEL_APP)
 
+    if cfg.DEBUG_VERBOSE:
+        langchain.debug = True
+
     app = Flask("tangerine")
 
     app.config["CORS_HEADERS"] = "Content-Type"
@@ -42,7 +46,7 @@ def create_app():
 
     with app.app_context():
         db.session.commit()
-        vector_db.init_vector_store()
+        vector_db.initialize()
         app.logger.info("vector store initiated.")
         db.create_all()
         app.logger.info("db tables initiated.")

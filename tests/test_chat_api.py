@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+from langchain_core.documents import Document
 
 from resources.agent import AgentChatApi  # Import your API class
 
@@ -13,7 +14,8 @@ def agent_chat_api():
     # Mock dependencies
     api_instance._get_agent = MagicMock()
     api_instance._extract_request_data = MagicMock()
-    api_instance._retrieve_relevant_documents = MagicMock()
+    api_instance._get_search_results = MagicMock()
+    api_instance._parse_search_results = MagicMock()
     api_instance._embed_question = MagicMock()
     api_instance._call_llm = MagicMock()
     api_instance._is_streaming_response = MagicMock()
@@ -43,7 +45,9 @@ def test_post_chat_non_streaming(agent_chat_api):
     mock_query = "What is AI?"
     mock_session_uuid = "1234-5678"
     mock_previous_messages = []
-    mock_source_doc_chunks = [{"text": "AI is artificial intelligence", "source": "wiki"}]
+    mock_search_results = [
+        Document(page_content="AI is artificial intelligence", metadata={"source": "wiki"})
+    ]
     mock_embedding = [0.1, 0.2, 0.3]
     mock_llm_response = "AI is the simulation of human intelligence."
     mock_interaction_id = "interaction-1234"
@@ -59,8 +63,8 @@ def test_post_chat_non_streaming(agent_chat_api):
         mock_interaction_id,
         mock_client,
     )
-    agent_chat_api._retrieve_relevant_documents.return_value = mock_source_doc_chunks
     agent_chat_api._embed_question.return_value = mock_embedding
+    agent_chat_api._get_search_results.return_value = mock_search_results
     agent_chat_api._call_llm.return_value = mock_llm_response
     agent_chat_api._is_streaming_response.return_value = False
     agent_chat_api._handle_final_response.return_value = {"response": mock_llm_response}, 200
@@ -75,13 +79,23 @@ def test_post_chat_non_streaming(agent_chat_api):
     # Ensure all expected functions were called
     agent_chat_api._get_agent.assert_called_once_with(1)
     agent_chat_api._extract_request_data.assert_called_once()
-    agent_chat_api._retrieve_relevant_documents.assert_called_once_with(mock_agent, mock_query)
     agent_chat_api._embed_question.assert_called_once_with(mock_query)
     agent_chat_api._call_llm.assert_called_once_with(
-        mock_agent, mock_query, mock_previous_messages, False, mock_interaction_id
+        mock_agent,
+        mock_previous_messages,
+        mock_query,
+        mock_search_results,
+        False,
+        mock_interaction_id,
     )
     agent_chat_api._handle_final_response.assert_called_once_with(
-        mock_llm_response, mock_query, mock_source_doc_chunks, mock_embedding, mock_session_uuid, mock_interaction_id, mock_client
+        mock_llm_response,
+        mock_query,
+        mock_embedding,
+        mock_search_results,
+        mock_session_uuid,
+        mock_interaction_id,
+        mock_client,
     )
 
 
@@ -92,7 +106,9 @@ def test_post_chat_streaming(agent_chat_api):
     mock_query = "What is AI?"
     mock_session_uuid = "1234-5678"
     mock_previous_messages = []
-    mock_source_doc_chunks = [{"text": "AI is artificial intelligence", "source": "wiki"}]
+    mock_search_results = [
+        Document(page_content="AI is artificial intelligence", metadata={"source": "wiki"})
+    ]
     mock_embedding = [0.1, 0.2, 0.3]
     mock_llm_response = MagicMock()  # Mock a streaming generator
     mock_llm_response.__iter__.return_value = iter(["data: AI is", "data: an intelligence"])
@@ -109,8 +125,8 @@ def test_post_chat_streaming(agent_chat_api):
         mock_interaction_id,
         mock_client,
     )
-    agent_chat_api._retrieve_relevant_documents.return_value = mock_source_doc_chunks
     agent_chat_api._embed_question.return_value = mock_embedding
+    agent_chat_api._get_search_results.return_value = mock_search_results
     agent_chat_api._call_llm.return_value = mock_llm_response
     agent_chat_api._is_streaming_response.return_value = True
     agent_chat_api._handle_streaming_response.return_value = "mock_stream_response"
@@ -124,11 +140,21 @@ def test_post_chat_streaming(agent_chat_api):
     # Ensure all expected functions were called
     agent_chat_api._get_agent.assert_called_once_with(1)
     agent_chat_api._extract_request_data.assert_called_once()
-    agent_chat_api._retrieve_relevant_documents.assert_called_once_with(mock_agent, mock_query)
     agent_chat_api._embed_question.assert_called_once_with(mock_query)
     agent_chat_api._call_llm.assert_called_once_with(
-        mock_agent, mock_query, mock_previous_messages, True, mock_interaction_id
+        mock_agent,
+        mock_previous_messages,
+        mock_query,
+        mock_search_results,
+        True,
+        mock_interaction_id,
     )
     agent_chat_api._handle_streaming_response.assert_called_once_with(
-        mock_llm_response, mock_query, mock_source_doc_chunks, mock_embedding, mock_session_uuid, mock_interaction_id, mock_client
+        mock_llm_response,
+        mock_query,
+        mock_embedding,
+        mock_search_results,
+        mock_session_uuid,
+        mock_interaction_id,
+        mock_client,
     )
