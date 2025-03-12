@@ -20,6 +20,11 @@ Each agent is intended to answer questions related to a set of documents known a
   - [With Docker Compose](#with-docker-compose)
     - [Using huggingface text-embeddings-inference server to host embedding model (deprecated)](#using-huggingface-text-embeddings-inference-server-to-host-embedding-model-deprecated)
   - [Without Docker Compose](#without-docker-compose)
+- [Developer Guide](#developer-guide)
+  - [Install development packages](#install-development-packages)
+  - [Using pre-commit](#using-pre-commit)
+  - [Debugging in VSCode](#debugging-in-vscode)
+- [Mac Development Tips](#mac-development-tips)
 - [Synchronizing Documents from S3](#synchronizing-documents-from-s3)
   - [Continuous synchronization](#continuous-synchronization)
 - [Deploying to OpenShift](#deploying-to-openshift)
@@ -142,52 +147,32 @@ A development/test environment can be set up with or without docker compose. In 
 
 The docker compose file offers an easy way to spin up all components. [ollama](https://ollama.com) is used to host the LLM and embedding model. For utilization of your GPU, refer to the comments in the compose file to see which configurations to uncomment on the 'ollama' container. Postgres persists the data, and pgadmin allows you to query the database.
 
-You will need Docker version 27.5.1 on Fedora 40 and 41 to be able to use docker compose (not docker-compose) and for that You will need to reinstall latest docker version from the [fedora docker repo](https://docs.docker.com/engine/install/fedora/#install-using-the-repository) or follow the instructions here. 
+1. First, install Docker: [Follow the official guide for your OS](https://docs.docker.com/engine/install/)
 
-Docker 27.5.1 is confirmed working with macOS 15.3.
+     - NOTE: Currently, the compose file does not work with `podman`.
 
-To get the correct version of docker, add the repo:
+2. On Linux, be sure to run through the [postinstall steps](https://docs.docker.com/engine/install/linux-postinstall/)
 
-```text
-sudo dnf -y install dnf-plugins-core
-sudo dnf-3 config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
-```
-
-Install the packages:
-
-```text
-sudo dnf install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-```
-
-Enable:
-
-```text
-sudo systemctl enable --now docker
-```
-
-Run through the postinstall steps https://docs.docker.com/engine/install/linux-postinstall/
-
-
-1. Create the directory which will house the local environment data:
+3. Create the directory which will house the local environment data:
 
     ```text
     mkdir data
     ```
 
-1. Invoke docker compose (postgres data will persist in `data/postgres`):
+4. Invoke docker compose (postgres data will persist in `data/postgres`):
 
     ```text
     docker compose up --build
     ```
 
-1. Pull the mistral LLM and nomic embedding model (data will persist in `data/ollama`):
+5. Pull the mistral LLM and nomic embedding model (data will persist in `data/ollama`):
 
     ```text
     docker exec tangerine-ollama ollama pull mistral
     docker exec tangerine-ollama ollama pull nomic-embed-text
     ```
 
-1. Access the API on port `8000`
+6. Access the API on port `8000`
 
    ```sh
    curl -XGET 127.0.0.1:8000/api/agents
@@ -196,7 +181,7 @@ Run through the postinstall steps https://docs.docker.com/engine/install/linux-p
    }
    ```
 
-1. (optional) Follow these steps to start the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend#with-docker-compose)
+7. (optional) Follow these steps to start the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend#with-docker-compose)
 
 Note: You can access pgadmin at localhost:5050.
 
@@ -315,14 +300,53 @@ to use this to test different embedding models that are not supported by ollama,
 
 1. (optional) Follow these steps to start the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend#without-docker-compose)
 
-## Debugging in VSCode
+## Developer Guide
+
+### Install development packages
+
+If desiring to make contributions, be sure to install the development packages:
+
+```sh
+pipenv install --dev
+```
+
+### Using pre-commit
+
+This project uses pre-commit to handle formatting and linting.
+
+- Before pushing a commit, you can run:
+
+  ```sh
+  pre-commit run --all
+  ```
+
+  and if it fails, check for changes the tool has made to your files.
+
+- Alternatively, you can add pre-commit as a git hook with:
+
+  ```sh
+  pre-commit install
+  ```
+
+  and pre-commit will automatically be invoked every time you create a commit.
+
+### Debugging in VSCode
 
 Run postgres and ollama either locally or in containers. Don't run the backend container. Click on "Run & Debug" in the left menu and then run the "Debug Tangerine Backend" debug target. You can now set breakpoints and inspect runtime state.
 
 There's a second debug target for the unit tests if you want to run those in a debugger.
 
 ## Mac Development Tips
-Ollama running in Docker on Apple Silicon cannot make use of hardware acceleration. That means the LLM will be very slow to respond running in Docker, even on a very capable machine. However, running the model locally does make use of acceleration and is quite fast. If you are working on a Mac the best setup is to run the model through ollama locally and then the other deps like the database in Docker. The way the compose file is set up, the networking is all seemless. If you stop the ollama container and then ollama serve locally it will all just work together. You'll have the best local development setup if you combine the model running locally and tangerine-backend running in a debugger in VSCode with postgres and pgadmin running in Docker!
+
+Ollama running in Docker on Apple Silicon cannot make use of hardware acceleration. That means the LLM will be very slow to respond running in Docker, even on a very capable machine.
+
+However, running the ollama outside of Docker does make use of acceleration and is quite fast. If you are working on a Mac the best setup is to run the model through ollama locally and continue to run the other components (like the database) in Docker. The way the compose file is set up, the networking should allow this to work without issue.
+
+Comment out `ollama` from the compose file, or stop the ollama container. Invoke `ollama serve` on your shell. For an optimal developer experience:
+
+- run tangerine-backend in a debugger in VSCode
+- run ollama directly on your host
+- run postgres/pgadmin in Docker.
 
 ## Synchronizing Documents from S3
 
@@ -350,7 +374,7 @@ To do so you'll need to do the following:
    echo 'BUCKET=mybucket' >> .env
    ```
 
-5. Create an `s3.yaml` file that describes your agents and the documents they should ingest. See [s3-example.yaml](s3-example.yaml) for an example.
+1. Create an `s3.yaml` file that describes your agents and the documents they should ingest. See [s3-example.yaml](s3-example.yaml) for an example.
 
    If using docker compose, copy this config into your container:
 
@@ -358,7 +382,7 @@ To do so you'll need to do the following:
    docker cp s3.yaml tangerine-backend:/opt/app-root/src/s3.yaml
    ```
 
-6. Run the S3 sync job:
+1. Run the S3 sync job:
 
     - With docker compose:
 

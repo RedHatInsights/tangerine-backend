@@ -41,9 +41,9 @@ def upload_files(source, directory_path, url, agent_id, html, bearer_token):
         )
 
         if response.status_code == 200:
-            print(f"Batch {i+1}/{num_batches} uploaded successfully.")
+            print(f"Batch {i + 1}/{num_batches} uploaded successfully.")
         else:
-            print(f"Error uploading batch {i+1}/{num_batches}: {response.text}")
+            print(f"Error uploading batch {i + 1}/{num_batches}: {response.text}")
 
 
 if __name__ == "__main__":

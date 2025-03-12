@@ -81,13 +81,13 @@ def _build_context(search_results: list[Document], content_char_limit: int = 0):
             }
         )
 
-        context += f"\n<<Search result {i+1}"
+        context += f"\n<<Search result {i + 1}"
         if "title" in metadata:
             title = metadata["title"]
             context += f", document title: '{title}'"
         limit = content_char_limit if content_char_limit else len(page_content)
         search_result = page_content[0:limit]
-        context += ">>\n\n" f"{search_result}\n\n" f"<<Search result {i+1} END>>\n"
+        context += f">>\n\n{search_result}\n\n<<Search result {i + 1} END>>\n"
 
     return context, search_metadata
 
@@ -185,7 +185,7 @@ def ask(
         for data in llm_response:
             yield f"data: {json.dumps(data)}\r\n"
         # final piece of content returned is the search metadata
-        yield f"data: {json.dumps({"search_metadata": search_metadata})}\r\n"
+        yield f"data: {json.dumps({'search_metadata': search_metadata})}\r\n"
 
     if stream:
         log.debug("streaming response...")
