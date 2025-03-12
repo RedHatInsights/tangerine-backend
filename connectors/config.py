@@ -11,8 +11,9 @@ def _is_true(env_var):
     ]
 
 
-LOG_LEVEL_GLOBAL = os.getenv("LOG_LEVEL", "INFO").upper()
-LOG_LEVEL_APP = os.getenv("LOG_LEVEL", "DEBUG").upper()
+LOG_LEVEL_GLOBAL = os.getenv("LOG_LEVEL_GLOBAL", "INFO").upper()
+LOG_LEVEL_APP = os.getenv("LOG_LEVEL_APP", "DEBUG").upper()
+DEBUG_VERBOSE = _is_true("DEBUG_VERBOSE")
 
 DB_USERNAME = os.getenv("DB_USERNAME", "citrus")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "citrus")
@@ -31,7 +32,7 @@ LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "mistral")
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", 0.7))
 
 STORE_INTERACTIONS = _is_true("STORE_INTERACTIONS")
-ENABLE_MODEL_RANKING = _is_true("ENABLE_MODEL_RANKING")
+ENABLE_RERANKING = _is_true("ENABLE_RERANKING")
 ENABLE_QUALITY_DETECTION = _is_true("ENABLE_QUALITY_DETECTION")
 
 EMBED_BASE_URL = os.getenv("EMBED_BASE_URL", "http://localhost:11434/v1")

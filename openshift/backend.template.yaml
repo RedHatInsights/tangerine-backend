@@ -31,6 +31,15 @@ parameters:
     value: latest
   - name: STORE_INTERACTIONS
     value: "false"
+  - name: ENABLE_RERANKING
+    value: "false"
+  - name: ENABLE_QUALITY_DETECTION
+    value: "false"
+  - name: LOG_LEVEL_APP
+    value: "info"
+  - name: DEBUG_VERBOSE
+    value: "false"
+
 
 objects:
 # tangerine backend
@@ -101,6 +110,14 @@ objects:
             env:
               - name: STORE_INTERACTIONS
                 value: ${STORE_INTERACTIONS}
+              - name: ENABLE_RERANKING
+                value: ${ENABLE_RERANKING}
+              - name: ENABLE_QUALITY_DETECTION
+                value: ${ENABLE_QUALITY_DETECTION}
+              - name: LOG_LEVEL_APP
+                value: ${LOG_LEVEL_APP}
+              - name: DEBUG_VERBOSE
+                value: ${DEBUG_VERBOSE}
               - name: DB_USERNAME
                 valueFrom:
                   secretKeyRef:

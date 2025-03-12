@@ -29,6 +29,8 @@ ABSOLUTE_URL_REGEX = re.compile(r"[a-z0-9]*:\/\/.*")
 class QualityDetector:
     """
     QualityDetector uses a simple TF-IDF + Logistic Regression model to detect the quality of text
+
+    This feature is still a work-in-progress
     """
 
     TRAINING_FILE = os.path.join(
@@ -45,10 +47,11 @@ class QualityDetector:
         self.training_data_loaded = False
         self.model_ready = False
         self.log_junk = log_junk
-        self._load_training_data()
 
     def initialize_model(self):
         """Loads the trained model if available, otherwise trains a new one."""
+        self._load_training_data()
+
         if os.path.exists(self.MODEL_FILE) and os.path.exists(self.VECTORIZER_FILE):
             try:
                 self.classifier = joblib.load(self.MODEL_FILE)
@@ -65,6 +68,8 @@ class QualityDetector:
         """
         Log detected junk to a file for local debugging
         """
+        if cfg.DEBUG_VERBOSE:
+            log.debug("\ndiscarded chunk:\n%s\n", specimen)
         if cfg.STORE_QD_DATA and self.log_junk:
             try:
                 with open("junk.txt", "a") as fp:

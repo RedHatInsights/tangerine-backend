@@ -450,7 +450,7 @@ class VectorStoreInterface:
 
         # Rank the results using LLM if enabled, otherwise by score
         sorted_results = None
-        if cfg.ENABLE_MODEL_RANKING:
+        if cfg.ENABLE_RERANKING:
             try:
                 sorted_results = self._rerank_results(query, deduped_results)
             except Exception:
