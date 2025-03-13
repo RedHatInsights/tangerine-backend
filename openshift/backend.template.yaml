@@ -110,6 +110,8 @@ objects:
             terminationMessagePath: /dev/termination-log
             name: tangerine-backend
             env:
+              - name: ENABLE_HYBRID_SEARCH
+                value: ${ENABLE_HYBRID_SEARCH}
               - name: STORE_INTERACTIONS
                 value: ${STORE_INTERACTIONS}
               - name: ENABLE_RERANKING
