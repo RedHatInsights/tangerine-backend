@@ -143,6 +143,7 @@ class HybridSearchProvider(SearchProvider):
         * https://github.com/pgvector/pgvector-python/tree/master/examples/hybrid_search
         * https://python.langchain.com/docs/how_to/hybrid/
         """
+
         if not self.sql_loaded:
             log.error("SQL file not loaded, cannot run hybrid search")
             return []
@@ -256,8 +257,10 @@ class VectorStoreInterface:
         self.search_providers = [
             MMRSearchProvider(self.store),
             SimilaritySearchProvider(self.store),
-            HybridSearchProvider(self.store),
         ]
+
+        if cfg.ENABLE_HYBRID_SEARCH:
+            self.search_providers.append(HybridSearchProvider(self.store))
 
         self.quality_detector.initialize_model()
 
