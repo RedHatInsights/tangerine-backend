@@ -435,3 +435,4 @@ The API can be used to create/manage/update agents, upload documents, and to cha
 | `/api/agents/<id>/documents`       | `DELETE` | Delete agent documents     |
 | `/api/agentDefaults`               | `GET`    | Get agent default settings |
 | `/ping`                            | `GET`    | Health check endpoint      |
+
