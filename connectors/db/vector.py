@@ -258,7 +258,7 @@ class VectorStoreInterface:
             MMRSearchProvider(self.store),
             SimilaritySearchProvider(self.store),
         ]
-        
+
         if cfg.ENABLE_HYBRID_SEARCH:
             self.search_providers.append(HybridSearchProvider(self.store))
 
