@@ -39,6 +39,8 @@ parameters:
     value: "info"
   - name: DEBUG_VERBOSE
     value: "false"
+  - name: ENABLE_HYBRID_SEARCH
+    value: "false"
 
 
 objects:
