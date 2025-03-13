@@ -26,7 +26,6 @@ from resources.metrics import get_counter
 
 from .agent import db
 from .file import File, QualityDetector
-from connectors import config
 
 log = logging.getLogger("tangerine.db.vector")
 embed_prompt_tokens_metric = get_counter(
@@ -144,7 +143,7 @@ class HybridSearchProvider(SearchProvider):
         * https://github.com/pgvector/pgvector-python/tree/master/examples/hybrid_search
         * https://python.langchain.com/docs/how_to/hybrid/
         """
-        if not config.ENABLE_HYBRID_SEARCH:
+        if not cfg.ENABLE_HYBRID_SEARCH:
             log.debug("Hybrid search is disabled")
             return []
 
