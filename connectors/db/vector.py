@@ -257,8 +257,10 @@ class VectorStoreInterface:
         self.search_providers = [
             MMRSearchProvider(self.store),
             SimilaritySearchProvider(self.store),
-            HybridSearchProvider(self.store) if cfg.ENABLE_HYBRID_SEARCH else None,
         ]
+        
+        if cfg.ENABLE_HYBRID_SEARCH:
+            self.search_providers.append(HybridSearchProvider(self.store))
 
         self.quality_detector.initialize_model()
 
