@@ -1244,11 +1244,11 @@
         },
         "openai": {
             "hashes": [
-                "sha256:75194057ee6bb8b732526387b6041327a05656d976fc21c064e21c8ac6b07999",
-                "sha256:9b3a843c25f81ee09b6469d483d9fba779d5c6ea41861180772f043481b0598d"
+                "sha256:8dde3aebe2d081258d4159c4cb27bdc13b5bb3f7ea2201d9bd940b9a89faf0c9",
+                "sha256:a427c920f727711877ab17c11b95f1230b27767ba7a01e5b66102945141ceca9"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==1.66.2"
+            "version": "==1.66.3"
         },
         "orjson": {
             "hashes": [
@@ -1490,11 +1490,11 @@
         },
         "psycopg": {
             "hashes": [
-                "sha256:b782130983e5b3de30b4c529623d3687033b4dafa05bb661fc6bf45837ca5879",
-                "sha256:f5f750611c67cb200e85b408882f29265c66d1de7f813add4f8125978bfd70e8"
+                "sha256:16fa094efa2698f260f2af74f3710f781e4a6f226efe9d1fd0c37f384639ed8a",
+                "sha256:f3ff5488525890abb0566c429146add66b329e20d6d4835662b920cbbf90ac58"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==3.2.5"
+            "version": "==3.2.6"
         },
         "psycopg-pool": {
             "hashes": [
