@@ -42,9 +42,8 @@ parameters:
   - name: ENABLE_HYBRID_SEARCH
     value: "false"
 
-
 objects:
-# tangerine backend
+# Secrets
 - kind: Secret
   apiVersion: v1
   metadata:
@@ -61,6 +60,7 @@ objects:
     api_key: yourApiKey
   type: Opaque
 
+# Deployment
 - kind: Deployment
   apiVersion: apps/v1
   metadata:
@@ -81,8 +81,73 @@ objects:
         labels:
           app.kubernetes.io/name: tangerine-backend
       spec:
+        initContainers:
+          - name: db-migrations
+            image: ${IMAGE}:${IMAGE_TAG}
+            command: ["flask", "db", "upgrade"]
+            env:
+              - name: ENABLE_HYBRID_SEARCH
+                value: ${ENABLE_HYBRID_SEARCH}
+              - name: STORE_INTERACTIONS
+                value: ${STORE_INTERACTIONS}
+              - name: ENABLE_RERANKING
+                value: ${ENABLE_RERANKING}
+              - name: ENABLE_QUALITY_DETECTION
+                value: ${ENABLE_QUALITY_DETECTION}
+              - name: LOG_LEVEL_APP
+                value: ${LOG_LEVEL_APP}
+              - name: DEBUG_VERBOSE
+                value: ${DEBUG_VERBOSE}
+              - name: DB_USERNAME
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.user
+              - name: DB_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.password
+              - name: DB_NAME
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.name
+              - name: DB_HOST
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.host
+              - name: DB_PORT
+                valueFrom:
+                  secretKeyRef:
+                    name: vector-db
+                    key: db.port
+              - name: LLM_BASE_URL
+                value: ${LLM_BASE_URL}
+              - name: EMBED_BASE_URL
+                value: ${EMBED_BASE_URL}
+              - name: LLM_MODEL_NAME
+                value: ${LLM_MODEL_NAME}
+              - name: LLM_API_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: llm-api-key
+                    key: api_key
+              - name: EMBED_MODEL_NAME
+                value: ${EMBED_MODEL_NAME}
+              - name: EMBED_QUERY_PREFIX
+                value: ${EMBED_QUERY_PREFIX}
+              - name: EMBED_API_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: embed-api-key
+                    key: api_key
+
         containers:
-          - resources:
+          - name: tangerine-backend
+            image: ${IMAGE}:${IMAGE_TAG}
+            resources:
               requests:
                 memory: ${MEMORY_REQUEST}
                 cpu: ${CPU_REQUEST}
@@ -108,7 +173,6 @@ objects:
               successThreshold: 1
               failureThreshold: 3
             terminationMessagePath: /dev/termination-log
-            name: tangerine-backend
             env:
               - name: ENABLE_HYBRID_SEARCH
                 value: ${ENABLE_HYBRID_SEARCH}
@@ -176,13 +240,13 @@ objects:
                 protocol: TCP
             imagePullPolicy: IfNotPresent
             terminationMessagePolicy: File
-            image: ${IMAGE}:${IMAGE_TAG}
         restartPolicy: Always
         terminationGracePeriodSeconds: 30
         dnsPolicy: ClusterFirst
         securityContext: {}
         schedulerName: default-scheduler
 
+# Service
 - kind: Service
   apiVersion: v1
   metadata:
