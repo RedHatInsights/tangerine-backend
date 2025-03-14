@@ -330,6 +330,22 @@ This project uses pre-commit to handle formatting and linting.
 
   and pre-commit will automatically be invoked every time you create a commit.
 
+### Database Migrations
+Tangerine uses [Flask Migrate](https://flask-migrate.readthedocs.io/en/latest/) to manage database migrations. After making changes to any of the models generate new migrations with:
+
+```bash
+$ flask db migrate -m "Your migration message."
+```
+
+That will generate the migration files.
+
+To apply migrations run
+
+```bash
+$ flask db upgrade
+```
+The OpenShift deploy template we provide has an initcontainer that will run `flask db upgrade` on start before Tangerine comes up.
+
 ### Debugging in VSCode
 
 Run postgres and ollama either locally or in containers. Don't run the backend container. Click on "Run & Debug" in the left menu and then run the "Debug Tangerine Backend" debug target. You can now set breakpoints and inspect runtime state.
