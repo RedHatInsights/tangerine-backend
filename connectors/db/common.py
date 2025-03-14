@@ -1,21 +1,21 @@
 from typing import List
 
-from .assistant import assistant
+from .assistant import Assistant
 from .file import File, validate_file_path, validate_source
 from .vector import vector_db
 
 
-def embed_files(files: List[File], assistant: assistant) -> None:
+def embed_files(files: List[File], assistant: Assistant) -> None:
     for file in files:
         file.validate()
         vector_db.add_file(file, assistant.id)
 
 
-def add_filenames_to_assistant(files: List[File], assistant: assistant) -> None:
+def add_filenames_to_assistant(files: List[File], assistant: Assistant) -> None:
     assistant.add_files([file.display_name for file in files])
 
 
-def remove_files(assistant: assistant, metadata: dict) -> List[str]:
+def remove_files(assistant: Assistant, metadata: dict) -> List[str]:
     metadata["assistant_id"] = assistant.id
     if "full_path" in metadata:
         validate_file_path(metadata["full_path"])
