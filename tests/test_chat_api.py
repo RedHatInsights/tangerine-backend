@@ -3,13 +3,13 @@ from unittest.mock import MagicMock
 import pytest
 from langchain_core.documents import Document
 
-from resources.assistant import assistantChatApi  # Import your API class
+from resources.assistant import AssistantChatApi  # Import your API class
 
 
 @pytest.fixture
 def assistant_chat_api():
-    """Fixture to create an instance of assistantChatApi with dependencies mocked."""
-    api_instance = assistantChatApi()
+    """Fixture to create an instance of AssistantChatApi with dependencies mocked."""
+    api_instance = AssistantChatApi()
 
     # Mock dependencies
     api_instance._get_assistant = MagicMock()
