@@ -204,12 +204,17 @@ def _get_new_files_to_add(files_by_key, assistant_objects_by_path, resync):
 
 
 def compare_files(
-    assistant_config: assistantConfig, assistant: assistant, defaults: SyncConfigDefaults, resync: bool
+    assistant_config: assistantConfig,
+    assistant: assistant,
+    defaults: SyncConfigDefaults,
+    resync: bool,
 ) -> tuple[List[dict], List[File], set[dict], int, int, int]:
     files = get_file_list(assistant_config, defaults)
 
     # collect all unique file objects currently stored for this assistant in the DB
-    assistant_objects = vector_db.get_distinct_cmetadata(search_filter={"assistant_id": assistant.id})
+    assistant_objects = vector_db.get_distinct_cmetadata(
+        search_filter={"assistant_id": assistant.id}
+    )
 
     # group by keys for easier comparisons
     files_by_key = {file.full_path: file for file in files}
@@ -384,7 +389,9 @@ def run(resync: bool = False) -> int:
             vector_db.db.session.commit()
 
         # update list of filenames associated with the assistant
-        assistant_objects = vector_db.get_distinct_cmetadata(search_filter={"assistant_id": assistant.id})
+        assistant_objects = vector_db.get_distinct_cmetadata(
+            search_filter={"assistant_id": assistant.id}
+        )
         assistant_files = [File(**obj) for obj in assistant_objects]
         assistant.update(filenames=[file.display_name for file in assistant_files])
 
@@ -392,13 +399,17 @@ def run(resync: bool = False) -> int:
     for assistant_id, error_count in download_errors_for_assistant.items():
         if error_count:
             log.error(
-                "assistant %d hit %d download errors during sync, check logs", assistant_id, error_count
+                "assistant %d hit %d download errors during sync, check logs",
+                assistant_id,
+                error_count,
             )
             exit_code = 1
     for assistant_id, error_count in embed_errors_for_assistant.items():
         if error_count:
             log.error(
-                "assistant %d hit %d embedding errors during sync, check logs", assistant_id, error_count
+                "assistant %d hit %d embedding errors during sync, check logs",
+                assistant_id,
+                error_count,
             )
             exit_code = 1
 

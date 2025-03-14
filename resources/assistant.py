@@ -196,7 +196,9 @@ class AssistantChatApi(Resource):
     def _embed_question(self, question):
         return vector_db.embed_query(question)
 
-    def _call_llm(self, assistant, previous_messages, question, search_results, stream, interaction_id):
+    def _call_llm(
+        self, assistant, previous_messages, question, search_results, stream, interaction_id
+    ):
         return llm.ask(
             assistant,
             previous_messages,
