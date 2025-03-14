@@ -16,19 +16,20 @@ import connectors.config as cfg
 import connectors.s3.sync
 
 # Imported so SQLAlchemy can find the models
-from connectors.db import interactions as _ # noqa: F401
+from connectors.db import interactions as _  # noqa: F401
 from connectors.db.agent import db
 from connectors.db.vector import vector_db
 from resources.metrics import metrics
 from resources.routes import initialize_routes
 
+IGNORE_TABLES = ["langchain_pg_collection", "langchain_pg_embedding"]
 
-IGNORE_TABLES = ['langchain_pg_collection', 'langchain_pg_embedding']
+
 def include_object(object, name, type_, reflected, compare_to):
     """
     Should you include this table or not?
     """
-    if type_ == 'table' and (name in IGNORE_TABLES or object.info.get("skip_autogenerate", False)):
+    if type_ == "table" and (name in IGNORE_TABLES or object.info.get("skip_autogenerate", False)):
         return False
 
     elif type_ == "column" and object.info.get("skip_autogenerate", False):
@@ -54,7 +55,7 @@ def create_app():
     db.init_app(app)
 
     Migrate(app, db, include_object=include_object)
-    
+
     api = Api(app)
     initialize_routes(api)
 
