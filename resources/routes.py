@@ -1,4 +1,10 @@
-from resources.assistant import AssistantApi, AssistantChatApi, AssistantDefaultsApi, AssistantDocuments, AssistantsApi
+from resources.assistant import (
+    AssistantApi,
+    AssistantChatApi,
+    AssistantDefaultsApi,
+    AssistantDocuments,
+    AssistantsApi,
+)
 from resources.feedback import FeedbackApi
 from resources.utils import PingApi
 
