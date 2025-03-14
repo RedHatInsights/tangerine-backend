@@ -13,7 +13,7 @@ from flask import current_app
 from pydantic import BaseModel
 
 import connectors.config as cfg
-from connectors.db.assistant import assistant, db
+from connectors.db.assistant import Assistant, db
 from connectors.db.common import File, embed_files
 from connectors.db.vector import vector_db
 
@@ -28,7 +28,7 @@ class PathConfig(BaseModel):
     extensions: Optional[List[str]] = None
 
 
-class assistantConfig(BaseModel):
+class AssistantConfig(BaseModel):
     name: str
     description: str
     system_prompt: Optional[str] = None
@@ -43,7 +43,7 @@ class SyncConfigDefaults(BaseModel):
 
 class SyncConfig(BaseModel):
     defaults: SyncConfigDefaults
-    assistants: List[assistantConfig]
+    assistants: List[AssistantConfig]
 
 
 def get_all_s3_objects(bucket: str, prefix: str) -> List:
@@ -101,7 +101,7 @@ def embed_file(app_context, file: File, tmpdir: str, assistant_id: int) -> File:
     log.debug("embedding file %s", file.full_path)
 
     with db.session():
-        assistant = assistant.get(assistant_id)
+        assistant = Assistant.get(assistant_id)
         path_on_disk = Path(tmpdir) / Path(file.full_path)
 
         with open(path_on_disk, "r") as fp:
@@ -136,7 +136,7 @@ def embed_files_concurrent(
                 yield None
 
 
-def get_file_list(assistant_config: assistantConfig, defaults: SyncConfigDefaults) -> List[File]:
+def get_file_list(assistant_config: AssistantConfig, defaults: SyncConfigDefaults) -> List[File]:
     files = []
 
     bucket = assistant_config.bucket
@@ -204,8 +204,8 @@ def _get_new_files_to_add(files_by_key, assistant_objects_by_path, resync):
 
 
 def compare_files(
-    assistant_config: assistantConfig,
-    assistant: assistant,
+    assistant_config: AssistantConfig,
+    assistant: Assistant,
     defaults: SyncConfigDefaults,
     resync: bool,
 ) -> tuple[List[dict], List[File], set[dict], int, int, int]:
@@ -332,13 +332,13 @@ def run(resync: bool = False) -> int:
 
     for assistant_config in sync_config.assistants:
         # check to see if assistant already exists... if so, update... if not, create
-        assistant = assistant.get_by_name(assistant_config.name)
+        assistant = Assistant.get_by_name(assistant_config.name)
         if assistant:
             if not assistant_config.system_prompt:
                 log.debug("using default system prompt for assistant '%s'", assistant.assistant_name)
-            assistant.update(**dict(assistant_config))
+            Assistant.update(**dict(assistant_config))
         else:
-            assistant = assistant.create(**dict(assistant_config))
+            assistant = Assistant.create(**dict(assistant_config))
 
         # determine what changes need to be made
         (
@@ -393,7 +393,7 @@ def run(resync: bool = False) -> int:
             search_filter={"assistant_id": assistant.id}
         )
         assistant_files = [File(**obj) for obj in assistant_objects]
-        assistant.update(filenames=[file.display_name for file in assistant_files])
+        Assistant.update(filenames=[file.display_name for file in assistant_files])
 
     exit_code = 0
     for assistant_id, error_count in download_errors_for_assistant.items():

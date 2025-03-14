@@ -10,7 +10,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 import connectors.config as cfg
-from connectors.db.assistant import assistant
+from connectors.db.assistant import Assistant
 from resources.metrics import get_counter, get_gauge
 
 log = logging.getLogger("tangerine.llm")
@@ -149,7 +149,7 @@ def rerank(query, search_results):
 
 
 def ask(
-    assistant: assistant,
+    assistant: Assistant,
     previous_messages,
     question,
     search_results: list[Document],

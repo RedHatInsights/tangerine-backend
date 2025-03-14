@@ -25,7 +25,7 @@ def include_object(obj, name, db_type, _reflected, _compare_to):
 migrate = Migrate(include_object=include_object)
 
 
-class assistant(db.Model):
+class Assistant(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     assistant_name = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=False)

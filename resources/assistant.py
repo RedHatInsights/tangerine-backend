@@ -9,7 +9,7 @@ from langchain_core.documents import Document
 import connectors.llm.interface as llm
 from connectors import config
 from connectors.config import DEFAULT_SYSTEM_PROMPT
-from connectors.db.assistant import assistant
+from connectors.db.assistant import Assistant
 from connectors.db.common import File, add_filenames_to_assistant, embed_files, remove_files
 from connectors.db.interactions import store_interaction
 from connectors.db.vector import vector_db
@@ -25,7 +25,7 @@ class AssistantDefaultsApi(Resource):
 class AssistantsApi(Resource):
     def get(self):
         try:
-            all_assistants = assistant.list()
+            all_assistants = Assistant.list()
         except Exception:
             log.exception("error getting assistants")
             return {"message": "error getting assistants"}, 500
@@ -41,7 +41,7 @@ class AssistantsApi(Resource):
             return {"message": "assistant 'description' required"}, 400
 
         try:
-            assistant = assistant.create(name, description, request.json.get("system_prompt"))
+            assistant = Assistant.create(name, description, request.json.get("system_prompt"))
         except Exception:
             log.exception("error creating assistant")
             return {"message": "error creating assistant"}, 500
@@ -51,14 +51,14 @@ class AssistantsApi(Resource):
 
 class AssistantApi(Resource):
     def get(self, id):
-        assistant = assistant.get(id)
+        assistant = Assistant.get(id)
         if not assistant:
             return {"message": "assistant not found"}, 404
 
         return assistant.to_dict(), 200
 
     def put(self, id):
-        assistant = assistant.get(id)
+        assistant = Assistant.get(id)
         if not assistant:
             return {"message": "assistant not found"}, 404
 
@@ -66,12 +66,12 @@ class AssistantApi(Resource):
         # ignore 'id' or 'filenames' if provided in JSON payload
         data.pop("filenames", None)
         data.pop("id", None)
-        assistant.update(**data)
+        Assistant.update(**data)
 
         return {"message": "assistant updated successfully"}, 200
 
     def delete(self, id):
-        assistant = assistant.get(id)
+        assistant = Assistant.get(id)
         if not assistant:
             return {"message": "assistant not found"}, 404
 
@@ -82,7 +82,7 @@ class AssistantApi(Resource):
 
 class AssistantDocuments(Resource):
     def post(self, id):
-        assistant = assistant.get(id)
+        assistant = Assistant.get(id)
         if not assistant:
             return {"message": "assistant not found"}, 404
 
@@ -114,7 +114,7 @@ class AssistantDocuments(Resource):
         return Response(stream_with_context(generate_progress()), mimetype="application/json")
 
     def delete(self, id):
-        assistant = assistant.get(id)
+        assistant = Assistant.get(id)
         if not assistant:
             return {"message": "assistant not found"}, 404
 
@@ -182,7 +182,7 @@ class AssistantChatApi(Resource):
         )
 
     def _get_assistant(self, assistant_id):
-        return assistant.get(assistant_id)
+        return Assistant.get(assistant_id)
 
     def _extract_request_data(self):
         question = request.json.get("query")
