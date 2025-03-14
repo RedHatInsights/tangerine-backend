@@ -23,6 +23,7 @@ Each agent is intended to answer questions related to a set of documents known a
 - [Developer Guide](#developer-guide)
   - [Install development packages](#install-development-packages)
   - [Using pre-commit](#using-pre-commit)
+  - [Database Migrations](#database-migrations)
   - [Debugging in VSCode](#debugging-in-vscode)
 - [Mac Development Tips](#mac-development-tips)
 - [Synchronizing Documents from S3](#synchronizing-documents-from-s3)
@@ -331,20 +332,29 @@ This project uses pre-commit to handle formatting and linting.
   and pre-commit will automatically be invoked every time you create a commit.
 
 ### Database Migrations
-Tangerine uses [Flask Migrate](https://flask-migrate.readthedocs.io/en/latest/) to manage database migrations. After making changes to any of the models generate new migrations with:
+Tangerine uses [Flask Migrate](https://flask-migrate.readthedocs.io/en/latest/) to manage database migrations. After making changes to any of the models, update migrations with::
 
 ```bash
-$ flask db migrate -m "Your migration message."
+flask db migrate -m "Your migration message"
 ```
 
-That will generate the migration files.
+Then, to apply migrations to your local DB:
 
-To apply migrations run
+  1. Start the database. If using docker-compose, ensure that you start the DB but do not start the backend itself. Run:
 
-```bash
-$ flask db upgrade
-```
-The OpenShift deploy template we provide has an initcontainer that will run `flask db upgrade` on start before Tangerine comes up.
+      ```bash
+      docker-compose start postgres
+      ```
+
+  1. Run the migrations:
+
+      ```bash
+      flask db upgrade
+      ```
+
+  1. After migrations are applied, you can invoke `docker compose up --build` as usual.
+
+When deploying to OpenShift, the backend deploy template has an init container that runs `flask db upgrade` on start before the backend pod comes up.
 
 ### Debugging in VSCode
 
