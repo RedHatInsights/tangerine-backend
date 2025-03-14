@@ -33,7 +33,7 @@
             "type": "debugpy",
             "request": "launch",
             "module": "pytest",
-            "args": ["tests/chatapi.py", "-s"],
+            "args": ["tests/", "-s"],
             "console": "integratedTerminal",
             "justMyCode": false
         }
