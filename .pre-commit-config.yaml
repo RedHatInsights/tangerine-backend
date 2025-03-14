@@ -1,3 +1,5 @@
+exclude: ^migrations/
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -6,7 +8,6 @@ repos:
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files
-    exclude: ^migrations/  # Exclude the migrations directory
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.10.0
@@ -18,4 +19,3 @@ repos:
         args: [--select, I, --fix]
       - id: ruff-format
         name: format with ruff
-    exclude: ^migrations/  # Exclude the migrations directory
