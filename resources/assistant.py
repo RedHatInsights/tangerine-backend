@@ -17,12 +17,12 @@ from connectors.db.vector import vector_db
 log = logging.getLogger("tangerine")
 
 
-class assistantDefaultsApi(Resource):
+class AssistantDefaultsApi(Resource):
     def get(self):
         return {"system_prompt": DEFAULT_SYSTEM_PROMPT}, 200
 
 
-class assistantsApi(Resource):
+class AssistantsApi(Resource):
     def get(self):
         try:
             all_assistants = assistant.list()
@@ -49,7 +49,7 @@ class assistantsApi(Resource):
         return assistant.to_dict(), 201
 
 
-class assistantApi(Resource):
+class AssistantApi(Resource):
     def get(self, id):
         assistant = assistant.get(id)
         if not assistant:
@@ -80,7 +80,7 @@ class assistantApi(Resource):
         return {"message": "assistant deleted successfully"}, 200
 
 
-class assistantDocuments(Resource):
+class AssistantDocuments(Resource):
     def post(self, id):
         assistant = assistant.get(id)
         if not assistant:
@@ -144,7 +144,7 @@ class assistantDocuments(Resource):
         return {"message": f"{count} document(s) deleted", "count": count, "deleted": deleted}, 200
 
 
-class assistantChatApi(Resource):
+class AssistantChatApi(Resource):
     def post(self, id):
         assistant = self._get_assistant(id)
         if not assistant:
