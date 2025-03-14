@@ -6,7 +6,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 from connectors.config import DEFAULT_SYSTEM_PROMPT, SQLALCHEMY_MAX_OVERFLOW, SQLALCHEMY_POOL_SIZE
 
-log = logging.getLogger("tangerine.db.agent")
+log = logging.getLogger("tangerine.db.assistant")
 
 db = SQLAlchemy(
     engine_options={"pool_size": SQLALCHEMY_POOL_SIZE, "max_overflow": SQLALCHEMY_MAX_OVERFLOW}
@@ -25,9 +25,9 @@ def include_object(obj, name, db_type, _reflected, _compare_to):
 migrate = Migrate(include_object=include_object)
 
 
-class Agent(db.Model):
+class assistant(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    agent_name = db.Column(db.String(50), nullable=False)
+    assistant_name = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=False)
     system_prompt = db.Column(db.Text, nullable=True)
     filenames = db.Column(db.ARRAY(db.String), default=[], nullable=True)
@@ -36,22 +36,22 @@ class Agent(db.Model):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
     def __repr__(self):
-        return f"<Agent {self.id}>"
+        return f"<assistant {self.id}>"
 
     @classmethod
     def create(cls, name: str, description: str, system_prompt: str = None, **kwargs) -> Self:
-        new_agent = cls(
-            agent_name=name,
+        new_assistant = cls(
+            assistant_name=name,
             description=description,
             system_prompt=system_prompt or DEFAULT_SYSTEM_PROMPT,
         )
-        db.session.add(new_agent)
+        db.session.add(new_assistant)
         db.session.commit()
-        db.session.refresh(new_agent)
+        db.session.refresh(new_assistant)
 
-        log.debug("agent %d created", new_agent.id)
+        log.debug("assistant %d created", new_assistant.id)
 
-        return new_agent
+        return new_assistant
 
     @classmethod
     def list(cls) -> List[Self]:
@@ -59,15 +59,15 @@ class Agent(db.Model):
 
     @classmethod
     def get(cls, id: int) -> Optional[Self]:
-        agent_id = int(id)
-        agent = db.session.get(cls, agent_id)
-        return agent
+        assistant_id = int(id)
+        assistant = db.session.get(cls, assistant_id)
+        return assistant
 
     @classmethod
     def get_by_name(cls, name: str) -> Optional[Self]:
-        agent = db.session.scalar(db.select(cls).filter_by(agent_name=name))
-        log.debug("get agent by name '%s' result: %s", name, agent)
-        return agent
+        assistant = db.session.scalar(db.select(cls).filter_by(assistant_name=name))
+        log.debug("get assistant by name '%s' result: %s", name, assistant)
+        return assistant
 
     def update(self, **kwargs) -> Self:
         updated_keys = []
@@ -80,7 +80,7 @@ class Agent(db.Model):
         db.session.add(self)
         db.session.commit()
         db.session.refresh(self)
-        log.debug("updated attributes %s of agent %d", updated_keys, self.id)
+        log.debug("updated attributes %s of assistant %d", updated_keys, self.id)
         return self
 
     def add_files(self, file_display_names: Iterable[str]) -> Self:
@@ -90,7 +90,7 @@ class Agent(db.Model):
             if name not in filenames:
                 filenames.append(name)
         log.debug(
-            "adding %d files to agent %d, total files now %d",
+            "adding %d files to assistant %d, total files now %d",
             len(file_display_names),
             self.id,
             len(filenames),
@@ -103,7 +103,7 @@ class Agent(db.Model):
         new_count = len(new_names)
         diff = old_count - new_count
         log.debug(
-            "removing %d files from agent %d, old count %d, new count %d",
+            "removing %d files from assistant %d, old count %d, new count %d",
             diff,
             self.id,
             old_count,
@@ -116,4 +116,4 @@ class Agent(db.Model):
     def delete(self) -> None:
         db.session.delete(self)
         db.session.commit()
-        log.debug("agent with id %d deleted", self.id)
+        log.debug("assistant with id %d deleted", self.id)

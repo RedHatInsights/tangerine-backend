@@ -16,7 +16,7 @@ import connectors.s3.sync
 
 # Imported so SQLAlchemy can find the models
 from connectors.db import interactions  # noqa: F401
-from connectors.db.agent import db, migrate
+from connectors.db.assistant import db, migrate
 from connectors.db.vector import vector_db
 from resources.metrics import metrics
 from resources.routes import initialize_routes
@@ -55,7 +55,7 @@ def create_app():
 
 
 @click.command("s3sync")
-@click.option("--force-resync", is_flag=True, help="Delete all files from agents and re-import")
+@click.option("--force-resync", is_flag=True, help="Delete all files from assistants and re-import")
 @click.option(
     "--force-resync-until",
     help=(
