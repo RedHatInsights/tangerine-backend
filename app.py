@@ -9,7 +9,6 @@ import langchain
 from flask import Flask, current_app
 from flask.cli import with_appcontext
 from flask_cors import CORS
-from flask_migrate import Migrate
 from flask_restful import Api
 
 import connectors.config as cfg
@@ -17,22 +16,10 @@ import connectors.s3.sync
 
 # Imported so SQLAlchemy can find the models
 from connectors.db import interactions  # noqa: F401
-from connectors.db.agent import db
+from connectors.db.agent import db, migrate
 from connectors.db.vector import vector_db
 from resources.metrics import metrics
 from resources.routes import initialize_routes
-
-IGNORE_TABLES = ["langchain_pg_collection", "langchain_pg_embedding"]
-
-
-def include_object(obj, name, db_type, _reflected, _compare_to):
-    """
-    Should you include this table or not?
-    """
-    if db_type == "table" and (name in IGNORE_TABLES or obj.info.get("skip_autogenerate", False)):
-        return False
-
-    return True
 
 
 def create_app():
@@ -50,8 +37,7 @@ def create_app():
     CORS(app)
 
     db.init_app(app)
-
-    Migrate(app, db, include_object=include_object)
+    migrate.init_app(app, db)
 
     api = Api(app)
     initialize_routes(api)
