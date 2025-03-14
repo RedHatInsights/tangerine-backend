@@ -4,7 +4,7 @@ import uuid
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects.postgresql import UUID
 
-from .agent import db
+from .assistant import db
 
 log = logging.getLogger("tangerine.db.interactions")
 

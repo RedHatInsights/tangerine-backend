@@ -24,7 +24,7 @@ import connectors.config as cfg
 import connectors.llm.interface as llm
 from resources.metrics import get_counter
 
-from .agent import db
+from .assistant import db
 from .file import File, QualityDetector
 
 log = logging.getLogger("tangerine.db.vector")
@@ -159,7 +159,7 @@ class HybridSearchProvider(SearchProvider):
                 {
                     "query": query,
                     "embedding": query_embedding_str,
-                    "agent_id": search_filter["agent_id"],
+                    "assistant_id": search_filter["assistant_id"],
                 },
             ).fetchall()
 
@@ -347,7 +347,7 @@ class VectorStoreInterface:
 
         return documents
 
-    def create_document_chunks(self, file: File, agent_id: int):
+    def create_document_chunks(self, file: File, assistant_id: int):
         log.debug("processing %s", file)
 
         text = file.extract_text()
@@ -357,7 +357,7 @@ class VectorStoreInterface:
             return []
 
         metadata = {
-            "agent_id": str(agent_id),
+            "assistant_id": str(assistant_id),
         }
         metadata.update(file.metadata)
 
@@ -365,10 +365,10 @@ class VectorStoreInterface:
 
         return chunks
 
-    def add_file(self, file: File, agent_id: int):
+    def add_file(self, file: File, assistant_id: int):
         chunks = []
         try:
-            chunks = self.create_document_chunks(file, agent_id)
+            chunks = self.create_document_chunks(file, assistant_id)
         except Exception:
             log.exception("error creating document chunks")
             return
@@ -379,9 +379,9 @@ class VectorStoreInterface:
         for idx, batch in enumerate(itertools.batched(chunks, batch_size)):
             current_batch = idx + 1
             log.debug(
-                "adding %d document chunks to agent %s, batch %d/%d",
+                "adding %d document chunks to assistant %s, batch %d/%d",
                 len(batch),
-                agent_id,
+                assistant_id,
                 current_batch,
                 total_batches,
             )
@@ -440,9 +440,9 @@ class VectorStoreInterface:
 
         return sorted_results
 
-    def search(self, query, embedding, agent_id: int):
+    def search(self, query, embedding, assistant_id: int):
         results = []
-        search_filter = {"agent_id": str(agent_id), "active": "True"}
+        search_filter = {"assistant_id": str(assistant_id), "active": "True"}
 
         query_embedding = embedding or self.embed_query(query)
         for provider in self.search_providers:
