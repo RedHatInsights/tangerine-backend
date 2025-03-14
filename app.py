@@ -9,8 +9,8 @@ import langchain
 from flask import Flask, current_app
 from flask.cli import with_appcontext
 from flask_cors import CORS
-from flask_restful import Api
 from flask_migrate import Migrate
+from flask_restful import Api
 
 import connectors.config as cfg
 import connectors.s3.sync
@@ -38,7 +38,7 @@ def create_app():
     CORS(app)
 
     db.init_app(app)
-    
+
     migrate = Migrate(app, db)
 
     api = Api(app)
