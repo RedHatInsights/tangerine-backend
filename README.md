@@ -23,6 +23,7 @@ Each agent is intended to answer questions related to a set of documents known a
 - [Developer Guide](#developer-guide)
   - [Install development packages](#install-development-packages)
   - [Using pre-commit](#using-pre-commit)
+  - [Database Migrations](#database-migrations)
   - [Debugging in VSCode](#debugging-in-vscode)
 - [Mac Development Tips](#mac-development-tips)
 - [Synchronizing Documents from S3](#synchronizing-documents-from-s3)
@@ -329,6 +330,31 @@ This project uses pre-commit to handle formatting and linting.
   ```
 
   and pre-commit will automatically be invoked every time you create a commit.
+
+### Database Migrations
+Tangerine uses [Flask Migrate](https://flask-migrate.readthedocs.io/en/latest/) to manage database migrations. After making changes to any of the models, update migrations with::
+
+```bash
+flask db migrate -m "Your migration message"
+```
+
+Then, to apply migrations to your local DB:
+
+  1. Start the database. If using docker-compose, ensure that you start the DB but do not start the backend itself. Run:
+
+      ```bash
+      docker-compose start postgres
+      ```
+
+  1. Run the migrations:
+
+      ```bash
+      flask db upgrade
+      ```
+
+  1. After migrations are applied, you can invoke `docker compose up --build` as usual.
+
+When deploying to OpenShift, the backend deploy template has an init container that runs `flask db upgrade` on start before the backend pod comes up.
 
 ### Debugging in VSCode
 

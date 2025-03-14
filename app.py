@@ -16,7 +16,7 @@ import connectors.s3.sync
 
 # Imported so SQLAlchemy can find the models
 from connectors.db import interactions  # noqa: F401
-from connectors.db.agent import db
+from connectors.db.agent import db, migrate
 from connectors.db.vector import vector_db
 from resources.metrics import metrics
 from resources.routes import initialize_routes
@@ -37,6 +37,7 @@ def create_app():
     CORS(app)
 
     db.init_app(app)
+    migrate.init_app(app, db)
 
     api = Api(app)
     initialize_routes(api)

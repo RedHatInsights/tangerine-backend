@@ -48,6 +48,7 @@ ADD resources ./resources
 ADD sql ./sql
 ADD json ./json
 ADD app.py .
+ADD migrations ./migrations
 
 EXPOSE 8000
 
