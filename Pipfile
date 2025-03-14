@@ -28,6 +28,7 @@ langchain-community = "*"
 prometheus-flask-exporter = "*"
 pypdf2 = "*"
 scikit-learn = "*"
+flask-migrate = "*"
 
 [dev-packages]
 ipython = "*"
