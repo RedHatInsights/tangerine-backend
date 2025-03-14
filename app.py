@@ -39,7 +39,7 @@ def create_app():
 
     db.init_app(app)
 
-    migrate = Migrate(app, db)
+    Migrate(app, db)
 
     api = Api(app)
     initialize_routes(api)
