@@ -333,12 +333,11 @@ class VectorStoreInterface:
         if self.has_markdown_headers(text):
             markdown_documents = md_splitter.split_text(text)
             chunks = text_splitter.split_documents(markdown_documents)
+            # convert back to list[str] so we can filter and combine them
+            # TODO: figure out how to combine but also retain md header metadata?
+            chunks = [chunk.page_content for chunk in chunks]
         else:
             chunks = text_splitter.split_text(text)
-
-        # convert back to plain text so we can filter and combine them
-        # TODO: figure out how to combine but also retain md header metadata?
-        chunks = [chunk.page_content for chunk in chunks]
 
         if cfg.ENABLE_QUALITY_DETECTION:
             desired_quality = "prose"
