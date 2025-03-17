@@ -243,9 +243,15 @@ class VectorStoreInterface:
         self._embeddings = OpenAIEmbeddings(
             http_client=httpx.Client(
                 transport=CustomTransport(
-                    retry=Retry(total=5, backoff_factor=0.5, max_backoff_wait=30)
+                    retry=Retry(
+                        total=3,
+                        backoff_factor=0.5,
+                        max_backoff_wait=30,
+                        status_forcelist=[429, 502, 503],  # intentionally omitting 504
+                    )
                 )
             ),
+            max_retries=0,  # disable openai client's built-in retry mechanism
             model=cfg.EMBED_MODEL_NAME,
             openai_api_base=cfg.EMBED_BASE_URL,
             openai_api_key=cfg.EMBED_API_KEY,
@@ -344,6 +350,9 @@ class VectorStoreInterface:
             chunks = self.quality_detector.filter_by_quality(chunks, desired_quality)
 
         chunks = self.combine_small_chunks(chunks)
+
+        # filter out any empty chunks
+        chunks = filter(lambda c: not c or not c.strip(), chunks)
 
         # Convert back to Document objects for call to 'embed_documents'
         documents = []
