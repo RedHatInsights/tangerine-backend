@@ -117,8 +117,7 @@ def embed_file(app_context, file: File, tmpdir: str, agent_id: int) -> File:
 def embed_files_concurrent(
     bucket: str, files: List[File], tmpdir: str, agent_id: int
 ) -> Iterator[Optional[File]]:
-    max_workers = int(cfg.SQLALCHEMY_POOL_SIZE / 2)
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    with ThreadPoolExecutor(max_workers=cfg.S3_SYNC_POOL_SIZE) as executor:
         key_for_future = {
             executor.submit(
                 embed_file, current_app.app_context(), file, tmpdir, agent_id
