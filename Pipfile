@@ -29,6 +29,7 @@ prometheus-flask-exporter = "*"
 pypdf2 = "*"
 scikit-learn = "*"
 flask-migrate = "*"
+httpx-retries = "*"
 
 [dev-packages]
 ipython = "*"

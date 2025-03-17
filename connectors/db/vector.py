@@ -10,6 +10,7 @@ from decimal import Decimal
 from typing import Optional
 
 import httpx
+from httpx_retries import Retry, RetryTransport
 from langchain.text_splitter import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
@@ -201,21 +202,24 @@ class CustomResponse(httpx.Response):
         except json.JSONDecodeError:
             usage = {}
 
+        if not usage:
+            log.debug("no 'usage' in embedding response")
+            return
+
         try:
             prompt_tokens = int(usage.get("prompt_tokens", 0))
         except ValueError:
-            prompt_tokens = 0
+            log.debug("invalid 'usage' content in embedding response")
+            return
 
         log.debug("embedding prompt tokens: %d", prompt_tokens)
         embed_prompt_tokens_metric.inc(prompt_tokens)
 
 
-class CustomTransport(httpx.BaseTransport):
-    def __init__(self, transport: httpx.BaseTransport):
-        self.transport = transport
-
+# base this on top of RetryTransport so that we can configure http backoff timers
+class CustomTransport(RetryTransport):
     def handle_request(self, request: httpx.Request) -> httpx.Response:
-        response = self.transport.handle_request(request)
+        response = super().handle_request(request)
 
         return CustomResponse(
             status_code=response.status_code,
@@ -231,13 +235,17 @@ class VectorStoreInterface:
         self.splitter_chunk_size = 2000
         self.max_chunk_size = 2300
         self.chunk_overlap = 200
-        self.batch_size = 32
+        self.batch_size = 20
         self.db = db
         self.search_providers = []
         self.quality_detector = QualityDetector()
 
         self._embeddings = OpenAIEmbeddings(
-            http_client=httpx.Client(transport=CustomTransport(httpx.HTTPTransport())),
+            http_client=httpx.Client(
+                transport=CustomTransport(
+                    retry=Retry(total=5, backoff_factor=0.5, max_backoff_wait=30)
+                )
+            ),
             model=cfg.EMBED_MODEL_NAME,
             openai_api_base=cfg.EMBED_BASE_URL,
             openai_api_key=cfg.EMBED_API_KEY,
@@ -377,11 +385,15 @@ class VectorStoreInterface:
         batch_size = self.batch_size
         total_batches = math.ceil(total / batch_size)
         for idx, batch in enumerate(itertools.batched(chunks, batch_size)):
+            size = 0
+            for doc in batch:
+                size += len(doc.page_content)
             current_batch = idx + 1
             log.debug(
-                "adding %d document chunks to agent %s, batch %d/%d",
+                "adding %d document chunks to agent %s (total size: %d chars), batch %d/%d",
                 len(batch),
                 agent_id,
+                size,
                 current_batch,
                 total_batches,
             )
