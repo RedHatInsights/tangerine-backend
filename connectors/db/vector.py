@@ -352,7 +352,7 @@ class VectorStoreInterface:
         chunks = self.combine_small_chunks(chunks)
 
         # filter out any empty chunks
-        chunks = filter(lambda c: not c or c.strip() == "", chunks)
+        chunks = filter(lambda c: not c or not c.strip(), chunks)
 
         # Convert back to Document objects for call to 'embed_documents'
         documents = []
