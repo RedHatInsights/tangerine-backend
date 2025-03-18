@@ -33,6 +33,8 @@ parameters:
     value: "true"
   - name: S3_SYNC_EXPORT_METRICS_SLEEP_SECS
     value: "120"
+  - name: SCHEDULE
+    value: "*/30 * * * *"
 
 objects:
 - kind: Secret
@@ -80,7 +82,7 @@ objects:
       app.kubernetes.io/name: tangerine-backend-s3sync
   spec:
     suspend: ${{S3_SYNC_SUSPEND}}
-    schedule: "*/30 * * * *"
+    schedule: ${{SCHEDULE}}
     concurrencyPolicy: "Replace"
     startingDeadlineSeconds: 1200
     jobTemplate:
