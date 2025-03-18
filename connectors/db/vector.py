@@ -235,7 +235,7 @@ class VectorStoreInterface:
         self.splitter_chunk_size = 2000
         self.max_chunk_size = 2300
         self.chunk_overlap = 200
-        self.batch_size = 20
+        self.batch_size = 32
         self.db = db
         self.search_providers = []
         self.quality_detector = QualityDetector()
