@@ -340,10 +340,10 @@ flask db migrate -m "Your migration message"
 
 Then, to apply migrations to your local DB:
 
-  1. Start the database. If using docker-compose, ensure that you start the DB but do not start the backend itself. Run:
+  1. Start the database. If using docker compose, ensure that you start the DB but do not start the backend itself. Run:
 
       ```bash
-      docker-compose start postgres
+      docker compose start postgres
       ```
 
   1. Run the migrations:
