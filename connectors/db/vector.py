@@ -315,13 +315,13 @@ class VectorStoreInterface:
         """Checks if a document contains markdown headers."""
         return bool(re.search(r"^#{1,6} ", text, re.MULTILINE))
 
-    def split_to_document_chunks(self, text, metadata):
+    def split_to_document_chunks(self, text, metadata) -> list[Document]:
         """Split documents into chunks. Use markdown-aware splitter first if text is markdown."""
 
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.splitter_chunk_size,
             chunk_overlap=self.chunk_overlap,
-            separators=["\n\n", ". ", "? ", "! "],
+            separators=["\n\n", ". ", "? ", "! ", "\n", " ", ""],
         )
 
         md_splitter = MarkdownHeaderTextSplitter(
@@ -352,7 +352,13 @@ class VectorStoreInterface:
         chunks = self.combine_small_chunks(chunks)
 
         # filter out any empty chunks
-        chunks = filter(lambda c: not c or not c.strip(), chunks)
+        len_pre_filter = len(chunks)
+        chunks = list(filter(lambda c: c.strip() != "", chunks))
+        len_post_filter = len(chunks)
+        len_diff = len_pre_filter - len_post_filter
+
+        if len_diff:
+            log.debug("dropped %d empty chunks", len_diff)
 
         # Convert back to Document objects for call to 'embed_documents'
         documents = []
@@ -363,8 +369,8 @@ class VectorStoreInterface:
 
         return documents
 
-    def create_document_chunks(self, file: File, agent_id: int):
-        log.debug("processing %s", file)
+    def create_document_chunks(self, file: File, agent_id: int) -> list[Document]:
+        log.debug("creating doc chunks for %s", file)
 
         text = file.extract_text()
 
@@ -377,38 +383,47 @@ class VectorStoreInterface:
         }
         metadata.update(file.metadata)
 
-        chunks = self.split_to_document_chunks(text, metadata)
+        documents = self.split_to_document_chunks(text, metadata)
 
-        return chunks
+        if documents:
+            doc_sizes = ",".join([str(len(d.page_content)) for d in documents])
+            log.debug("file %s split into %d chunks of sizes %s", file, len(documents), doc_sizes)
+        else:
+            log.debug("file %s split into 0 chunks")
+
+        return documents
 
     def add_file(self, file: File, agent_id: int):
-        chunks = []
+        documents = []
         try:
-            chunks = self.create_document_chunks(file, agent_id)
+            documents = self.create_document_chunks(file, agent_id)
         except Exception:
             log.exception("error creating document chunks")
             return
 
-        total = len(chunks)
+        total = len(documents)
         batch_size = self.batch_size
         total_batches = math.ceil(total / batch_size)
-        for idx, batch in enumerate(itertools.batched(chunks, batch_size)):
+        for idx, batch in enumerate(itertools.batched(documents, batch_size)):
             size = 0
             for doc in batch:
                 size += len(doc.page_content)
             current_batch = idx + 1
             log.debug(
-                "adding %d document chunks to agent %s (total size: %d chars), batch %d/%d",
-                len(batch),
-                agent_id,
-                size,
+                "adding batch %d/%d for file %s to agent %s (%d chunks, total size: %d chars)",
                 current_batch,
                 total_batches,
+                file,
+                agent_id,
+                len(batch),
+                size,
             )
             try:
                 self.store.add_documents(batch)
             except Exception:
-                log.exception("error adding documents to vector store for batch %d", current_batch)
+                log.exception(
+                    "error on batch %d/%d for file %s", current_batch, total_batches, file
+                )
 
     def deduplicate_results(self, results, threshold=0.90):
         """
