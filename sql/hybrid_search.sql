@@ -6,7 +6,7 @@ WITH semantic_search AS (
         RANK() OVER (ORDER BY embedding <=> CAST(:embedding AS vector)) AS rank
     FROM langchain_pg_embedding
     WHERE cmetadata->>'active' = 'True' AND
-        cmetadata->>'agent_id' = :agent_id
+        cmetadata->>'assistant_id' = :assistant_id
     ORDER BY embedding <=> CAST(:embedding AS vector)
     LIMIT 20
 ),
