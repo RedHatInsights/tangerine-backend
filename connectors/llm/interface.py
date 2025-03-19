@@ -18,7 +18,7 @@ log = logging.getLogger("tangerine.llm")
 assistant_response_counter = get_counter(
     "assistant_response_counter",
     "Total number of responses for an assistant",
-    ["assistant_id", "assistant_name"],
+    ["assistant_id", "name"],
 )
 llm_completion_tokens_metric = get_counter("llm_completion_tokens", "LLM completion tokens usage")
 llm_prompt_tokens_metric = get_counter("llm_prompt_tokens", "LLM prompt tokens usage")
@@ -163,14 +163,10 @@ def ask(
     if len(search_results) == 0:
         log.debug("given 0 search results")
         search_context = "No matching search results found"
-        llm_no_answer.labels(
-            assistant_id=assistant.id, assistant_name=assistant.assistant_name
-        ).inc()
+        llm_no_answer.labels(assistant_id=assistant.id, name=assistant.name).inc()
     else:
         search_context, search_metadata = _build_context(search_results)
-        assistant_response_counter.labels(
-            assistant_id=assistant.id, assistant_name=assistant.assistant_name
-        ).inc()
+        assistant_response_counter.labels(assistant_id=assistant.id, name=assistant.name).inc()
 
     for m in search_metadata:
         m["interactionId"] = interaction_id

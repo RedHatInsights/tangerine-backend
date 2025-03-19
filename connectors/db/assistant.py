@@ -27,7 +27,7 @@ migrate = Migrate(include_object=include_object)
 
 class Assistant(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    assistant_name = db.Column(db.String(50), nullable=False)
+    name = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=False)
     system_prompt = db.Column(db.Text, nullable=True)
     filenames = db.Column(db.ARRAY(db.String), default=[], nullable=True)
@@ -41,7 +41,7 @@ class Assistant(db.Model):
     @classmethod
     def create(cls, name: str, description: str, system_prompt: str = None, **kwargs) -> Self:
         new_assistant = cls(
-            assistant_name=name,
+            name=name,
             description=description,
             system_prompt=system_prompt or DEFAULT_SYSTEM_PROMPT,
         )
@@ -65,7 +65,7 @@ class Assistant(db.Model):
 
     @classmethod
     def get_by_name(cls, name: str) -> Optional[Self]:
-        assistant = db.session.scalar(db.select(cls).filter_by(assistant_name=name))
+        assistant = db.session.scalar(db.select(cls).filter_by(name=name))
         log.debug("get assistant by name '%s' result: %s", name, assistant)
         return assistant
 

@@ -335,7 +335,7 @@ def run(resync: bool = False) -> int:
         assistant = Assistant.get_by_name(assistant_config.name)
         if assistant:
             if not assistant_config.system_prompt:
-                log.debug("using default system prompt for assistant '%s'", assistant.assistant_name)
+                log.debug("using default system prompt for assistant '%s'", assistant.name)
             Assistant.update(**dict(assistant_config))
         else:
             assistant = Assistant.create(**dict(assistant_config))
