@@ -329,6 +329,9 @@ def run(resync: bool = False) -> int:
         # check to see if agent already exists... if so, update... if not, create
         agent = Agent.get_by_name(agent_config.name)
         if agent:
+            if not agent_config.system_prompt:
+                log.debug("using default system prompt for agent '%s'", agent.agent_name)
+                agent_config.system_prompt = cfg.DEFAULT_SYSTEM_PROMPT
             agent.update(**dict(agent_config))
         else:
             agent = Agent.create(**dict(agent_config))
