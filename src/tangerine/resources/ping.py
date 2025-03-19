@@ -1,6 +1,6 @@
 from flask_restful import Resource
 
-from .metrics import metrics
+from ..metrics import metrics
 
 
 class PingApi(Resource):

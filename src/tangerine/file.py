@@ -1,3 +1,4 @@
+import importlib.resources
 import json
 import logging
 import os
@@ -16,7 +17,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from tabledata import TableData
 
-import connectors.config as cfg
+import tangerine.config as cfg
 
 log = logging.getLogger("tangerine.file")
 
@@ -26,6 +27,15 @@ LINK_REGEX = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 ABSOLUTE_URL_REGEX = re.compile(r"[a-z0-9]*:\/\/.*")
 
 
+def _load_training_file():
+    txt = (
+        importlib.resources.files("tangerine.data")
+        .joinpath("quality_detection_training.json")
+        .read_text()
+    )
+    return json.loads(txt)
+
+
 class QualityDetector:
     """
     QualityDetector uses a simple TF-IDF + Logistic Regression model to detect the quality of text
@@ -33,11 +43,8 @@ class QualityDetector:
     This feature is still a work-in-progress
     """
 
-    TRAINING_FILE = os.path.join(
-        os.path.dirname(__file__), "../../json/quality_detection_training.json"
-    )
-    MODEL_FILE = os.path.join(os.path.dirname(__file__), "../../data/quality_detector.pkl")
-    VECTORIZER_FILE = os.path.join(os.path.dirname(__file__), "../../data/vectorizer.pkl")
+    MODEL_FILE = os.path.join(cfg.QD_DATA_PATH, "quality_detector.pkl")
+    VECTORIZER_FILE = os.path.join(cfg.QD_DATA_PATH, "vectorizer.pkl")
 
     def __init__(self, log_junk=False):
         self.training_texts = []
@@ -91,8 +98,7 @@ class QualityDetector:
         """
         self.training_data_loaded = False
         try:
-            with open(self.TRAINING_FILE, "r", encoding="utf-8") as file:
-                training_samples = json.load(file)
+            training_samples = _load_training_file()
             self.training_texts = [sample["text"] for sample in training_samples]
             self.training_labels = [sample["label"] for sample in training_samples]
             self.training_data_loaded = True

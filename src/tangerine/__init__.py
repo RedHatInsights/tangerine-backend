@@ -11,15 +11,16 @@ from flask.cli import with_appcontext
 from flask_cors import CORS
 from flask_restful import Api
 
-import connectors.config as cfg
-import connectors.s3.sync
+import tangerine.config as cfg
+
+from .metrics import metrics
 
 # Imported so SQLAlchemy can find the models
-from connectors.db import interactions  # noqa: F401
-from connectors.db.agent import db, migrate
-from connectors.db.vector import vector_db
-from resources.metrics import metrics
-from resources.routes import initialize_routes
+from .models import interactions  # noqa: F401
+from .models.agent import db, migrate
+from .resources.routes import initialize_routes
+from .sync.s3 import run as run_s3sync
+from .vector import vector_db
 
 
 def create_app():
@@ -89,7 +90,7 @@ def s3sync(force_resync, force_resync_until):
         )
 
     current_app.logger.info("running s3sync, force_resync=%s", force_resync)
-    exit_code = connectors.s3.sync.run(resync=force_resync)
+    exit_code = run_s3sync(resync=force_resync)
 
     if cfg.S3_SYNC_EXPORT_METRICS:
         sleep_time = cfg.S3_SYNC_EXPORT_METRICS_SLEEP_SECS

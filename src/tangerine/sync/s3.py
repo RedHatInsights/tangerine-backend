@@ -12,10 +12,10 @@ import yaml
 from flask import current_app
 from pydantic import BaseModel
 
-import connectors.config as cfg
-from connectors.db.agent import Agent, db
-from connectors.db.common import File, embed_files
-from connectors.db.vector import vector_db
+import tangerine.config as cfg
+from tangerine.models.agent import Agent, db
+from tangerine.utils import File, embed_files
+from tangerine.vector import vector_db
 
 s3 = boto3.client("s3")
 

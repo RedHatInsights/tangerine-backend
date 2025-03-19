@@ -1,3 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tangerine"
+version = "0.0.1"
+description = "A slim and light-weight RAG (Retieval Augmented Generated) system used to create and manage chat bot agents."
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+]
+
+[project.urls]
+Homepage = "https://github.com/RedHatInsights/tangerine-backend"
+Issues = "https://github.com/RedHatInsights/tangerine-backend/issues"
+
 [tool.pytest.ini_options]
 addopts = ["--ignore=data/"]
 

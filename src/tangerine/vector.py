@@ -1,9 +1,9 @@
+import importlib.resources
 import io
 import itertools
 import json
 import logging
 import math
-import os
 import re
 from abc import ABC, abstractmethod
 from decimal import Decimal
@@ -21,14 +21,14 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sqlalchemy import text
 
-import connectors.config as cfg
-import connectors.llm.interface as llm
-from resources.metrics import get_counter
+import tangerine.config as cfg
+import tangerine.llm as llm
+from tangerine.metrics import get_counter
 
-from .agent import db
 from .file import File, QualityDetector
+from .models.agent import db
 
-log = logging.getLogger("tangerine.db.vector")
+log = logging.getLogger("tangerine.vector")
 embed_prompt_tokens_metric = get_counter(
     "embed_prompt_tokens", "Embedding model prompt tokens usage"
 )
@@ -53,6 +53,7 @@ class SearchProvider(ABC):
         if self.RETRIEVAL_METHOD is None:
             raise TypeError("Subclasses must set RETRIEVAL_METHOD to a non-None value")
         self.store = store
+        log.debug("initializing search provider %s", self.__class__.__name__)
 
     @abstractmethod
     def search(self, query, search_filter, query_embedding=None) -> list[SearchResult]:
@@ -119,7 +120,7 @@ class HybridSearchProvider(SearchProvider):
     """Hybrid Search combining Vector Similarity and Full-Text BM25 Search in PGVector."""
 
     RETRIEVAL_METHOD = "hybrid"
-    QUERY_FILE = os.path.join(os.path.dirname(__file__), "../../sql/hybrid_search.sql")
+    QUERY_FILE = "hybrid_search.sql"
 
     def __init__(self, store):
         super().__init__(store)
@@ -130,9 +131,11 @@ class HybridSearchProvider(SearchProvider):
     def _load_sql_file(self):
         """Loads an SQL file into memory."""
         try:
-            with open(self.QUERY_FILE, "r", encoding="utf-8") as file:
-                self.sql_query = file.read()
-                self.sql_loaded = True
+            self.sql_query = (
+                importlib.resources.files("tangerine.sql").joinpath(self.QUERY_FILE).read_text()
+            )
+            self.sql_loaded = True
+            log.debug("hybrid search SQL query loaded")
         except Exception:
             self.sql_loaded = False
             log.exception("Error loading SQL file %s", self.QUERY_FILE)

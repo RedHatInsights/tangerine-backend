@@ -1,6 +1,6 @@
 from .agent import AgentApi, AgentChatApi, AgentDefaultsApi, AgentDocuments, AgentsApi
 from .feedback import FeedbackApi
-from .utils import PingApi
+from .ping import PingApi
 
 
 def initialize_routes(api):

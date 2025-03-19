@@ -4,7 +4,7 @@ from typing import Iterable, List, Optional, Self
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 
-from connectors.config import DEFAULT_SYSTEM_PROMPT, SQLALCHEMY_MAX_OVERFLOW, SQLALCHEMY_POOL_SIZE
+from tangerine.config import DEFAULT_SYSTEM_PROMPT, SQLALCHEMY_MAX_OVERFLOW, SQLALCHEMY_POOL_SIZE
 
 log = logging.getLogger("tangerine.db.agent")
 
