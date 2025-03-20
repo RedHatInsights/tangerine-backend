@@ -43,7 +43,8 @@ RUN microdnf remove -y $( comm -13 packages-before-devel-install.txt packages-af
 
 USER 1001
 
-ADD src .
+COPY src/ .
+COPY .flaskenv .
 
 EXPOSE 8000
 
