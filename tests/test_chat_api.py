@@ -2,7 +2,8 @@ from unittest.mock import MagicMock
 
 import pytest
 from langchain_core.documents import Document
-from resources.agent import AgentChatApi  # Import your API class
+
+from tangerine.resources.agent import AgentChatApi  # Import your API class
 
 
 @pytest.fixture
