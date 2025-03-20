@@ -169,8 +169,11 @@ cython_debug/
 
 .DS_Store
 
-# local docker data
+# local docker data in a dev env
 data/
+
+# do track the package data folder though...
+!src/tangerine/data
 
 # ignore local docker settings
 docker-compose-maas.yml
