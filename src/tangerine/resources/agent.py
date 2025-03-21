@@ -6,15 +6,17 @@ from flask import Response, request, stream_with_context
 from flask_restful import Resource
 from langchain_core.documents import Document
 
-import connectors.llm.interface as llm
-from connectors import config
-from connectors.config import DEFAULT_SYSTEM_PROMPT
-from connectors.db.agent import Agent
-from connectors.db.common import File, add_filenames_to_agent, embed_files, remove_files
-from connectors.db.interactions import store_interaction
-from connectors.db.vector import vector_db
+import tangerine.llm as llm
+from tangerine import config
+from tangerine.config import DEFAULT_SYSTEM_PROMPT
+from tangerine.embeddings import embed_query
+from tangerine.models.agent import Agent
+from tangerine.models.interactions import store_interaction
+from tangerine.search import search_engine
+from tangerine.utils import File, add_filenames_to_agent, embed_files, remove_files
+from tangerine.vector import vector_db
 
-log = logging.getLogger("tangerine")
+log = logging.getLogger("tangerine.resources")
 
 
 class AgentDefaultsApi(Resource):
@@ -155,7 +157,7 @@ class AgentChatApi(Resource):
             self._extract_request_data()
         )
         embedding = self._embed_question(question)
-        search_results = self._get_search_results(question, embedding, agent.id)
+        search_results = self._get_search_results(agent.id, question, embedding)
         llm_response = self._call_llm(
             agent, previous_messages, question, search_results, stream, interaction_id
         )
@@ -194,7 +196,7 @@ class AgentChatApi(Resource):
         return question, session_uuid, stream, previous_messages, interaction_id, client
 
     def _embed_question(self, question):
-        return vector_db.embed_query(question)
+        return embed_query(question)
 
     def _call_llm(self, agent, previous_messages, question, search_results, stream, interaction_id):
         return llm.ask(
@@ -223,8 +225,8 @@ class AgentChatApi(Resource):
         ]
 
     @staticmethod
-    def _get_search_results(question, embedding, agent_id):
-        return vector_db.search(question, embedding, agent_id)
+    def _get_search_results(agent_id, query, embedding):
+        return search_engine.search(agent_id, query, embedding)
 
     def _handle_streaming_response(
         self,

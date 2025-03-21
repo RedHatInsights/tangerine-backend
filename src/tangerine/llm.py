@@ -9,9 +9,9 @@ from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
-import connectors.config as cfg
-from connectors.db.agent import Agent
-from resources.metrics import get_counter, get_gauge
+import tangerine.config as cfg
+from tangerine.metrics import get_counter, get_gauge
+from tangerine.models.agent import Agent
 
 log = logging.getLogger("tangerine.llm")
 

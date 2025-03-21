@@ -1,28 +1,10 @@
 import logging
 from typing import Iterable, List, Optional, Self
 
-from flask_migrate import Migrate
-from flask_sqlalchemy import SQLAlchemy
+import tangerine.config as cfg
+from tangerine.db import db
 
-from connectors.config import DEFAULT_SYSTEM_PROMPT, SQLALCHEMY_MAX_OVERFLOW, SQLALCHEMY_POOL_SIZE
-
-log = logging.getLogger("tangerine.db.agent")
-
-db = SQLAlchemy(
-    engine_options={"pool_size": SQLALCHEMY_POOL_SIZE, "max_overflow": SQLALCHEMY_MAX_OVERFLOW}
-)
-
-
-def include_object(obj, name, db_type, _reflected, _compare_to):
-    ignore_tables = ["langchain_pg_collection", "langchain_pg_embedding"]
-
-    if db_type == "table" and (name in ignore_tables or obj.info.get("skip_autogenerate", False)):
-        return False
-
-    return True
-
-
-migrate = Migrate(include_object=include_object)
+log = logging.getLogger("tangerine.models.agent")
 
 
 class Agent(db.Model):
@@ -43,7 +25,7 @@ class Agent(db.Model):
         new_agent = cls(
             agent_name=name,
             description=description,
-            system_prompt=system_prompt or DEFAULT_SYSTEM_PROMPT,
+            system_prompt=system_prompt or cfg.DEFAULT_SYSTEM_PROMPT,
         )
         db.session.add(new_agent)
         db.session.commit()

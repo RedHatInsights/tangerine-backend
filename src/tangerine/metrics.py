@@ -1,7 +1,7 @@
 from prometheus_client import REGISTRY, Counter, Gauge
 from prometheus_flask_exporter import RESTfulPrometheusMetrics
 
-import connectors.config as cfg
+import tangerine.config as cfg
 
 metrics = RESTfulPrometheusMetrics.for_app_factory(
     registry=REGISTRY, defaults_prefix=cfg.METRICS_PREFIX

@@ -43,12 +43,8 @@ RUN microdnf remove -y $( comm -13 packages-before-devel-install.txt packages-af
 
 USER 1001
 
-ADD connectors ./connectors
-ADD resources ./resources
-ADD sql ./sql
-ADD json ./json
-ADD app.py .
-ADD migrations ./migrations
+COPY src/ .
+COPY .flaskenv .
 
 EXPOSE 8000
 

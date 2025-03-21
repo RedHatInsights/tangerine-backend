@@ -4,9 +4,9 @@ import uuid
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects.postgresql import UUID
 
-from .agent import db
+from tangerine.db import db
 
-log = logging.getLogger("tangerine.db.interactions")
+log = logging.getLogger("tangerine.models.interactions")
 
 
 class RelevanceScore(db.Model):
