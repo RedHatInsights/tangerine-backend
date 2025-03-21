@@ -13,7 +13,7 @@ from flask_restful import Api
 
 import tangerine.config as cfg
 
-# import tangerine.db so SQLAlchemy can find the models
+# import models for flask-sqlalchemy/flask-migrate
 import tangerine.models  # noqa
 from tangerine.db import db, migrate
 
@@ -49,9 +49,7 @@ def create_app():
     with app.app_context():
         db.session.commit()
         vector_db.initialize()
-        app.logger.info("vector store initiated.")
-        db.create_all()
-        app.logger.info("db tables initiated.")
+
     return app
 
 

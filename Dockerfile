@@ -29,11 +29,15 @@ RUN microdnf -y module enable postgresql:16 && \
 
 COPY Pipfile .
 COPY Pipfile.lock .
+COPY src ./src
+COPY migrations/ ./migrations
+COPY .flaskenv .
+
 RUN python3.12 -m venv .venv && \
     source .venv/bin/activate && \
     python3.12 -m pip install --upgrade pip setuptools wheel && \
     python3.12 -m pip install pipenv && \
-    pipenv install --system
+    pipenv install --system .
 
 # remove devel packages that may have only been necessary for psycopg to compile
 RUN microdnf remove -y $( comm -13 packages-before-devel-install.txt packages-after-devel-install.txt ) && \
@@ -42,9 +46,6 @@ RUN microdnf remove -y $( comm -13 packages-before-devel-install.txt packages-af
     rm -rf /mnt/rootfs/var/cache/* /mnt/rootfs/var/log/dnf* /mnt/rootfs/var/log/yum.*
 
 USER 1001
-
-COPY src/ .
-COPY .flaskenv .
 
 EXPOSE 8000
 
