@@ -13,7 +13,8 @@ from flask import current_app
 from pydantic import BaseModel
 
 import tangerine.config as cfg
-from tangerine.models.agent import Agent, db
+from tangerine.db import db
+from tangerine.models import Agent
 from tangerine.utils import File, embed_files
 from tangerine.vector import vector_db
 

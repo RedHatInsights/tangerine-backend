@@ -13,11 +13,11 @@ from flask_restful import Api
 
 import tangerine.config as cfg
 
-from .metrics import metrics
+# import tangerine.db so SQLAlchemy can find the models
+import tangerine.models  # noqa
+from tangerine.db import db, migrate
 
-# Imported so SQLAlchemy can find the models
-from .models import interactions  # noqa: F401
-from .models.agent import db, migrate
+from .metrics import metrics
 from .resources.routes import initialize_routes
 from .sync.s3 import run as run_s3sync
 from .vector import vector_db

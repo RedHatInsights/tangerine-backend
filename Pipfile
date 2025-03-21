@@ -37,6 +37,7 @@ pytest = "*"
 ruff = "*"
 pre-commit = "*"
 tangerine = {editable = true, path = "."}
+flake8 = "*"
 
 [requires]
 python_version = "3.12"
