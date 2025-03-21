@@ -287,7 +287,7 @@ to use this to test different embedding models that are not supported by ollama,
 1. Start Tangerine Backend
 
     ```sh
-    flask run
+    flask db upgrade && flask run
     ```
 
 1. Access the API on port `8000`

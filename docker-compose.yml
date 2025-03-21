@@ -99,6 +99,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    command: flask db upgrade && flask run
     ports:
       - "8000:8000"
     environment:
