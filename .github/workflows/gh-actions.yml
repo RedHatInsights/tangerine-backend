@@ -41,6 +41,9 @@ jobs:
     - name: Install dependencies
       run: pipenv install --system --deploy --dev
 
+    - name: Install package
+      run: pipenv install -e .
+
     - name: Run pytest
       run: |
         pytest -v -s
