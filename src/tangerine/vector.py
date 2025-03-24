@@ -38,7 +38,6 @@ class VectorStoreInterface:
                 connection=cfg.DB_URI,
                 embeddings=self._embeddings,
             )
-            self._ensure_fts_vector_column()
         except Exception:
             log.exception("error initializing vector store")
 
@@ -77,18 +76,6 @@ class VectorStoreInterface:
         """Load a SQL file by name"""
         sql_query = importlib.resources.files("tangerine.sql").joinpath(sql_file).read_text()
         return text(sql_query)
-
-    def _ensure_fts_vector_column(self):
-        """Ensure the 'fts_vector' column exists in the 'langchain_pg_embedding' table."""
-        with self.db.engine.connect() as conn:
-            # Check if the column already exists
-            check_col = conn.execute(self._load_sql_file("tsvector_check.sql")).fetchone()
-            if not check_col:
-                # Add the computed tsvector column
-                log.info("Adding fts_vector column to langchain_pg_embedding table")
-                conn.execute(self._load_sql_file("add_tsvector_column.sql"))
-                conn.execute(self._load_sql_file("index_tsvector_column.sql"))
-                conn.commit()
 
     def has_markdown_headers(self, text):
         """Checks if a document contains markdown headers."""
