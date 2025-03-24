@@ -1,7 +1,7 @@
 """Initial migration
 
 Revision ID: c87bdbcc45f5
-Revises: 
+Revises:
 Create Date: 2025-03-21 16:48:31.063433
 
 """
@@ -24,7 +24,8 @@ def upgrade():
     sa.Column('description', sa.Text(), nullable=False),
     sa.Column('system_prompt', sa.Text(), nullable=True),
     sa.Column('filenames', sa.ARRAY(sa.String()), nullable=True),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    if_not_exists=True
     )
     op.create_table('interactions',
     sa.Column('id', sa.UUID(), nullable=False),
@@ -34,13 +35,15 @@ def upgrade():
     sa.Column('source_doc_chunks', sa.JSON(), nullable=True),
     sa.Column('timestamp', sa.DateTime(), nullable=True),
     sa.Column('client', sa.String(length=50), nullable=True),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    if_not_exists=True
     )
     op.create_table('question_embeddings',
     sa.Column('interaction_id', sa.UUID(), nullable=False),
     sa.Column('question_embedding', pgvector.sqlalchemy.vector.VECTOR(dim=768), nullable=False),
     sa.ForeignKeyConstraint(['interaction_id'], ['interactions.id'], ),
-    sa.PrimaryKeyConstraint('interaction_id')
+    sa.PrimaryKeyConstraint('interaction_id'),
+    if_not_exists=True
     )
     op.create_table('relevance_scores',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -49,7 +52,8 @@ def upgrade():
     sa.Column('score', sa.Float(), nullable=False),
     sa.Column('timestamp', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['interaction_id'], ['interactions.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    if_not_exists=True
     )
     op.create_table('user_feedback',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -59,7 +63,8 @@ def upgrade():
     sa.Column('dislike', sa.Boolean(), nullable=False),
     sa.Column('feedback', sa.Text(), nullable=True),
     sa.ForeignKeyConstraint(['interaction_id'], ['interactions.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    if_not_exists=True
     )
     # ### end Alembic commands ###
 
