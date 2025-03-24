@@ -13,6 +13,9 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
 ]
 
+[tool.setuptools.package-data]
+tangerine = ["sql/*", "data/*"]
+
 [project.urls]
 Homepage = "https://github.com/RedHatInsights/tangerine-backend"
 Issues = "https://github.com/RedHatInsights/tangerine-backend/issues"
@@ -24,8 +27,8 @@ addopts = ["--ignore=data/"]
 line-length = 100
 indent-width = 4
 target-version = "py312"
-exclude = ["migrations/*", "data/*"]
+exclude = ["data/*"]
 
 [tool.flake8]
 max-line-length = 100
-exclude = "migrations/*, data/*"
+exclude = "data/*"
