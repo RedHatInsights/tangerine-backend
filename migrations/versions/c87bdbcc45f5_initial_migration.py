@@ -7,7 +7,7 @@ Create Date: 2025-03-21 16:48:31.063433
 """
 from alembic import op
 import sqlalchemy as sa
-
+import pgvector.sqlalchemy.vector.VECTOR
 
 # revision identifiers, used by Alembic.
 revision = 'c87bdbcc45f5'
