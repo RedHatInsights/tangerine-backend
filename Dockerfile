@@ -29,11 +29,21 @@ RUN microdnf -y module enable postgresql:16 && \
 
 COPY Pipfile .
 COPY Pipfile.lock .
+
 RUN python3.12 -m venv .venv && \
     source .venv/bin/activate && \
     python3.12 -m pip install --upgrade pip setuptools wheel && \
     python3.12 -m pip install pipenv && \
     pipenv install --system
+
+
+ENV PATH="$APP_ROOT/.venv/bin:$PATH"
+
+COPY pyproject.toml .
+COPY src ./src
+COPY migrations ./migrations
+COPY .flaskenv .
+RUN pipenv install .
 
 # remove devel packages that may have only been necessary for psycopg to compile
 RUN microdnf remove -y $( comm -13 packages-before-devel-install.txt packages-after-devel-install.txt ) && \
@@ -43,10 +53,6 @@ RUN microdnf remove -y $( comm -13 packages-before-devel-install.txt packages-af
 
 USER 1001
 
-COPY src/ .
-COPY .flaskenv .
-
 EXPOSE 8000
 
-ENV PATH="$APP_ROOT/.venv/bin:$PATH"
 CMD ["flask", "run", "--host=0.0.0.0", "--port=8000"]
