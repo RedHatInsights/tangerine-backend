@@ -118,6 +118,9 @@ services:
       - ENABLE_RERANKING=true
       - ENABLE_QUALITY_DETECTION=false
       - ENABLE_HYBRID_SEARCH=true
+      - ENABLE_MMR_SEARCH=false
+      - ENABLE_SIMILARITY_SEARCH=false
+      - ENABLE_FULL_TEXT_SEARCH=false
       - LOG_LEVEL_APP=debug
       - DEBUG_VERBOSE=true
     # for s3sync, store AWS env vars needed to access your s3 bucket here
