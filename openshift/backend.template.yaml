@@ -40,7 +40,14 @@ parameters:
   - name: DEBUG_VERBOSE
     value: "false"
   - name: ENABLE_HYBRID_SEARCH
+    value: "true"
+  - name: ENABLE_MMR_SEARCH
     value: "false"
+  - name: ENABLE_SIMILARITY_SEARCH
+    value: "false"
+  - name: ENABLE_FULL_TEXT_SEARCH
+    value: "false"
+
 
 objects:
 # Secrets
