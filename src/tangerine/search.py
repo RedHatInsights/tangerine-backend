@@ -200,10 +200,10 @@ class HybridSearchProvider(SearchProvider):
             processed_results = []
             for row in results:
                 doc = Document(
-                    page_content=row[2], metadata={"retrieval_method": self.RETRIEVAL_METHOD}
+                    page_content=row[1], metadata={"retrieval_method": self.RETRIEVAL_METHOD}
                 )
                 # Convert decimal to float to preserve compatibility with the other search providers
-                score = float(row[1]) if isinstance(row[1], Decimal) else row[1]
+                score = float(row[3]) if isinstance(row[3], Decimal) else row[3]
                 processed_results.append((doc, score))
 
             results = self._process_results(processed_results)
@@ -215,12 +215,19 @@ class HybridSearchProvider(SearchProvider):
 
 class SearchEngine:
     def __init__(self):
-        self.search_providers = [
-            FTSPostgresSearchProvider(),
-        ]
+        self.search_providers = self._get_search_providers()
 
+    def _get_search_providers(self):
+        search_providers = []
+        if cfg.ENABLE_MMR_SEARCH:
+            search_providers.append(MMRSearchProvider())
+        if cfg.ENABLE_SIMILARITY_SEARCH:
+            search_providers.append(SimilaritySearchProvider())
+        if cfg.ENABLE_FULL_TEXT_SEARCH:
+            search_providers.append(FTSPostgresSearchProvider())
         if cfg.ENABLE_HYBRID_SEARCH:
-            self.search_providers.append(HybridSearchProvider())
+            search_providers.append(HybridSearchProvider())
+        return search_providers
 
     def deduplicate_results(self, results, threshold=0.90):
         """
