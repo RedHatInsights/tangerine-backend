@@ -43,6 +43,7 @@ class VectorStoreInterface:
             log.exception("error initializing vector store")
 
         self.quality_detector.initialize_model()
+        log.debug("vector store initialized")
 
     def combine_small_chunks(self, chunks):
         """

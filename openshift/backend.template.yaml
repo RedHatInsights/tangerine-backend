@@ -47,7 +47,8 @@ parameters:
     value: "false"
   - name: ENABLE_FULL_TEXT_SEARCH
     value: "false"
-
+  - name: MIGRATION_COMMAND
+    value: "flask db upgrade"
 
 objects:
 # Secrets
@@ -91,7 +92,7 @@ objects:
         initContainers:
           - name: db-migrations
             image: ${IMAGE}:${IMAGE_TAG}
-            command: ["flask", "db", "upgrade"]
+            command: ["/bin/bash", "-c", "${MIGRATION_COMMAND}"]
             env:
               - name: LOG_LEVEL_APP
                 value: ${LOG_LEVEL_APP}
