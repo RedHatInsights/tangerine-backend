@@ -13,6 +13,9 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
 ]
 
+[tool.setuptools.package-data]
+tangerine = ["sql/*", "data/*"]
+
 [project.urls]
 Homepage = "https://github.com/RedHatInsights/tangerine-backend"
 Issues = "https://github.com/RedHatInsights/tangerine-backend/issues"
