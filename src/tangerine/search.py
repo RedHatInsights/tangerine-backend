@@ -95,14 +95,19 @@ class FTSPostgresSearchProvider(SearchProvider):
 
         for row in results:
             doc = Document(
-                page_content=row[content_index], metadata={"retrieval_method": self.RETRIEVAL_METHOD}
+                page_content=row[content_index],
+                metadata={"retrieval_method": self.RETRIEVAL_METHOD},
             )
-            max_score = max(score for _,_,_,score in results) or 1.0
-            score = float(row[score_index]) if isinstance(row[score_index], Decimal) else row[score_index]
+            max_score = max(score for _, _, _, score in results) or 1.0
+            score = (
+                float(row[score_index])
+                if isinstance(row[score_index], Decimal)
+                else row[score_index]
+            )
             score = score / max_score
             raw_results.append([doc, score])
         return super()._process_results(raw_results)
-        
+
     def search(self, agent_id, query, _embedding) -> list[SearchResult]:
         """Run full-text search over langchain_pg_embedding table."""
         query = text(self.sql_query)
@@ -114,6 +119,7 @@ class FTSPostgresSearchProvider(SearchProvider):
 
         processed_results = self._process_results(results)
         return [SearchResult(doc, score) for doc, score in processed_results if score >= 0.3]
+
 
 class MMRSearchProvider(SearchProvider):
     """Maximal Marginal Relevance (MMR) Search Provider."""
@@ -165,7 +171,6 @@ class HybridSearchProvider(SearchProvider):
     def __init__(self):
         super().__init__()
         self._load_sql_file()
-
 
     def search(self, agent_id, query, embedding) -> list[SearchResult]:
         """Hybrid search provider combining vector similarity and full-text BM25 search.

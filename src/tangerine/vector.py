@@ -18,6 +18,7 @@ from .file import File, QualityDetector
 
 log = logging.getLogger("tangerine.vector")
 
+
 class VectorStoreInterface:
     def __init__(self):
         self.store = None
@@ -73,9 +74,7 @@ class VectorStoreInterface:
 
     def _load_sql_file(self, sql_file):
         """Load a SQL file by name"""
-        sql_query = (
-            importlib.resources.files("tangerine.sql").joinpath(sql_file).read_text()
-        )
+        sql_query = importlib.resources.files("tangerine.sql").joinpath(sql_file).read_text()
         return text(sql_query)
 
     def _ensure_fts_vector_column(self):
