@@ -1,4 +1,3 @@
-import importlib
 import itertools
 import json
 import logging
@@ -71,11 +70,6 @@ class VectorStoreInterface:
         if buffer:
             merged_chunks.append(buffer)
         return merged_chunks
-
-    def _load_sql_file(self, sql_file):
-        """Load a SQL file by name"""
-        sql_query = importlib.resources.files("tangerine.sql").joinpath(sql_file).read_text()
-        return text(sql_query)
 
     def has_markdown_headers(self, text):
         """Checks if a document contains markdown headers."""
