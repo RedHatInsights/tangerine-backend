@@ -110,9 +110,9 @@ class FTSPostgresSearchProvider(SearchProvider):
 
     def search(self, agent_id, query, _embedding) -> list[SearchResult]:
         """Run full-text search over langchain_pg_embedding table."""
-        query = text(self.sql_query)
-        filter = {"q": self.sql_query, "agent_id": str(agent_id)}
-        results = db.session.execute(query, filter).fetchall()
+        fts_query = text(self.sql_query)
+        filter = {"q": query, "agent_id": str(agent_id)}
+        results = db.session.execute(fts_query, filter).fetchall()
 
         if not results:
             return []
