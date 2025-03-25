@@ -187,7 +187,7 @@ class HybridSearchProvider(SearchProvider):
         search_filter = vector_db.get_search_filter(agent_id)
 
         try:
-            # Convert list to vectors 
+            # Convert list to vectors
             query_embedding_str = "[" + ",".join(map(str, embedding)) + "]"
 
             hybrid_search_sql = text(self.sql_query)
