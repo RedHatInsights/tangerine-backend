@@ -26,9 +26,7 @@ llm_completion_rate = get_gauge(
 llm_processing_rate = get_gauge(
     "llm_processing_rate", "Observed tokens per sec for most recent LLM processing after prompted"
 )
-llm_no_answer = get_counter(
-    "llm_no_answer", "No Answer provided by the bot", ["agent_id", "agent_name"]
-)
+llm_no_answer = get_counter("llm_no_answer", "No search results found", ["agent_id", "agent_name"])
 
 
 def _record_metrics(
