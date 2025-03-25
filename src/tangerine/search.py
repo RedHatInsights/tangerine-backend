@@ -32,8 +32,11 @@ class SearchProvider(ABC):
     """Abstract base class for search providers."""
 
     RETRIEVAL_METHOD = None
+    QUERY_FILE = None
 
     def __init__(self):
+        self.sql_loaded = False
+        self.sql_query = ""
         if self.RETRIEVAL_METHOD is None:
             raise TypeError("Subclasses must set RETRIEVAL_METHOD to a non-None value")
         log.debug("initializing search provider %s", self.__class__.__name__)
@@ -60,6 +63,62 @@ class SearchProvider(ABC):
         results = self._add_retrieval_method(results)
         results = self._add_relevance_score(results)
         return results
+
+    def _load_sql_file(self):
+        """Loads an SQL file into memory."""
+        try:
+            self.sql_query = (
+                importlib.resources.files("tangerine.sql").joinpath(self.QUERY_FILE).read_text()
+            )
+            self.sql_loaded = True
+            log.debug("SQL query loaded from file: %s", self.QUERY_FILE)
+        except Exception:
+            self.sql_loaded = False
+            log.exception("Error loading SQL file %s", self.QUERY_FILE)
+
+
+class FTSPostgresSearchProvider(SearchProvider):
+    """PostgreSQL full-text search using the fts_vector column."""
+
+    RETRIEVAL_METHOD = "fts_postgres"
+    QUERY_FILE = "fts_tsvector.sql"
+
+    def __init__(self):
+        super().__init__()
+        self._load_sql_file()
+
+    def _process_results(self, results):
+        """Format the results such that they match other search providers and work with other superclass methods."""
+        content_index = 1
+        score_index = 3
+        raw_results = []
+
+        for row in results:
+            doc = Document(
+                page_content=row[content_index],
+                metadata={"retrieval_method": self.RETRIEVAL_METHOD},
+            )
+            max_score = max(score for _, _, _, score in results) or 1.0
+            score = (
+                float(row[score_index])
+                if isinstance(row[score_index], Decimal)
+                else row[score_index]
+            )
+            score = score / max_score
+            raw_results.append([doc, score])
+        return super()._process_results(raw_results)
+
+    def search(self, agent_id, query, _embedding) -> list[SearchResult]:
+        """Run full-text search over langchain_pg_embedding table."""
+        query = text(self.sql_query)
+        filter = {"q": self.sql_query, "agent_id": str(agent_id)}
+        results = db.session.execute(query, filter).fetchall()
+
+        if not results:
+            return []
+
+        processed_results = self._process_results(results)
+        return [SearchResult(doc, score) for doc, score in processed_results if score >= 0.3]
 
 
 class MMRSearchProvider(SearchProvider):
@@ -111,21 +170,7 @@ class HybridSearchProvider(SearchProvider):
 
     def __init__(self):
         super().__init__()
-        self.sql_loaded = False
-        self.sql_query = ""
         self._load_sql_file()
-
-    def _load_sql_file(self):
-        """Loads an SQL file into memory."""
-        try:
-            self.sql_query = (
-                importlib.resources.files("tangerine.sql").joinpath(self.QUERY_FILE).read_text()
-            )
-            self.sql_loaded = True
-            log.debug("hybrid search SQL query loaded")
-        except Exception:
-            self.sql_loaded = False
-            log.exception("Error loading SQL file %s", self.QUERY_FILE)
 
     def search(self, agent_id, query, embedding) -> list[SearchResult]:
         """Hybrid search provider combining vector similarity and full-text BM25 search.
@@ -160,10 +205,10 @@ class HybridSearchProvider(SearchProvider):
             processed_results = []
             for row in results:
                 doc = Document(
-                    page_content=row[2], metadata={"retrieval_method": self.RETRIEVAL_METHOD}
+                    page_content=row[1], metadata={"retrieval_method": self.RETRIEVAL_METHOD}
                 )
                 # Convert decimal to float to preserve compatibility with the other search providers
-                score = float(row[1]) if isinstance(row[1], Decimal) else row[1]
+                score = float(row[3]) if isinstance(row[3], Decimal) else row[3]
                 processed_results.append((doc, score))
 
             results = self._process_results(processed_results)
@@ -175,13 +220,19 @@ class HybridSearchProvider(SearchProvider):
 
 class SearchEngine:
     def __init__(self):
-        self.search_providers = [
-            MMRSearchProvider(),
-            SimilaritySearchProvider(),
-        ]
+        self.search_providers = self._get_search_providers()
 
+    def _get_search_providers(self):
+        search_providers = []
+        if cfg.ENABLE_MMR_SEARCH:
+            search_providers.append(MMRSearchProvider())
+        if cfg.ENABLE_SIMILARITY_SEARCH:
+            search_providers.append(SimilaritySearchProvider())
+        if cfg.ENABLE_FULL_TEXT_SEARCH:
+            search_providers.append(FTSPostgresSearchProvider())
         if cfg.ENABLE_HYBRID_SEARCH:
-            self.search_providers.append(HybridSearchProvider())
+            search_providers.append(HybridSearchProvider())
+        return search_providers
 
     def deduplicate_results(self, results, threshold=0.90):
         """
