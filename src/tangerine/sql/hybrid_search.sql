@@ -21,16 +21,16 @@ vector_results AS (
         cmetadata->>'agent_id' = :agent_id AND cmetadata->>'active' = 'True'
     ORDER BY
         vector_rank DESC
-    LIMIT 100  -- Limit the number of candidates to refine the query performance
+    LIMIT 20
 )
 SELECT
-    fts_results.id,
-    fts_results.document,
-    fts_results.cmetadata,
-    (1 / (1 + fts_results.fts_rank)) + (1 / (1 + vector_results.vector_rank)) AS rrf_score
+    COALESCE(fts_results.id, vector_results.id) AS id,
+    COALESCE(fts_results.document, vector_results.document) AS document,
+    COALESCE(fts_results.cmetadata, vector_results.cmetadata) AS cmetadata,
+    (1 / (1 + COALESCE(fts_results.fts_rank, 0))) + (1 / (1 + COALESCE(vector_results.vector_rank, 0))) AS rrf_score
 FROM
     fts_results
-JOIN
+FULL OUTER JOIN
     vector_results
     ON fts_results.id = vector_results.id
 ORDER BY
