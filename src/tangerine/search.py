@@ -108,17 +108,17 @@ class FTSPostgresSearchProvider(SearchProvider):
             raw_results.append([doc, score])
         return super()._process_results(raw_results)
 
-    def search(self, agent_id, query, _embedding) -> list[SearchResult]:
+    def search(self, agent_id, query, embedding) -> list[SearchResult]:
         """Run full-text search over langchain_pg_embedding table."""
         fts_query = text(self.sql_query)
-        filter = {"q": query, "agent_id": str(agent_id)}
-        results = db.session.execute(fts_query, filter).fetchall()
+        params = {"query": query, "agent_id": str(agent_id)}
+        results = db.session.execute(fts_query, params).fetchall()
 
         if not results:
             return []
 
         processed_results = self._process_results(results)
-        return [SearchResult(doc, score) for doc, score in processed_results if score >= 0.3]
+        return [SearchResult(doc, score) for doc, score in processed_results]
 
 
 class MMRSearchProvider(SearchProvider):
@@ -158,8 +158,7 @@ class SimilaritySearchProvider(SearchProvider):
         )
         results = self._process_results(results)
 
-        # Assume scores are already in 0-1 range (cosine similarity)
-        return [SearchResult(doc, score) for doc, score in results if score >= 0.3]
+        return [SearchResult(doc, score) for doc, score in results]
 
 
 class HybridSearchProvider(SearchProvider):
@@ -184,8 +183,6 @@ class HybridSearchProvider(SearchProvider):
             log.error("SQL file not loaded, cannot run hybrid search")
             return []
 
-        search_filter = vector_db.get_search_filter(agent_id)
-
         try:
             # Convert list to vectors
             query_embedding_str = "[" + ",".join(map(str, embedding)) + "]"
@@ -197,7 +194,7 @@ class HybridSearchProvider(SearchProvider):
                 {
                     "query": query,
                     "embedding": query_embedding_str,
-                    "agent_id": search_filter["agent_id"],
+                    "agent_id": str(agent_id),
                 },
             ).fetchall()
 
