@@ -300,7 +300,8 @@ class SearchEngine:
             log.debug("sorting results by score")
             sorted_results = sorted(deduped_results, key=lambda r: r.score, reverse=True)
 
-        return sorted_results
+        # return only top 4 results
+        return sorted_results[:4]
 
 
 search_engine = SearchEngine()
