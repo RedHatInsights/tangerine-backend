@@ -77,7 +77,6 @@ class VectorStoreInterface:
 
     def split_to_document_chunks(self, text, metadata) -> list[Document]:
         """Split documents into chunks. Use markdown-aware splitter first if text is markdown."""
-
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.splitter_chunk_size,
             chunk_overlap=self.chunk_overlap,
@@ -97,6 +96,13 @@ class VectorStoreInterface:
         )
 
         if self.has_markdown_headers(text):
+            # find title if possible and add to metadata
+            for line in text.splitlines():
+                if line.startswith("# "):
+                    # we found a title header, add it to metadata
+                    metadata["title"] = line.lstrip("# ").strip()
+                    break
+
             markdown_documents = md_splitter.split_text(text)
             chunks = text_splitter.split_documents(markdown_documents)
             # convert back to list[str] so we can filter and combine them
