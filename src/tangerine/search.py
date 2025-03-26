@@ -53,7 +53,10 @@ class SearchProvider(ABC):
         min_score = min(r.score for r in results)
         for r in results:
             # normalize score to 0-1
-            r.score = (r.score - min_score) / (max_score - min_score)
+            if max_score == min_score:
+                r.score = 1.0
+            else:
+                r.score = (r.score - min_score) / (max_score - min_score)
             # scale by this search provider's scaling factor
             r.score = r.score * self.SCORE_SCALING_FACTOR
             # update metadata
@@ -80,6 +83,7 @@ class FTSPostgresSearchProvider(SearchProvider):
 
     RETRIEVAL_METHOD = "fts_postgres"
     QUERY_FILE = "fts_tsvector.sql"
+    SCORE_SCALING_FACTOR = 2.0
 
     def __init__(self):
         super().__init__()
@@ -153,10 +157,11 @@ class SimilaritySearchProvider(SearchProvider):
 
 
 class HybridSearchProvider(SearchProvider):
-    """Hybrid Search combining Vector Similarity and Full-Text BM25 Search in PGVector."""
+    """Hybrid Search combining Vector Similarity and Full-Text Search."""
 
     RETRIEVAL_METHOD = "hybrid"
     QUERY_FILE = "hybrid_search.sql"
+    SCORE_SCALING_FACTOR = 5.0
 
     def __init__(self):
         super().__init__()

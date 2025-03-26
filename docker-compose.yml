@@ -119,8 +119,8 @@ services:
       - ENABLE_RERANKING=false
       - ENABLE_QUALITY_DETECTION=false
       - ENABLE_HYBRID_SEARCH=true
-      - ENABLE_MMR_SEARCH=false
-      - ENABLE_SIMILARITY_SEARCH=false
+      - ENABLE_MMR_SEARCH=true
+      - ENABLE_SIMILARITY_SEARCH=true
       - ENABLE_FULL_TEXT_SEARCH=false
       - LOG_LEVEL_APP=debug
       - DEBUG_VERBOSE=true
