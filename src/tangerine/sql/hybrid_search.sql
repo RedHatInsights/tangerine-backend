@@ -3,36 +3,39 @@ WITH fts_results AS (
         id,
         document,
         cmetadata,
-        ts_rank_cd(fts_vector, plainto_tsquery('english', :query)) AS fts_rank
+        RANK () OVER (ORDER BY ts_rank_cd(fts_vector, plainto_tsquery('english', :query)) DESC) as rank
     FROM
         langchain_pg_embedding
     WHERE
         cmetadata->>'agent_id' = :agent_id AND cmetadata->>'active' = 'True' AND fts_vector @@ plainto_tsquery('english', :query)
+    ORDER BY
+      ts_rank_cd(fts_vector, plainto_tsquery('english', :query)) DESC
+    LIMIT 20
 ),
 vector_results AS (
     SELECT
         id,
         document,
         cmetadata,
-        -(embedding <#> :embedding) AS vector_rank
+        RANK () OVER (ORDER BY -(embedding <#> :embedding) DESC) as rank
     FROM
         langchain_pg_embedding
     WHERE
         cmetadata->>'agent_id' = :agent_id AND cmetadata->>'active' = 'True'
     ORDER BY
-        vector_rank DESC
-    LIMIT 100  -- Limit the number of candidates to refine the query performance
+        ORDER BY -(embedding <#> :embedding) DESC
+    LIMIT 20
 )
 SELECT
-    fts_results.id,
-    fts_results.document,
-    fts_results.cmetadata,
-    (1 / (1 + fts_results.fts_rank)) + (1 / (1 + vector_results.vector_rank)) AS rrf_score
+    COALESCE(fts_results.id, vector_results.id) AS id,
+    COALESCE(fts_results.document, vector_results.document) AS document,
+    COALESCE(fts_results.cmetadata, vector_results.cmetadata) AS cmetadata,
+    COALESCE(1 / (50 + fts_results.rank), 0.0) + COALESCE(1 / (50 + vector_results.rank), 0.0) AS rrf_score -- k = 50
 FROM
     fts_results
-JOIN
+FULL OUTER JOIN
     vector_results
     ON fts_results.id = vector_results.id
 ORDER BY
     rrf_score DESC
-LIMIT 4;
+LIMIT 5;

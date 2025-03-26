@@ -32,7 +32,6 @@ class SearchProvider(ABC):
 
     RETRIEVAL_METHOD = None
     QUERY_FILE = None
-    SCORE_SCALING_FACTOR = 1.0
 
     def __init__(self):
         self.sql_loaded = False
@@ -57,8 +56,6 @@ class SearchProvider(ABC):
                 r.score = 1.0
             else:
                 r.score = (r.score - min_score) / (max_score - min_score)
-            # scale by this search provider's scaling factor
-            r.score = r.score * self.SCORE_SCALING_FACTOR
             # update metadata
             r.document.metadata["retrieval_method"] = self.RETRIEVAL_METHOD
             r.document.metadata["relevance_score"] = r.score
@@ -83,7 +80,6 @@ class FTSPostgresSearchProvider(SearchProvider):
 
     RETRIEVAL_METHOD = "fts_postgres"
     QUERY_FILE = "fts_tsvector.sql"
-    SCORE_SCALING_FACTOR = 2.0
 
     def __init__(self):
         super().__init__()
@@ -125,7 +121,6 @@ class MMRSearchProvider(SearchProvider):
     RETRIEVAL_METHOD = "mmr"
 
     def search(self, agent_id, query, embedding) -> list[SearchResult]:
-        """Runs MMR search and normalizes scores."""
         search_filter = vector_db.get_search_filter(agent_id)
 
         results = vector_db.store.max_marginal_relevance_search_with_score_by_vector(
@@ -144,7 +139,6 @@ class SimilaritySearchProvider(SearchProvider):
     RETRIEVAL_METHOD = "similarity"
 
     def search(self, agent_id, query, embedding) -> list[SearchResult]:
-        """Runs similarity search and ensures scores are normalized."""
         search_filter = vector_db.get_search_filter(agent_id)
 
         results = vector_db.store.similarity_search_with_score_by_vector(
@@ -161,7 +155,6 @@ class HybridSearchProvider(SearchProvider):
 
     RETRIEVAL_METHOD = "hybrid"
     QUERY_FILE = "hybrid_search.sql"
-    SCORE_SCALING_FACTOR = 5.0
 
     def __init__(self):
         super().__init__()
@@ -277,6 +270,26 @@ class SearchEngine:
 
         return sorted_results
 
+    def _sort_by_score_using_rrf(self, results: list[SearchResult]):
+        log.debug("sorting results by score")
+
+        if len(self.search_providers) == 1:
+            # no need to aggregate, just return as-is
+            return sorted(results, key=lambda r: r.score, reverse=True)
+
+        aggregated_results = {}
+        for r in results:
+            document_id = r.document.id
+            if document_id not in aggregated_results:
+                aggregated_results[document_id] = SearchResult(document=r.document, score=0)
+            aggregated_results[document_id].score += 1 / (50 + r.score)  # k = 50
+
+        aggregated_results = [search_result for _, search_result in aggregated_results.items()]
+        # de-dupe after aggregation in case any are highly similar
+        deduped_results = self.deduplicate_results(aggregated_results)
+        sorted_results = sorted(deduped_results, key=lambda r: r.score, reverse=True)
+        return sorted_results
+
     def search(self, agent_id, query, embedding=None):
         results = []
 
@@ -285,23 +298,20 @@ class SearchEngine:
         for provider in self.search_providers:
             results.extend(provider.search(agent_id, query, embedding))
 
-        # Remove duplicates based on text similarity
-        deduped_results = self.deduplicate_results(results)
-
         # Rank the results using LLM if enabled, otherwise by score
-        sorted_results = None
         if cfg.ENABLE_RERANKING:
             try:
+                # de-dupe first before sending to model
+                deduped_results = self.deduplicate_results(results)
                 sorted_results = self._rerank_results(query, deduped_results)
             except Exception:
                 log.exception("model re-ranking failed")
 
         if not sorted_results:
-            log.debug("sorting results by score")
-            sorted_results = sorted(deduped_results, key=lambda r: r.score, reverse=True)
+            sorted_results = self._sort_by_score_using_rrf(results)
 
-        # return only top 4 results
-        return sorted_results[:4]
+        # return top 5 results
+        return sorted_results[:5]
 
 
 search_engine = SearchEngine()
