@@ -166,6 +166,8 @@ def ask(
         search_context, search_metadata = _build_context(search_results)
         agent_response_counter.labels(agent_id=agent.id, agent_name=agent.agent_name).inc()
 
+    if not search_metadata:
+        search_metadata = [{}]
     for m in search_metadata:
         m["interactionId"] = interaction_id
 
