@@ -153,14 +153,20 @@ objects:
               failureThreshold: 3
             terminationMessagePath: /dev/termination-log
             env:
+              - name: ENABLE_FULL_TEXT_SEARCH
+                value: ${ENABLE_FULL_TEXT_SEARCH}
               - name: ENABLE_HYBRID_SEARCH
                 value: ${ENABLE_HYBRID_SEARCH}
-              - name: STORE_INTERACTIONS
-                value: ${STORE_INTERACTIONS}
               - name: ENABLE_RERANKING
                 value: ${ENABLE_RERANKING}
+              - name: ENABLE_SIMILARITY_SEARCH
+                value: ${ENABLE_SIMILARITY_SEARCH}
+              - name: ENABLE_MMR_SEARCH
+                value: ${ENABLE_MMR_SEARCH}
               - name: ENABLE_QUALITY_DETECTION
                 value: ${ENABLE_QUALITY_DETECTION}
+              - name: STORE_INTERACTIONS
+                value: ${STORE_INTERACTIONS}
               - name: LOG_LEVEL_APP
                 value: ${LOG_LEVEL_APP}
               - name: DEBUG_VERBOSE
