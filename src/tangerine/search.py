@@ -1,7 +1,6 @@
 import importlib.resources
 import logging
 from abc import ABC, abstractmethod
-from decimal import Decimal
 
 from langchain_core.documents import Document
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -21,9 +20,9 @@ log = logging.getLogger("tangerine.search")
 class SearchResult:
     """Class to hold search results with document and score."""
 
-    def __init__(self, document: str, score: float):
+    def __init__(self, document: Document, score: int | float):
         self.document = document
-        self.score = score
+        self.score = float(score)
 
 
 # Search providers let us swap out different search algorithms
@@ -33,6 +32,7 @@ class SearchProvider(ABC):
 
     RETRIEVAL_METHOD = None
     QUERY_FILE = None
+    SCORE_SCALING_FACTOR = 1.0
 
     def __init__(self):
         self.sql_loaded = False
@@ -46,22 +46,20 @@ class SearchProvider(ABC):
         """Runs the search and returns results with normalized scores."""
         pass
 
-    def _add_retrieval_method(self, docs):
-        """Add retrieval method to each document's metadata."""
-        for doc, _ in docs:
-            doc.metadata["retrieval_method"] = self.RETRIEVAL_METHOD
-        return docs
-
-    def _add_relevance_score(self, docs):
-        """Add relevance score to each document's metadata."""
-        for doc, score in docs:
-            doc.metadata["relevance_score"] = score
-        return docs
-
-    def _process_results(self, results):
+    def _process_results(self, results: list[SearchResult]) -> list[SearchResult]:
         """Process the results and return a list of SearchResult."""
-        results = self._add_retrieval_method(results)
-        results = self._add_relevance_score(results)
+        # normalize scores
+        max_score = max(r.score for r in results)
+        min_score = min(r.score for r in results)
+        for r in results:
+            # normalize score to 0-1
+            r.score = (r.score - min_score) / (max_score - min_score)
+            # scale by this search provider's scaling factor
+            r.score = r.score * self.SCORE_SCALING_FACTOR
+            # update metadata
+            r.document.metadata["retrieval_method"] = self.RETRIEVAL_METHOD
+            r.document.metadata["relevance_score"] = r.score
+
         return results
 
     def _load_sql_file(self):
@@ -88,37 +86,33 @@ class FTSPostgresSearchProvider(SearchProvider):
         self._load_sql_file()
 
     def _process_results(self, results):
-        """Format the results such that they match other search providers and work with other superclass methods."""
-        content_index = 1
-        score_index = 3
-        raw_results = []
+        search_results = []
 
         for row in results:
-            doc = Document(
-                page_content=row[content_index],
-                metadata={"retrieval_method": self.RETRIEVAL_METHOD},
-            )
-            max_score = max(score for _, _, _, score in results) or 1.0
-            score = (
-                float(row[score_index])
-                if isinstance(row[score_index], Decimal)
-                else row[score_index]
-            )
-            score = score / max_score
-            raw_results.append([doc, score])
-        return super()._process_results(raw_results)
+            score = row.score
+            doc = Document(page_content=row.document, metadata=row.cmetadata)
+            search_results.append(SearchResult(document=doc, score=score))
 
-    def search(self, agent_id, query, embedding) -> list[SearchResult]:
-        """Run full-text search over langchain_pg_embedding table."""
+        return super()._process_results(search_results)
+
+    def _execute_query(self, agent_id, query, embedding):
         fts_query = text(self.sql_query)
         params = {"query": query, "agent_id": str(agent_id)}
         results = db.session.execute(fts_query, params).fetchall()
+        return results
+
+    def search(self, agent_id, query, embedding) -> list[SearchResult]:
+        """Run full-text search over langchain_pg_embedding table."""
+        results = None
+        try:
+            results = self._execute_query(agent_id, query, embedding)
+        except Exception:
+            log.exception("error running fts search")
 
         if not results:
             return []
 
-        processed_results = self._process_results(results)
-        return [SearchResult(doc, score) for doc, score in processed_results]
+        return self._process_results(results)
 
 
 class MMRSearchProvider(SearchProvider):
@@ -136,10 +130,8 @@ class MMRSearchProvider(SearchProvider):
             lambda_mult=0.85,
             k=3,
         )
-        results = self._process_results(results)
-
-        # Normalize (Invert distance-based scores)
-        return [SearchResult(doc, 1 - score) for doc, score in results]
+        search_results = [SearchResult(document=doc, score=score) for doc, score in results]
+        return self._process_results(search_results)
 
 
 class SimilaritySearchProvider(SearchProvider):
@@ -156,9 +148,8 @@ class SimilaritySearchProvider(SearchProvider):
             filter=search_filter,
             k=3,
         )
-        results = self._process_results(results)
-
-        return [SearchResult(doc, score) for doc, score in results]
+        search_results = [SearchResult(document=doc, score=score) for doc, score in results]
+        return self._process_results(search_results)
 
 
 class HybridSearchProvider(SearchProvider):
@@ -170,6 +161,22 @@ class HybridSearchProvider(SearchProvider):
     def __init__(self):
         super().__init__()
         self._load_sql_file()
+
+    def _execute_query(self, agent_id, query, embedding):
+        query_embedding_str = "[" + ",".join(map(str, embedding)) + "]"
+
+        hybrid_search_sql = text(self.sql_query)
+
+        results = db.session.execute(
+            hybrid_search_sql,
+            {
+                "query": query,
+                "embedding": query_embedding_str,
+                "agent_id": str(agent_id),
+            },
+        ).fetchall()
+
+        return results
 
     def search(self, agent_id, query, embedding) -> list[SearchResult]:
         """Hybrid search provider combining vector similarity and full-text BM25 search.
@@ -184,32 +191,16 @@ class HybridSearchProvider(SearchProvider):
             return []
 
         try:
-            # Convert list to vectors
-            query_embedding_str = "[" + ",".join(map(str, embedding)) + "]"
-
-            hybrid_search_sql = text(self.sql_query)
-
-            results = db.session.execute(
-                hybrid_search_sql,
-                {
-                    "query": query,
-                    "embedding": query_embedding_str,
-                    "agent_id": str(agent_id),
-                },
-            ).fetchall()
+            results = self._execute_query(agent_id, query, embedding)
 
             # Process results into LangChain's SearchResult format
-            processed_results = []
+            search_results = []
             for row in results:
-                doc = Document(
-                    page_content=row[1], metadata={"retrieval_method": self.RETRIEVAL_METHOD}
-                )
-                # Convert decimal to float to preserve compatibility with the other search providers
-                score = float(row[3]) if isinstance(row[3], Decimal) else row[3]
-                processed_results.append((doc, score))
+                doc = Document(page_content=row.document, metadata=row.cmetadata)
+                score = row.rrf_score
+                search_results.append(SearchResult(document=doc, score=score))
 
-            results = self._process_results(processed_results)
-            return [SearchResult(doc, score) for doc, score in results]
+            return self._process_results(search_results)
         except Exception:
             log.exception("Error running hybrid search")
             return []
