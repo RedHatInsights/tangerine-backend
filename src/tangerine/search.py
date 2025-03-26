@@ -277,6 +277,7 @@ class SearchEngine:
             # no need to aggregate, just return as-is
             return sorted(results, key=lambda r: r.score, reverse=True)
 
+        # TODO: incorporate weighted RRF here depending on provider?
         aggregated_results = {}
         for r in results:
             document_id = r.document.id
@@ -297,6 +298,8 @@ class SearchEngine:
 
         for provider in self.search_providers:
             results.extend(provider.search(agent_id, query, embedding))
+
+        sorted_results = []
 
         # Rank the results using LLM if enabled, otherwise by score
         if cfg.ENABLE_RERANKING:
