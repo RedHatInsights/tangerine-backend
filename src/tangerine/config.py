@@ -48,9 +48,9 @@ EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME", "nomic-embed-text")
 # for snowflake-arctic-embed-m-long: 'Represent this sentence for searching relevant passages'
 EMBED_QUERY_PREFIX = os.getenv("EMBED_QUERY_PREFIX", "search_query")
 
-# for nomic: 'search_document' or ''
+# for nomic: 'search_document'
 # for snowflake-arctic-embed-m-long: ''
-EMBED_DOCUMENT_PREFIX = os.getenv("EMBED_DOCUMENT_PREFIX", "")
+EMBED_DOCUMENT_PREFIX = os.getenv("EMBED_DOCUMENT_PREFIX", "search_document")
 
 S3_SYNC_CONFIG_FILE = os.getenv("S3_SYNC_CONFIG_FILE", "s3.yaml")
 S3_SYNC_POOL_SIZE = int(os.getenv("S3_SYNC_POOL_SIZE", 15))

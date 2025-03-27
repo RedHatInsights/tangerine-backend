@@ -114,7 +114,7 @@ services:
       - LLM_MODEL_NAME=mistral
       - EMBED_MODEL_NAME=nomic-embed-text
       - EMBED_QUERY_PREFIX=search_query
-      - EMBED_DOCUMENT_PREFIX=
+      - EMBED_DOCUMENT_PREFIX=search_document
       - STORE_INTERACTIONS=true
       - ENABLE_RERANKING=false
       - ENABLE_QUALITY_DETECTION=false
