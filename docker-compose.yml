@@ -113,8 +113,8 @@ services:
       #- EMBED_BASE_URL=http://tangerine-text-embeddings-inference:8001/v1
       - LLM_MODEL_NAME=mistral
       - EMBED_MODEL_NAME=nomic-embed-text
-      - EMBED_QUERY_PREFIX="search_query"
-      - EMBED_DOCUMENT_PREFIX="search_document"
+      - EMBED_QUERY_PREFIX=search_query
+      - EMBED_DOCUMENT_PREFIX=search_document
       - STORE_INTERACTIONS=true
       - ENABLE_RERANKING=false
       - ENABLE_QUALITY_DETECTION=false
