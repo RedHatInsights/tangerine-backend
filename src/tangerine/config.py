@@ -48,7 +48,7 @@ EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME", "nomic-embed-text")
 # for snowflake-arctic-embed-m-long: 'Represent this sentence for searching relevant passages'
 EMBED_QUERY_PREFIX = os.getenv("EMBED_QUERY_PREFIX", "search_query")
 
-# for nomic: 'search_document'
+# for nomic: 'search_document' or ''
 # for snowflake-arctic-embed-m-long: ''
 EMBED_DOCUMENT_PREFIX = os.getenv("EMBED_DOCUMENT_PREFIX", "")
 
