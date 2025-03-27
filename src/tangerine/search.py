@@ -18,11 +18,15 @@ log = logging.getLogger("tangerine.search")
 
 
 class SearchResult:
-    """Class to hold search results with document and score."""
+    """Class to hold search results with document and scores."""
 
-    def __init__(self, document: Document, score: int | float):
+    def __init__(
+        self, document: Document, score: int | float, rank: int = 0, rrf_score: float = 0.0
+    ):
         self.document = document
         self.score = float(score)
+        self.rank = 0
+        self.rrf_score = 0
 
 
 # Search providers let us swap out different search algorithms
@@ -45,22 +49,35 @@ class SearchProvider(ABC):
         """Runs the search and returns results with normalized scores."""
         pass
 
+    def _set_ranks(self, results: list[SearchResult]) -> list[SearchResult]:
+        """
+        Sets integer rank on SearchResults
+
+        Default assumes that lower score is a better result, override this func if needed
+        """
+        sorted_by_best = sorted(results, key=lambda r: r.score, reverse=True)
+        for idx, r in enumerate(sorted_by_best):
+            r.rank = idx
+
     def _process_results(self, results: list[SearchResult]) -> list[SearchResult]:
-        """Process the results and return a list of SearchResult."""
-        # normalize scores
+        """Process the results and return a sorted list of SearchResult with ranks."""
+        # normalize scores from 0-1
         max_score = max(r.score for r in results)
         min_score = min(r.score for r in results)
         for r in results:
-            # normalize score to 0-1
             if max_score == min_score:
                 r.score = 1.0
             else:
                 r.score = (r.score - min_score) / (max_score - min_score)
             # update metadata
             r.document.metadata["retrieval_method"] = self.RETRIEVAL_METHOD
-            r.document.metadata["relevance_score"] = r.score
 
-        return results
+        # add rank to the results, to be used later for RRF
+        self._set_ranks(results)
+
+        sorted_and_ranked_results = sorted(results, key=lambda r: r.rank)
+
+        return sorted_and_ranked_results
 
     def _load_sql_file(self):
         """Loads an SQL file into memory."""
@@ -85,13 +102,17 @@ class FTSPostgresSearchProvider(SearchProvider):
         super().__init__()
         self._load_sql_file()
 
+    def _set_ranks(self, results):
+        # we handle setting rank in _process_results below, higher score = better result
+        pass
+
     def _process_results(self, results):
         search_results = []
 
-        for row in results:
+        for idx, row in enumerate(results):
             score = row.score
             doc = Document(page_content=row.document, metadata=row.cmetadata)
-            search_results.append(SearchResult(document=doc, score=score))
+            search_results.append(SearchResult(document=doc, score=score, rank=idx))
 
         return super()._process_results(search_results)
 
@@ -176,6 +197,10 @@ class HybridSearchProvider(SearchProvider):
 
         return results
 
+    def _set_ranks(self, results):
+        # we handle setting rank in _process_results below, higher score = better result
+        pass
+
     def search(self, agent_id, query, embedding) -> list[SearchResult]:
         """Hybrid search provider combining vector similarity and full-text BM25 search.
 
@@ -193,10 +218,10 @@ class HybridSearchProvider(SearchProvider):
 
             # Process results into LangChain's SearchResult format
             search_results = []
-            for row in results:
+            for idx, row in enumerate(results):
                 doc = Document(page_content=row.document, metadata=row.cmetadata)
                 score = row.rrf_score
-                search_results.append(SearchResult(document=doc, score=score))
+                search_results.append(SearchResult(document=doc, score=score, rank=idx))
 
             return self._process_results(search_results)
         except Exception:
@@ -266,16 +291,17 @@ class SearchEngine:
             )
 
         # Sort results based on LLM ranking
-        sorted_results = [search_results[i] for i in rankings]
+        sorted_results = []
+        for idx, doc_num in enumerate(rankings):
+            search_result = search_results[doc_num]
+            search_result.rank = idx
+            search_result.rrf_score = 1 / (1 + search_result.rank)  # for compatability
+            sorted_results.append(search_result)
 
         return sorted_results
 
-    def _sort_by_score_using_rrf(self, results: list[SearchResult]):
-        log.debug("sorting results by score")
-
-        if len(self.search_providers) == 1:
-            # no need to aggregate, just return as-is
-            return sorted(results, key=lambda r: r.score, reverse=True)
+    def _sort_using_rrf(self, results: list[SearchResult]):
+        log.debug("sorting results with rrf")
 
         # TODO: incorporate weighted RRF here depending on provider?
         aggregated_results = {}
@@ -283,12 +309,13 @@ class SearchEngine:
             document_id = r.document.id
             if document_id not in aggregated_results:
                 aggregated_results[document_id] = SearchResult(document=r.document, score=0)
-            aggregated_results[document_id].score += 1 / (50 + r.score)  # k = 50
+            aggregated_results[document_id].rrf_score += 1 / (1 + r.rank)
 
         aggregated_results = [search_result for _, search_result in aggregated_results.items()]
         # de-dupe after aggregation in case any are highly similar
         deduped_results = self.deduplicate_results(aggregated_results)
-        sorted_results = sorted(deduped_results, key=lambda r: r.score, reverse=True)
+        sorted_results = sorted(deduped_results, key=lambda r: r.rrf_score, reverse=True)
+
         return sorted_results
 
     def search(self, agent_id, query, embedding=None):
@@ -311,7 +338,10 @@ class SearchEngine:
                 log.exception("model re-ranking failed")
 
         if not sorted_results:
-            sorted_results = self._sort_by_score_using_rrf(results)
+            sorted_results = self._sort_using_rrf(results)
+
+        for r in sorted_results:
+            r.document.metadata["relevance_score"] = r.rrf_score
 
         # return top 5 results
         return sorted_results[:5]
