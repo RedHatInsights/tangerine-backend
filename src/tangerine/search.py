@@ -1,7 +1,6 @@
 import importlib.resources
 import logging
 from abc import ABC, abstractmethod
-from decimal import Decimal
 
 from langchain_core.documents import Document
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -19,11 +18,15 @@ log = logging.getLogger("tangerine.search")
 
 
 class SearchResult:
-    """Class to hold search results with document and score."""
+    """Class to hold search results with document and scores."""
 
-    def __init__(self, document: str, score: float):
+    def __init__(
+        self, document: Document, score: int | float, rank: int = 0, rrf_score: float = 0.0
+    ):
         self.document = document
-        self.score = score
+        self.score = float(score)
+        self.rank = 0
+        self.rrf_score = 0
 
 
 # Search providers let us swap out different search algorithms
@@ -46,23 +49,35 @@ class SearchProvider(ABC):
         """Runs the search and returns results with normalized scores."""
         pass
 
-    def _add_retrieval_method(self, docs):
-        """Add retrieval method to each document's metadata."""
-        for doc, _ in docs:
-            doc.metadata["retrieval_method"] = self.RETRIEVAL_METHOD
-        return docs
+    def _set_ranks(self, results: list[SearchResult]) -> list[SearchResult]:
+        """
+        Sets integer rank on SearchResults
 
-    def _add_relevance_score(self, docs):
-        """Add relevance score to each document's metadata."""
-        for doc, score in docs:
-            doc.metadata["relevance_score"] = score
-        return docs
+        Default assumes that lower score is a better result, override this func if needed
+        """
+        sorted_by_best = sorted(results, key=lambda r: r.score, reverse=True)
+        for idx, r in enumerate(sorted_by_best):
+            r.rank = idx
 
-    def _process_results(self, results):
-        """Process the results and return a list of SearchResult."""
-        results = self._add_retrieval_method(results)
-        results = self._add_relevance_score(results)
-        return results
+    def _process_results(self, results: list[SearchResult]) -> list[SearchResult]:
+        """Process the results and return a sorted list of SearchResult with ranks."""
+        # normalize scores from 0-1
+        max_score = max(r.score for r in results)
+        min_score = min(r.score for r in results)
+        for r in results:
+            if max_score == min_score:
+                r.score = 1.0
+            else:
+                r.score = (r.score - min_score) / (max_score - min_score)
+            # update metadata
+            r.document.metadata["retrieval_method"] = self.RETRIEVAL_METHOD
+
+        # add rank to the results, to be used later for RRF
+        self._set_ranks(results)
+
+        sorted_and_ranked_results = sorted(results, key=lambda r: r.rank)
+
+        return sorted_and_ranked_results
 
     def _load_sql_file(self):
         """Loads an SQL file into memory."""
@@ -87,38 +102,38 @@ class FTSPostgresSearchProvider(SearchProvider):
         super().__init__()
         self._load_sql_file()
 
+    def _set_ranks(self, results):
+        # we handle setting rank in _process_results below, higher score = better result
+        pass
+
     def _process_results(self, results):
-        """Format the results such that they match other search providers and work with other superclass methods."""
-        content_index = 1
-        score_index = 3
-        raw_results = []
+        search_results = []
 
-        for row in results:
-            doc = Document(
-                page_content=row[content_index],
-                metadata={"retrieval_method": self.RETRIEVAL_METHOD},
-            )
-            max_score = max(score for _, _, _, score in results) or 1.0
-            score = (
-                float(row[score_index])
-                if isinstance(row[score_index], Decimal)
-                else row[score_index]
-            )
-            score = score / max_score
-            raw_results.append([doc, score])
-        return super()._process_results(raw_results)
+        for idx, row in enumerate(results):
+            score = row.score
+            doc = Document(id=row.id, page_content=row.document, metadata=row.cmetadata)
+            search_results.append(SearchResult(document=doc, score=score, rank=idx))
 
-    def search(self, agent_id, query, embedding) -> list[SearchResult]:
-        """Run full-text search over langchain_pg_embedding table."""
+        return super()._process_results(search_results)
+
+    def _execute_query(self, agent_id, query, embedding):
         fts_query = text(self.sql_query)
         params = {"query": query, "agent_id": str(agent_id)}
         results = db.session.execute(fts_query, params).fetchall()
+        return results
+
+    def search(self, agent_id, query, embedding) -> list[SearchResult]:
+        """Run full-text search over langchain_pg_embedding table."""
+        results = None
+        try:
+            results = self._execute_query(agent_id, query, embedding)
+        except Exception:
+            log.exception("error running fts search")
 
         if not results:
             return []
 
-        processed_results = self._process_results(results)
-        return [SearchResult(doc, score) for doc, score in processed_results]
+        return self._process_results(results)
 
 
 class MMRSearchProvider(SearchProvider):
@@ -127,7 +142,6 @@ class MMRSearchProvider(SearchProvider):
     RETRIEVAL_METHOD = "mmr"
 
     def search(self, agent_id, query, embedding) -> list[SearchResult]:
-        """Runs MMR search and normalizes scores."""
         search_filter = vector_db.get_search_filter(agent_id)
 
         results = vector_db.store.max_marginal_relevance_search_with_score_by_vector(
@@ -136,10 +150,8 @@ class MMRSearchProvider(SearchProvider):
             lambda_mult=0.85,
             k=3,
         )
-        results = self._process_results(results)
-
-        # Normalize (Invert distance-based scores)
-        return [SearchResult(doc, 1 - score) for doc, score in results]
+        search_results = [SearchResult(document=doc, score=score) for doc, score in results]
+        return self._process_results(search_results)
 
 
 class SimilaritySearchProvider(SearchProvider):
@@ -148,7 +160,6 @@ class SimilaritySearchProvider(SearchProvider):
     RETRIEVAL_METHOD = "similarity"
 
     def search(self, agent_id, query, embedding) -> list[SearchResult]:
-        """Runs similarity search and ensures scores are normalized."""
         search_filter = vector_db.get_search_filter(agent_id)
 
         results = vector_db.store.similarity_search_with_score_by_vector(
@@ -156,13 +167,12 @@ class SimilaritySearchProvider(SearchProvider):
             filter=search_filter,
             k=3,
         )
-        results = self._process_results(results)
-
-        return [SearchResult(doc, score) for doc, score in results]
+        search_results = [SearchResult(document=doc, score=score) for doc, score in results]
+        return self._process_results(search_results)
 
 
 class HybridSearchProvider(SearchProvider):
-    """Hybrid Search combining Vector Similarity and Full-Text BM25 Search in PGVector."""
+    """Hybrid Search combining Vector Similarity and Full-Text Search."""
 
     RETRIEVAL_METHOD = "hybrid"
     QUERY_FILE = "hybrid_search.sql"
@@ -170,6 +180,26 @@ class HybridSearchProvider(SearchProvider):
     def __init__(self):
         super().__init__()
         self._load_sql_file()
+
+    def _execute_query(self, agent_id, query, embedding):
+        query_embedding_str = "[" + ",".join(map(str, embedding)) + "]"
+
+        hybrid_search_sql = text(self.sql_query)
+
+        results = db.session.execute(
+            hybrid_search_sql,
+            {
+                "query": query,
+                "embedding": query_embedding_str,
+                "agent_id": str(agent_id),
+            },
+        ).fetchall()
+
+        return results
+
+    def _set_ranks(self, results):
+        # we handle setting rank in _process_results below, higher score = better result
+        pass
 
     def search(self, agent_id, query, embedding) -> list[SearchResult]:
         """Hybrid search provider combining vector similarity and full-text BM25 search.
@@ -184,32 +214,16 @@ class HybridSearchProvider(SearchProvider):
             return []
 
         try:
-            # Convert list to vectors
-            query_embedding_str = "[" + ",".join(map(str, embedding)) + "]"
-
-            hybrid_search_sql = text(self.sql_query)
-
-            results = db.session.execute(
-                hybrid_search_sql,
-                {
-                    "query": query,
-                    "embedding": query_embedding_str,
-                    "agent_id": str(agent_id),
-                },
-            ).fetchall()
+            results = self._execute_query(agent_id, query, embedding)
 
             # Process results into LangChain's SearchResult format
-            processed_results = []
-            for row in results:
-                doc = Document(
-                    page_content=row[1], metadata={"retrieval_method": self.RETRIEVAL_METHOD}
-                )
-                # Convert decimal to float to preserve compatibility with the other search providers
-                score = float(row[3]) if isinstance(row[3], Decimal) else row[3]
-                processed_results.append((doc, score))
+            search_results = []
+            for idx, row in enumerate(results):
+                doc = Document(id=row.id, page_content=row.document, metadata=row.cmetadata)
+                score = row.rrf_score
+                search_results.append(SearchResult(document=doc, score=score, rank=idx))
 
-            results = self._process_results(processed_results)
-            return [SearchResult(doc, score) for doc, score in results]
+            return self._process_results(search_results)
         except Exception:
             log.exception("Error running hybrid search")
             return []
@@ -277,7 +291,32 @@ class SearchEngine:
             )
 
         # Sort results based on LLM ranking
-        sorted_results = [search_results[i] for i in rankings]
+        sorted_results = []
+        for idx, doc_num in enumerate(rankings):
+            search_result = search_results[doc_num]
+            search_result.rank = idx
+            search_result.rrf_score = 1 / (1 + search_result.rank)  # for compatability
+            sorted_results.append(search_result)
+
+        return sorted_results
+
+    def _sort_using_rrf(self, results: list[SearchResult]):
+        log.debug("sorting results with rrf")
+
+        # TODO: incorporate weighted RRF here depending on provider?
+        aggregated_results = {}
+        for r in results:
+            document_id = r.document.id
+            if not document_id:
+                raise ValueError("document id cannot be 'None'")
+            if document_id not in aggregated_results:
+                aggregated_results[document_id] = SearchResult(document=r.document, score=0)
+            aggregated_results[document_id].rrf_score += 1 / (1 + r.rank)
+
+        aggregated_results = [search_result for _, search_result in aggregated_results.items()]
+        # de-dupe after aggregation in case any are highly similar
+        deduped_results = self.deduplicate_results(aggregated_results)
+        sorted_results = sorted(deduped_results, key=lambda r: r.rrf_score, reverse=True)
 
         return sorted_results
 
@@ -289,22 +328,25 @@ class SearchEngine:
         for provider in self.search_providers:
             results.extend(provider.search(agent_id, query, embedding))
 
-        # Remove duplicates based on text similarity
-        deduped_results = self.deduplicate_results(results)
+        sorted_results = []
 
         # Rank the results using LLM if enabled, otherwise by score
-        sorted_results = None
         if cfg.ENABLE_RERANKING:
             try:
+                # de-dupe first before sending to model
+                deduped_results = self.deduplicate_results(results)
                 sorted_results = self._rerank_results(query, deduped_results)
             except Exception:
                 log.exception("model re-ranking failed")
 
         if not sorted_results:
-            log.debug("sorting results by score")
-            sorted_results = sorted(deduped_results, key=lambda r: r.score, reverse=True)
+            sorted_results = self._sort_using_rrf(results)
 
-        return sorted_results
+        for r in sorted_results:
+            r.document.metadata["relevance_score"] = r.rrf_score
+
+        # return top 5 results
+        return sorted_results[:5]
 
 
 search_engine = SearchEngine()
