@@ -3,7 +3,9 @@ WITH fts_results AS (
         id,
         document,
         cmetadata,
-        RANK() OVER (ORDER BY ts_rank_cd(fts_vector, plainto_tsquery('english', :query)) DESC) AS rank
+        RANK() OVER (
+            ORDER BY ts_rank_cd(fts_vector, plainto_tsquery('english', :query)) DESC
+        ) AS rank
     FROM
         langchain_pg_embedding
     WHERE
@@ -19,7 +21,9 @@ vector_results AS (
         id,
         document,
         cmetadata,
-        RANK() OVER (ORDER BY -(embedding <#> :embedding) DESC) AS rank
+        RANK() OVER (
+            ORDER BY -(embedding <#> :embedding) DESC
+        ) AS rank
     FROM
         langchain_pg_embedding
     WHERE
@@ -33,7 +37,12 @@ SELECT
     COALESCE(fts_results.id, vector_results.id) AS id,
     COALESCE(fts_results.document, vector_results.document) AS document,
     COALESCE(fts_results.cmetadata, vector_results.cmetadata) AS cmetadata,
-    COALESCE(1 / (50 + fts_results.rank) * 0.7, 0.0) + COALESCE(1 / (50 + vector_results.rank) * 0.3, 0.0) AS rrf_score -- k = 50, weighting fts results higher
+    -- Weighing 70% of the score to fts results, 30% of the score to vector results
+    (
+        COALESCE(1 / (1 + fts_results.rank)::numeric, 0.0) * 0.7
+    ) + (
+        COALESCE(1 / (1 + vector_results.rank)::numeric, 0.0) * 0.3
+    ) AS rrf_score
 FROM
     fts_results
 FULL OUTER JOIN
