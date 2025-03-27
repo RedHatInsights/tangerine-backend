@@ -111,7 +111,7 @@ class FTSPostgresSearchProvider(SearchProvider):
 
         for idx, row in enumerate(results):
             score = row.score
-            doc = Document(page_content=row.document, metadata=row.cmetadata)
+            doc = Document(id=row.id, page_content=row.document, metadata=row.cmetadata)
             search_results.append(SearchResult(document=doc, score=score, rank=idx))
 
         return super()._process_results(search_results)
@@ -219,7 +219,7 @@ class HybridSearchProvider(SearchProvider):
             # Process results into LangChain's SearchResult format
             search_results = []
             for idx, row in enumerate(results):
-                doc = Document(page_content=row.document, metadata=row.cmetadata)
+                doc = Document(id=row.id, page_content=row.document, metadata=row.cmetadata)
                 score = row.rrf_score
                 search_results.append(SearchResult(document=doc, score=score, rank=idx))
 
@@ -307,6 +307,8 @@ class SearchEngine:
         aggregated_results = {}
         for r in results:
             document_id = r.document.id
+            if not document_id:
+                raise ValueError("document id cannot be 'None'")
             if document_id not in aggregated_results:
                 aggregated_results[document_id] = SearchResult(document=r.document, score=0)
             aggregated_results[document_id].rrf_score += 1 / (1 + r.rank)
