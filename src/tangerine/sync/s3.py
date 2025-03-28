@@ -331,7 +331,7 @@ def run(resync: bool = False) -> int:
         agent = Agent.get_by_name(agent_config.name)
         if agent:
             if not agent_config.system_prompt:
-                log.debug("using default system prompt for agent '%s'", agent.agent_name)
+                log.debug("using default system prompt for agent '%s'", agent.name)
                 agent_config.system_prompt = cfg.DEFAULT_SYSTEM_PROMPT
             agent.update(**dict(agent_config))
         else:

@@ -9,7 +9,7 @@ log = logging.getLogger("tangerine.models.agent")
 
 class Agent(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    agent_name = db.Column(db.String(50), nullable=False)
+    name = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=False)
     system_prompt = db.Column(db.Text, nullable=True)
     filenames = db.Column(db.ARRAY(db.String), default=[], nullable=True)
@@ -23,7 +23,7 @@ class Agent(db.Model):
     @classmethod
     def create(cls, name: str, description: str, system_prompt: str = None, **kwargs) -> Self:
         new_agent = cls(
-            agent_name=name,
+            name=name,
             description=description,
             system_prompt=system_prompt or cfg.DEFAULT_SYSTEM_PROMPT,
         )
@@ -47,7 +47,7 @@ class Agent(db.Model):
 
     @classmethod
     def get_by_name(cls, name: str) -> Optional[Self]:
-        agent = db.session.scalar(db.select(cls).filter_by(agent_name=name))
+        agent = db.session.scalar(db.select(cls).filter_by(name=name))
         log.debug("get agent by name '%s' result: %s", name, agent)
         return agent
 

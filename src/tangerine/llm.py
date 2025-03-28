@@ -161,10 +161,10 @@ def ask(
     if len(search_results) == 0:
         log.debug("given 0 search results")
         search_context = "No matching search results found"
-        llm_no_answer.labels(agent_id=agent.id, agent_name=agent.agent_name).inc()
+        llm_no_answer.labels(agent_id=agent.id, agent_name=agent.name).inc()
     else:
         search_context, search_metadata = _build_context(search_results)
-        agent_response_counter.labels(agent_id=agent.id, agent_name=agent.agent_name).inc()
+        agent_response_counter.labels(agent_id=agent.id, agent_name=agent.name).inc()
 
     if not search_metadata:
         search_metadata = [{}]
