@@ -45,7 +45,7 @@ class SearchProvider(ABC):
         log.debug("initializing search provider %s", self.__class__.__name__)
 
     @abstractmethod
-    def search(self, agent_id, query, embedding) -> list[SearchResult]:
+    def search(self, assistant_id, query, embedding) -> list[SearchResult]:
         """Runs the search and returns results with normalized scores."""
         pass
 
@@ -116,17 +116,17 @@ class FTSPostgresSearchProvider(SearchProvider):
 
         return super()._process_results(search_results)
 
-    def _execute_query(self, agent_id, query, embedding):
+    def _execute_query(self, assistant_id, query, embedding):
         fts_query = text(self.sql_query)
-        params = {"query": query, "agent_id": str(agent_id)}
+        params = {"query": query, "assistant_id": str(assistant_id)}
         results = db.session.execute(fts_query, params).fetchall()
         return results
 
-    def search(self, agent_id, query, embedding) -> list[SearchResult]:
+    def search(self, assistant_id, query, embedding) -> list[SearchResult]:
         """Run full-text search over langchain_pg_embedding table."""
         results = None
         try:
-            results = self._execute_query(agent_id, query, embedding)
+            results = self._execute_query(assistant_id, query, embedding)
         except Exception:
             log.exception("error running fts search")
 
@@ -141,8 +141,8 @@ class MMRSearchProvider(SearchProvider):
 
     RETRIEVAL_METHOD = "mmr"
 
-    def search(self, agent_id, query, embedding) -> list[SearchResult]:
-        search_filter = vector_db.get_search_filter(agent_id)
+    def search(self, assistant_id, query, embedding) -> list[SearchResult]:
+        search_filter = vector_db.get_search_filter(assistant_id)
 
         results = vector_db.store.max_marginal_relevance_search_with_score_by_vector(
             embedding=embedding,
@@ -159,8 +159,8 @@ class SimilaritySearchProvider(SearchProvider):
 
     RETRIEVAL_METHOD = "similarity"
 
-    def search(self, agent_id, query, embedding) -> list[SearchResult]:
-        search_filter = vector_db.get_search_filter(agent_id)
+    def search(self, assistant_id, query, embedding) -> list[SearchResult]:
+        search_filter = vector_db.get_search_filter(assistant_id)
 
         results = vector_db.store.similarity_search_with_score_by_vector(
             embedding=embedding,
@@ -181,7 +181,7 @@ class HybridSearchProvider(SearchProvider):
         super().__init__()
         self._load_sql_file()
 
-    def _execute_query(self, agent_id, query, embedding):
+    def _execute_query(self, assistant_id, query, embedding):
         query_embedding_str = "[" + ",".join(map(str, embedding)) + "]"
 
         hybrid_search_sql = text(self.sql_query)
@@ -191,7 +191,7 @@ class HybridSearchProvider(SearchProvider):
             {
                 "query": query,
                 "embedding": query_embedding_str,
-                "agent_id": str(agent_id),
+                "assistant_id": str(assistant_id),
             },
         ).fetchall()
 
@@ -201,7 +201,7 @@ class HybridSearchProvider(SearchProvider):
         # we handle setting rank in _process_results below, higher score = better result
         pass
 
-    def search(self, agent_id, query, embedding) -> list[SearchResult]:
+    def search(self, assistant_id, query, embedding) -> list[SearchResult]:
         """Hybrid search provider combining vector similarity and full-text BM25 search.
 
         Based on:
@@ -214,7 +214,7 @@ class HybridSearchProvider(SearchProvider):
             return []
 
         try:
-            results = self._execute_query(agent_id, query, embedding)
+            results = self._execute_query(assistant_id, query, embedding)
 
             # Process results into LangChain's SearchResult format
             search_results = []
@@ -320,13 +320,13 @@ class SearchEngine:
 
         return sorted_results
 
-    def search(self, agent_id, query, embedding=None):
+    def search(self, assistant_id, query, embedding=None):
         results = []
 
         embedding = embedding or embed_query(query)
 
         for provider in self.search_providers:
-            results.extend(provider.search(agent_id, query, embedding))
+            results.extend(provider.search(assistant_id, query, embedding))
 
         sorted_results = []
 

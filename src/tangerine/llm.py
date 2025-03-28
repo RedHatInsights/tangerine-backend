@@ -11,12 +11,14 @@ from langchain_openai import ChatOpenAI
 
 import tangerine.config as cfg
 from tangerine.metrics import get_counter, get_gauge
-from tangerine.models.agent import Agent
+from tangerine.models.assistant import Assistant
 
 log = logging.getLogger("tangerine.llm")
 
-agent_response_counter = get_counter(
-    "agent_response_counter", "Total number of responses for an agent", ["agent_id", "agent_name"]
+assistant_response_counter = get_counter(
+    "assistant_response_counter",
+    "Total number of responses for an assistant",
+    ["assistant_id", "assistant_name"],
 )
 llm_completion_tokens_metric = get_counter("llm_completion_tokens", "LLM completion tokens usage")
 llm_prompt_tokens_metric = get_counter("llm_prompt_tokens", "LLM prompt tokens usage")
@@ -26,7 +28,9 @@ llm_completion_rate = get_gauge(
 llm_processing_rate = get_gauge(
     "llm_processing_rate", "Observed tokens per sec for most recent LLM processing after prompted"
 )
-llm_no_answer = get_counter("llm_no_answer", "No search results found", ["agent_id", "agent_name"])
+llm_no_answer = get_counter(
+    "llm_no_answer", "No search results found", ["assistant_id", "assistant_name"]
+)
 
 
 def _record_metrics(
@@ -147,7 +151,7 @@ def rerank(query, search_results):
 
 
 def ask(
-    agent: Agent,
+    assistant: Assistant,
     previous_messages,
     question,
     search_results: list[Document],
@@ -161,17 +165,19 @@ def ask(
     if len(search_results) == 0:
         log.debug("given 0 search results")
         search_context = "No matching search results found"
-        llm_no_answer.labels(agent_id=agent.id, agent_name=agent.name).inc()
+        llm_no_answer.labels(assistant_id=assistant.id, assistant_name=assistant.name).inc()
     else:
         search_context, search_metadata = _build_context(search_results)
-        agent_response_counter.labels(agent_id=agent.id, agent_name=agent.name).inc()
+        assistant_response_counter.labels(
+            assistant_id=assistant.id, assistant_name=assistant.name
+        ).inc()
 
     if not search_metadata:
         search_metadata = [{}]
     for m in search_metadata:
         m["interactionId"] = interaction_id
 
-    msg_list = [("system", agent.system_prompt or cfg.DEFAULT_SYSTEM_PROMPT)]
+    msg_list = [("system", assistant.system_prompt or cfg.DEFAULT_SYSTEM_PROMPT)]
     if previous_messages:
         for msg in previous_messages:
             if msg["sender"] == "human":

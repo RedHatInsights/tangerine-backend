@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 import tangerine.config as cfg
 from tangerine.db import db
-from tangerine.models import Agent
+from tangerine.models import Assistant
 from tangerine.utils import File, embed_files
 from tangerine.vector import vector_db
 
@@ -29,7 +29,7 @@ class PathConfig(BaseModel):
     extensions: Optional[List[str]] = None
 
 
-class AgentConfig(BaseModel):
+class AssistantConfig(BaseModel):
     name: str
     description: str
     system_prompt: Optional[str] = None
@@ -44,7 +44,7 @@ class SyncConfigDefaults(BaseModel):
 
 class SyncConfig(BaseModel):
     defaults: SyncConfigDefaults
-    agents: List[AgentConfig]
+    assistants: List[AssistantConfig]
 
 
 def get_all_s3_objects(bucket: str, prefix: str) -> List:
@@ -95,14 +95,14 @@ def download_objs_concurrent(bucket: str, files: List[File], dest_dir: str) -> I
                 yield False
 
 
-def embed_file(app_context, file: File, tmpdir: str, agent_id: int) -> File:
-    """Adds an s3 object stored locally to agent"""
+def embed_file(app_context, file: File, tmpdir: str, assistant_id: int) -> File:
+    """Adds an s3 object stored locally to assistant"""
     app_context.push()
 
     log.debug("embedding file %s", file.full_path)
 
     with db.session():
-        agent = Agent.get(agent_id)
+        assistant = Assistant.get(assistant_id)
         path_on_disk = Path(tmpdir) / Path(file.full_path)
 
         with open(path_on_disk, "r") as fp:
@@ -111,17 +111,17 @@ def embed_file(app_context, file: File, tmpdir: str, agent_id: int) -> File:
             file.active = False
             file.pending_removal = False
 
-        embed_files([file], agent)
+        embed_files([file], assistant)
         return file
 
 
 def embed_files_concurrent(
-    bucket: str, files: List[File], tmpdir: str, agent_id: int
+    bucket: str, files: List[File], tmpdir: str, assistant_id: int
 ) -> Iterator[Optional[File]]:
     with ThreadPoolExecutor(max_workers=cfg.S3_SYNC_POOL_SIZE) as executor:
         key_for_future = {
             executor.submit(
-                embed_file, current_app.app_context(), file, tmpdir, agent_id
+                embed_file, current_app.app_context(), file, tmpdir, assistant_id
             ): file.full_path
             for file in files
         }
@@ -137,12 +137,12 @@ def embed_files_concurrent(
                 yield None
 
 
-def get_file_list(agent_config: AgentConfig, defaults: SyncConfigDefaults) -> List[File]:
+def get_file_list(assistant_config: AssistantConfig, defaults: SyncConfigDefaults) -> List[File]:
     files = []
 
-    bucket = agent_config.bucket
+    bucket = assistant_config.bucket
 
-    for path_config in agent_config.paths:
+    for path_config in assistant_config.paths:
         prefix = path_config.prefix
         log.debug("fetching objects from bucket %s at prefix %s", bucket, prefix)
         objects = get_all_s3_objects(bucket, path_config.prefix)
@@ -182,7 +182,7 @@ def get_file_list(agent_config: AgentConfig, defaults: SyncConfigDefaults) -> Li
     return files
 
 
-def _get_new_files_to_add(files_by_key, agent_objects_by_path, resync):
+def _get_new_files_to_add(files_by_key, assistant_objects_by_path, resync):
     files_to_add = []
 
     for key, file in files_by_key.items():
@@ -194,7 +194,7 @@ def _get_new_files_to_add(files_by_key, agent_objects_by_path, resync):
             add = True
 
         # check if there's a new remote file to add
-        elif key not in agent_objects_by_path:
+        elif key not in assistant_objects_by_path:
             log.debug("%s is new in s3, will add file", key)
             add = True
 
@@ -205,18 +205,23 @@ def _get_new_files_to_add(files_by_key, agent_objects_by_path, resync):
 
 
 def compare_files(
-    agent_config: AgentConfig, agent: Agent, defaults: SyncConfigDefaults, resync: bool
+    assistant_config: AssistantConfig,
+    assistant: Assistant,
+    defaults: SyncConfigDefaults,
+    resync: bool,
 ) -> tuple[List[dict], List[File], set[dict], int, int, int]:
-    files = get_file_list(agent_config, defaults)
+    files = get_file_list(assistant_config, defaults)
 
-    # collect all unique file objects currently stored for this agent in the DB
-    agent_objects = vector_db.get_distinct_cmetadata(search_filter={"agent_id": agent.id})
+    # collect all unique file objects currently stored for this assistant in the DB
+    assistant_objects = vector_db.get_distinct_cmetadata(
+        search_filter={"assistant_id": assistant.id}
+    )
 
     # group by keys for easier comparisons
     files_by_key = {file.full_path: file for file in files}
-    agent_objects_by_path = {obj["full_path"]: obj for obj in agent_objects}
+    assistant_objects_by_path = {obj["full_path"]: obj for obj in assistant_objects}
 
-    agent_objects_to_delete = []
+    assistant_objects_to_delete = []
     files_to_insert = []
     metadata_update_args = []
 
@@ -224,21 +229,21 @@ def compare_files(
     num_to_delete = 0
     num_to_update = 0
 
-    for agent_object in agent_objects:
-        full_path = agent_object["full_path"]
+    for assistant_object in assistant_objects:
+        full_path = assistant_object["full_path"]
 
         # if 'resync' is true, we are deleting all files
         if resync:
             log.debug("%s removing for resync", full_path)
-            agent_objects_to_delete.append(agent_object)
+            assistant_objects_to_delete.append(assistant_object)
             num_to_delete += 1
             continue
 
-        # check if the entire prefix is no longer defined in the agent config
-        prefixes = [path_config.prefix for path_config in agent_config.paths]
+        # check if the entire prefix is no longer defined in the assistant config
+        prefixes = [path_config.prefix for path_config in assistant_config.paths]
         if not any([full_path.startswith(prefix) for prefix in prefixes]):
-            log.debug("%s uses prefix not found in agent config, will remove file", full_path)
-            agent_objects_to_delete.append(agent_object)
+            log.debug("%s uses prefix not found in assistant config, will remove file", full_path)
+            assistant_objects_to_delete.append(assistant_object)
             num_to_delete += 1
             continue
 
@@ -246,22 +251,22 @@ def compare_files(
         if full_path not in files_by_key:
             # stored file is not present in s3, mark for deletion
             log.debug("%s no longer present in s3, will remove file", full_path)
-            agent_objects_to_delete.append(agent_object)
+            assistant_objects_to_delete.append(assistant_object)
             num_to_delete += 1
             continue
 
         # check if remote file has been updated
-        current_hash = agent_object.get("hash")
+        current_hash = assistant_object.get("hash")
         new_hash = files_by_key[full_path].hash
         if current_hash != new_hash:
             log.debug("%s hash changed, will update file", full_path)
             files_to_insert.append(files_by_key[full_path])
-            agent_objects_to_delete.append(agent_object)
+            assistant_objects_to_delete.append(assistant_object)
             num_to_update += 1
             continue
 
         # check if citation URL needs an update
-        elif agent_object.get("citation_url") != files_by_key[full_path].citation_url:
+        elif assistant_object.get("citation_url") != files_by_key[full_path].citation_url:
             log.debug("%s needs citation url update", full_path)
             metadata_update_args.append(
                 dict(
@@ -271,11 +276,11 @@ def compare_files(
             )
 
     # determine which new files to add
-    files_to_add = _get_new_files_to_add(files_by_key, agent_objects_by_path, resync)
+    files_to_add = _get_new_files_to_add(files_by_key, assistant_objects_by_path, resync)
     files_to_insert.extend(files_to_add)
     num_to_add += len(files_to_add)
 
-    for obj in agent_objects_to_delete:
+    for obj in assistant_objects_to_delete:
         # remove active and pending_removal from the metadata so we don't use
         # these values as metadata filters
         if "active" in obj:
@@ -284,7 +289,7 @@ def compare_files(
             del obj["pending_removal"]
 
     return (
-        agent_objects_to_delete,
+        assistant_objects_to_delete,
         files_to_insert,
         metadata_update_args,
         num_to_add,
@@ -294,7 +299,7 @@ def compare_files(
 
 
 def download_s3_files_and_embed(
-    bucket, files: List[File], agent_id: int
+    bucket, files: List[File], assistant_id: int
 ) -> tuple[List[File], int, int]:
     log.debug("%d s3 objects to download", len(files))
 
@@ -308,7 +313,7 @@ def download_s3_files_and_embed(
             if not download_success:
                 download_errors += 1
 
-        for file in embed_files_concurrent(bucket, files, tmpdir, agent_id):
+        for file in embed_files_concurrent(bucket, files, tmpdir, assistant_id):
             if file:
                 completed_files.append(file)
             else:
@@ -323,29 +328,29 @@ def run(resync: bool = False) -> int:
     # remove any lingering inactive documents
     vector_db.delete_document_chunks({"active": False})
 
-    download_errors_for_agent = {}
-    embed_errors_for_agent = {}
+    download_errors_for_assistant = {}
+    embed_errors_for_assistant = {}
 
-    for agent_config in sync_config.agents:
-        # check to see if agent already exists... if so, update... if not, create
-        agent = Agent.get_by_name(agent_config.name)
-        if agent:
-            if not agent_config.system_prompt:
-                log.debug("using default system prompt for agent '%s'", agent.name)
-                agent_config.system_prompt = cfg.DEFAULT_SYSTEM_PROMPT
-            agent.update(**dict(agent_config))
+    for assistant_config in sync_config.assistants:
+        # check to see if assistant already exists... if so, update... if not, create
+        assistant = Assistant.get_by_name(assistant_config.name)
+        if assistant:
+            if not assistant_config.system_prompt:
+                log.debug("using default system prompt for assistant '%s'", assistant.name)
+                assistant_config.system_prompt = cfg.DEFAULT_SYSTEM_PROMPT
+            assistant.update(**dict(assistant_config))
         else:
-            agent = Agent.create(**dict(agent_config))
+            assistant = Assistant.create(**dict(assistant_config))
 
         # determine what changes need to be made
         (
-            agent_objects_to_delete,
+            assistant_objects_to_delete,
             files_to_insert,
             metadata_update_args,
             num_adding,
             num_deleting,
             num_updating,
-        ) = compare_files(agent_config, agent, sync_config.defaults, resync)
+        ) = compare_files(assistant_config, assistant, sync_config.defaults, resync)
 
         log.info(
             "s3 sync: adding %d, deleting %d, updating %d, and %d metadata updates",
@@ -355,52 +360,58 @@ def run(resync: bool = False) -> int:
             len(metadata_update_args),
         )
 
-        if agent_objects_to_delete or files_to_insert or metadata_update_args:
+        if assistant_objects_to_delete or files_to_insert or metadata_update_args:
             # set docs which will be removed to state pending_removal=True
-            for metadata in agent_objects_to_delete:
+            for metadata in assistant_objects_to_delete:
                 vector_db.set_doc_states(active=True, pending_removal=True, search_filter=metadata)
 
-            # download new docs for this agent and embed in vector DB
+            # download new docs for this assistant and embed in vector DB
             _, download_errors, embed_errors = download_s3_files_and_embed(
-                agent_config.bucket, files_to_insert, agent.id
+                assistant_config.bucket, files_to_insert, assistant.id
             )
 
-            download_errors_for_agent[agent.id] = download_errors
-            embed_errors_for_agent[agent.id] = embed_errors
+            download_errors_for_assistant[assistant.id] = download_errors
+            embed_errors_for_assistant[assistant.id] = embed_errors
 
             # set new doc chunks to active
             # all new docs will have state active=False, pending_removal=False
-            metadata = {"agent_id": agent.id, "active": False, "pending_removal": False}
+            metadata = {"assistant_id": assistant.id, "active": False, "pending_removal": False}
             vector_db.set_doc_states(active=True, pending_removal=False, search_filter=metadata)
 
             # set any old docs with state pending_removal=True to inactive
-            metadata = {"agent_id": agent.id, "pending_removal": True}
+            metadata = {"assistant_id": assistant.id, "pending_removal": True}
             vector_db.set_doc_states(active=False, pending_removal=True, search_filter=metadata)
 
             # delete the now-inactive document chunks
-            metadata = {"agent_id": agent.id, "active": False}
+            metadata = {"assistant_id": assistant.id, "active": False}
             vector_db.delete_document_chunks(metadata)
 
             for args in metadata_update_args:
                 vector_db.update_cmetadata(**args, commit=False)
             vector_db.db.session.commit()
 
-        # update list of filenames associated with the agent
-        agent_objects = vector_db.get_distinct_cmetadata(search_filter={"agent_id": agent.id})
-        agent_files = [File(**obj) for obj in agent_objects]
-        agent.update(filenames=[file.display_name for file in agent_files])
+        # update list of filenames associated with the assistant
+        assistant_objects = vector_db.get_distinct_cmetadata(
+            search_filter={"assistant_id": assistant.id}
+        )
+        assistant_files = [File(**obj) for obj in assistant_objects]
+        assistant.update(filenames=[file.display_name for file in assistant_files])
 
     exit_code = 0
-    for agent_id, error_count in download_errors_for_agent.items():
+    for assistant_id, error_count in download_errors_for_assistant.items():
         if error_count:
             log.error(
-                "agent %d hit %d download errors during sync, check logs", agent_id, error_count
+                "assistant %d hit %d download errors during sync, check logs",
+                assistant_id,
+                error_count,
             )
             exit_code = 1
-    for agent_id, error_count in embed_errors_for_agent.items():
+    for assistant_id, error_count in embed_errors_for_assistant.items():
         if error_count:
             log.error(
-                "agent %d hit %d embedding errors during sync, check logs", agent_id, error_count
+                "assistant %d hit %d embedding errors during sync, check logs",
+                assistant_id,
+                error_count,
             )
             exit_code = 1
 

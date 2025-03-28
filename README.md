@@ -1,9 +1,9 @@
 
 # 🍊 tangerine (backend) <!-- omit from toc -->
 
-tangerine is a slim and light-weight RAG (Retieval Augmented Generated) system used to create and manage chat bot agents.
+tangerine is a slim and light-weight RAG (Retieval Augmented Generated) system used to create and manage chat bot assistants.
 
-Each agent is intended to answer questions related to a set of documents known as a knowledge base (KB).
+Each assistant is intended to answer questions related to a set of documents known as a knowledge base (KB).
 
 ![Demo video](docs/demo.gif)
 
@@ -61,10 +61,10 @@ It was born out of a hack-a-thon and is still a work in progress. You will find 
 
 #### Retrieval Augmented Generation (RAG)
 
-- **1:** A user presents a question to an agent in the chat interface
+- **1:** A user presents a question to an assistant in the chat interface
 - **2:** Embeddings are created for the query using the embedding model
 - **3:** A similarity search and a max marginal relevance search are performed against the vector DB to find the top N most relevant document chunks
-  - The document set searched is scoped only to that specific agent
+  - The document set searched is scoped only to that specific assistant
 - **4:** The LLM is prompted to answer the question using only the context found within the relevant document chunks
 - **5:** The LLM response is streamed by the backend service to the user. Metadata containing the document chunks are also returned to be used as citations.
 
@@ -110,7 +110,7 @@ Our documentation set has initially focused on pages that have been compiled usi
 
 The **tangerine-backend** service manages:
 
-- Create/update/delete of chat bot "agents" via REST API.
+- Create/update/delete of chat bot "assistants" via REST API.
 - Document ingestion
   - Upload via the API, or sync via an s3 bucket
   - Text cleanup/conversion
@@ -176,7 +176,7 @@ The docker compose file offers an easy way to spin up all components. [ollama](h
 6. Access the API on port `8000`
 
    ```sh
-   curl -XGET 127.0.0.1:8000/api/agents
+   curl -XGET 127.0.0.1:8000/api/assistants
    {
        "data": []
    }
@@ -293,7 +293,7 @@ to use this to test different embedding models that are not supported by ollama,
 1. Access the API on port `8000`
 
     ```sh
-    curl -XGET 127.0.0.1:8000/api/agents
+    curl -XGET 127.0.0.1:8000/api/assistants
     {
        "data": []
     }
@@ -376,7 +376,7 @@ Comment out `ollama` from the compose file, or stop the ollama container. Invoke
 
 ## Synchronizing Documents from S3
 
-You can configure a set of agents and continually sync their knowledge base via documents stored in an S3 bucket.
+You can configure a set of assistants and continually sync their knowledge base via documents stored in an S3 bucket.
 
 To do so you'll need to do the following:
 
@@ -400,7 +400,7 @@ To do so you'll need to do the following:
    echo 'BUCKET=mybucket' >> .env
    ```
 
-1. Create an `s3.yaml` file that describes your agents and the documents they should ingest. See [s3-example.yaml](s3-example.yaml) for an example.
+1. Create an `s3.yaml` file that describes your assistants and the documents they should ingest. See [s3-example.yaml](s3-example.yaml) for an example.
 
    If using docker compose, copy this config into your container:
 
@@ -422,7 +422,7 @@ To do so you'll need to do the following:
     flask s3sync
     ```
 
-The sync creates agents and ingests the configured documents for each agent. After initial creation, when the task is run it checks the S3 bucket for updates and will only re-ingest files into the vector DB when it detects file changes.
+The sync creates assistants and ingests the configured documents for each assistant. After initial creation, when the task is run it checks the S3 bucket for updates and will only re-ingest files into the vector DB when it detects file changes.
 
 The OpenShift templates contain a CronJob configuration that is used to run this document sync repeatedly.
 
@@ -445,19 +445,19 @@ This repository provides [OpenShift templates](openshift/) for all infrastructur
 
 ## Run Tangerine Frontend Locally
 
-The API can be used to create/manage/update agents, upload documents, and to chat with each agent. However, the frontend provides a simpler interface to manage the service with. To run the UI in a development environment, see [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend)
+The API can be used to create/manage/update assistants, upload documents, and to chat with each assistant. However, the frontend provides a simpler interface to manage the service with. To run the UI in a development environment, see [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend)
 
 ## Available API Paths
 
 | Path                               | Method   | Description                |
 | ---------------------------------- | -------- | -------------------------- |
-| `/api/agents`                      | `GET`    | Get a list of all agents   |
-| `/api/agents`                      | `POST`   | Create a new agent         |
-| `/api/agents/<id>`                 | `GET`    | Get an agent               |
-| `/api/agents/<id>`                 | `PUT`    | Update an agent            |
-| `/api/agents/<id>`                 | `DELETE` | Delete an agent            |
-| `/api/agents/<id>/chat`            | `POST`   | Chat with an agent         |
-| `/api/agents/<id>/documents`       | `POST`   | Agent document uploads     |
-| `/api/agents/<id>/documents`       | `DELETE` | Delete agent documents     |
-| `/api/agentDefaults`               | `GET`    | Get agent default settings |
+| `/api/assistants`                      | `GET`    | Get a list of all assistants   |
+| `/api/assistants`                      | `POST`   | Create a new assistant         |
+| `/api/assistants/<id>`                 | `GET`    | Get an assistant               |
+| `/api/assistants/<id>`                 | `PUT`    | Update an assistant            |
+| `/api/assistants/<id>`                 | `DELETE` | Delete an assistant            |
+| `/api/assistants/<id>/chat`            | `POST`   | Chat with an assistant         |
+| `/api/assistants/<id>/documents`       | `POST`   | Assistant document uploads     |
+| `/api/assistants/<id>/documents`       | `DELETE` | Delete assistant documents     |
+| `/api/assistantDefaults`               | `GET`    | Get assistant default settings |
 | `/ping`                            | `GET`    | Health check endpoint      |

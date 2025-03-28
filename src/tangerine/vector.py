@@ -130,7 +130,7 @@ class VectorStoreInterface:
 
         return documents
 
-    def create_document_chunks(self, file: File, agent_id: int) -> list[Document]:
+    def create_document_chunks(self, file: File, assistant_id: int) -> list[Document]:
         log.debug("creating doc chunks for %s", file)
 
         text = file.extract_text()
@@ -140,7 +140,7 @@ class VectorStoreInterface:
             return []
 
         metadata = {
-            "agent_id": str(agent_id),
+            "assistant_id": str(assistant_id),
         }
         metadata.update(file.metadata)
 
@@ -154,10 +154,10 @@ class VectorStoreInterface:
 
         return documents
 
-    def add_file(self, file: File, agent_id: int):
+    def add_file(self, file: File, assistant_id: int):
         documents = []
         try:
-            documents = self.create_document_chunks(file, agent_id)
+            documents = self.create_document_chunks(file, assistant_id)
         except Exception:
             log.exception("error creating document chunks")
             return
@@ -171,11 +171,11 @@ class VectorStoreInterface:
                 size += len(doc.page_content)
             current_batch = idx + 1
             log.debug(
-                "adding batch %d/%d for file %s to agent %s (%d chunks, total size: %d chars)",
+                "adding batch %d/%d for file %s to assistant %s (%d chunks, total size: %d chars)",
                 current_batch,
                 total_batches,
                 file,
-                agent_id,
+                assistant_id,
                 len(batch),
                 size,
             )
@@ -271,8 +271,8 @@ class VectorStoreInterface:
         metadata = {"active": str(active), "pending_removal": str(pending_removal)}
         self.update_cmetadata(metadata, search_filter)
 
-    def get_search_filter(self, agent_id):
-        return {"agent_id": str(agent_id), "active": "True"}
+    def get_search_filter(self, assistant_id):
+        return {"assistant_id": str(assistant_id), "active": "True"}
 
 
 vector_db = VectorStoreInterface()
