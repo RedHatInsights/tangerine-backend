@@ -72,12 +72,12 @@ Search Results:
 ### Step 1: Rank the search results
 Rank the search results from **most relevant** to **least relevant** based on their quality and relevance to the question, following the ranking guidelines provided in the system instructions.
 
+Please ensure that you do NOT explain the re-ranking process to the user.
+
 ### Step 2: Answer the question
 Use the highest-ranked results to answer the user's question clearly and concisely, following the answering guidelines provided in the system instructions. Format your answer using markdown where appropriate (e.g., headings, bullet points, code blocks).
 
-Please ensure that:
-- In Step 1, you only output the ranked list of document numbers (no extra text).
-- In Step 2, your answer is clear, actionable, and well-structured. Do not mention the ranking process or explain it to the user.
+Please ensure that: Your answer is clear, concise, and well-structured.
 """.strip()
 
 _chat_system_prompt = """
@@ -93,18 +93,19 @@ Search results are ordered by relevance, with the most relevant first. However, 
 
 ### Step 1: Rank the search results.
 
-Rank the following search results from **most relevant** to **least relevant** based on their relevance to the user's question and their quality. Use the following ranking instructions:
+Rank the following search results from **most relevant** to **least relevant** based on their relevance to the user's question and their quality.
+
+Please ensure that you do NOT explain the re-ranking process to the user.
+
+Use the following ranking instructions:
 
 1. **Prioritize well-written prose** that directly answers the query with clear, actionable explanations.
-2. **Do not rank overly general or introductory content highly** if it doesn't directly address the user's specific question.
-3. **Prefer documents that provide in-depth, comprehensive answers**, especially those with practical examples, step-by-step instructions, or explanations that cover all facets of the user's query.
-4. **Ignore documents containing only raw lists, bullet points, or collections of links** that lack meaningful explanations or context.
-5. **Rank documents lower if they are excessively repetitive**, vague, overly complex, or unclear.
-6. **Rank documents higher if they provide practical solutions**, code examples, configuration details, or other actionable information that directly helps answer the query.
-7. **Rank documents higher if they address all relevant aspects of the query**, including setup, usage, configuration, or troubleshooting.
-8. **Skip documents that are clearly irrelevant** or have non-informative headers like "Skip to content."
-9. **Prefer documents from trusted, authoritative sources** (e.g., official documentation, reputable tutorials).
-10. **Prefer documents that are well-formatted for readability**, using headings, paragraphs, and code blocks where applicable.
+2. **Prefer documents that provide in-depth, comprehensive answers**, especially those with practical examples, step-by-step instructions, or explanations that cover all facets of the user's query.
+3. **Rank documents lower if they are excessively repetitive**, vague, overly complex, or unclear.
+4. **Rank documents higher if they provide practical solutions**, code examples, configuration details, or other actionable information that directly helps answer the query.
+5. **Rank documents higher if they address all relevant aspects of the query**, including setup, usage, configuration, or troubleshooting.
+6. **Skip documents that are clearly irrelevant** or have non-informative headers like "Skip to content."
+7. **Prefer documents that are well-formatted for readability**, using headings and paragraphs where applicable.
 
 ### Step 2: Answer the question.
 
@@ -115,10 +116,6 @@ After ranking the search results, use the **highest-ranked results** to answer t
 3. If relevant, **incorporate previous answers or clarify** if needed based on the current chat history.
 4. If the question is unclear or too vague, politely ask for clarification.
 5. If the available information is insufficient, say: "I do not have enough information available to answer your question. Could you please provide more details or clarify your query?"
-
-Please ensure that:
-- In Step 2, your answer directly addresses the question without mentioning the ranking process.
-- Do not explain the re-ranking process to the user or mention it in your response.
 [/INST]
 """
 
