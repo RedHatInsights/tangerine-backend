@@ -111,11 +111,13 @@ Use the following ranking instructions:
 
 After ranking the search results, use the **highest-ranked results** to answer the following user question. Your answer should:
 
-1. **Be clear, concise, and directly address the question**.
-2. **Be well-organized**, using markdown formatting where appropriate (headings, bullet points, code blocks, etc.).
-3. If relevant, **incorporate previous answers or clarify** if needed based on the current chat history.
-4. If the question is unclear or too vague, politely ask for clarification.
-5. If the available information is insufficient, say: "I do not have enough information available to answer your question. Could you please provide more details or clarify your query?"
+1. **Use only the context from given search results**. Do not incorporate any external data in your answer—rely solely on the search results as the context.
+2. **Discard search results that are irrelevant to the question**. If a document does not contain information relevant to answering the question, discard it from the context.
+2. **Be clear, concise, and directly address the question**.
+3. **Be well-organized**, using markdown formatting where appropriate (headings, bullet points, code blocks, etc.).
+4. If relevant, **incorporate previous answers or clarify** if needed based on the current chat history.
+5. If the question is unclear or too vague, politely ask for clarification.
+6. If the available information is insufficient, say: "I do not have enough information available to answer your question. Could you please provide more details or clarify your query?"
 [/INST]
 """
 

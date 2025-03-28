@@ -14,7 +14,7 @@ WITH fts_results AS (
         AND fts_vector @@ plainto_tsquery('english', :query)
     ORDER BY
         ts_rank_cd(fts_vector, plainto_tsquery('english', :query)) DESC
-    LIMIT 20
+    LIMIT 10
 ),
 vector_results AS (
     SELECT
@@ -31,7 +31,7 @@ vector_results AS (
         AND cmetadata->>'active' = 'True'
     ORDER BY
         -(embedding <#> :embedding) DESC
-    LIMIT 20
+    LIMIT 10
 )
 SELECT
     COALESCE(fts_results.id, vector_results.id) AS id,
@@ -50,4 +50,4 @@ FULL OUTER JOIN
     ON fts_results.id = vector_results.id
 ORDER BY
     rrf_score DESC
-LIMIT 5;
+LIMIT 6;
