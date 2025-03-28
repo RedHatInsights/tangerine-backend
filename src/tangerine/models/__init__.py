@@ -1,5 +1,5 @@
 # import all models
-from .agent import Agent
+from .assistant import Assistant
 from .interactions import Interaction, QuestionEmbedding, RelevanceScore, UserFeedback
 
-__all__ = ["Agent", "RelevanceScore", "QuestionEmbedding", "UserFeedback", "Interaction"]
+__all__ = ["Assistant", "RelevanceScore", "QuestionEmbedding", "UserFeedback", "Interaction"]

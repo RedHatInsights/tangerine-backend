@@ -6,7 +6,7 @@ SELECT
 FROM
     langchain_pg_embedding
 WHERE
-    cmetadata->>'agent_id' = :agent_id
+    cmetadata->>'assistant_id' = :assistant_id
     AND cmetadata->>'active' = 'True'
     AND fts_vector @@ plainto_tsquery('english', :query)
 ORDER BY
