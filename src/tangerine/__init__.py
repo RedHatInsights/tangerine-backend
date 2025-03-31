@@ -54,7 +54,7 @@ def create_app():
 
 
 @click.command("s3sync")
-@click.option("--force-resync", is_flag=True, help="Delete all files from agents and re-import")
+@click.option("--force-resync", is_flag=True, help="Delete all files from assistants and re-import")
 @click.option(
     "--force-resync-until",
     help=(

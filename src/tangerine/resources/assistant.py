@@ -10,83 +10,83 @@ import tangerine.llm as llm
 from tangerine import config
 from tangerine.config import DEFAULT_SYSTEM_PROMPT
 from tangerine.embeddings import embed_query
-from tangerine.models.agent import Agent
+from tangerine.models.assistant import Assistant
 from tangerine.models.interactions import store_interaction
 from tangerine.search import search_engine
-from tangerine.utils import File, add_filenames_to_agent, embed_files, remove_files
+from tangerine.utils import File, add_filenames_to_assistant, embed_files, remove_files
 from tangerine.vector import vector_db
 
 log = logging.getLogger("tangerine.resources")
 
 
-class AgentDefaultsApi(Resource):
+class AssistantDefaultsApi(Resource):
     def get(self):
         return {"system_prompt": DEFAULT_SYSTEM_PROMPT}, 200
 
 
-class AgentsApi(Resource):
+class AssistantsApi(Resource):
     def get(self):
         try:
-            all_agents = Agent.list()
+            all_assistants = Assistant.list()
         except Exception:
-            log.exception("error getting agents")
-            return {"message": "error getting agents"}, 500
+            log.exception("error getting assistants")
+            return {"message": "error getting assistants"}, 500
 
-        return {"data": [agent.to_dict() for agent in all_agents]}, 200
+        return {"data": [assistant.to_dict() for assistant in all_assistants]}, 200
 
     def post(self):
         name = request.json.get("name")
         description = request.json.get("description")
         if not name:
-            return {"message": "agent 'name' required"}, 400
+            return {"message": "assistant 'name' required"}, 400
         if not description:
-            return {"message": "agent 'description' required"}, 400
+            return {"message": "assistant 'description' required"}, 400
 
         try:
-            agent = Agent.create(name, description, request.json.get("system_prompt"))
+            assistant = Assistant.create(name, description, request.json.get("system_prompt"))
         except Exception:
-            log.exception("error creating agent")
-            return {"message": "error creating agent"}, 500
+            log.exception("error creating assistant")
+            return {"message": "error creating assistant"}, 500
 
-        return agent.to_dict(), 201
+        return assistant.to_dict(), 201
 
 
-class AgentApi(Resource):
+class AssistantApi(Resource):
     def get(self, id):
-        agent = Agent.get(id)
-        if not agent:
-            return {"message": "agent not found"}, 404
+        assistant = Assistant.get(id)
+        if not assistant:
+            return {"message": "assistant not found"}, 404
 
-        return agent.to_dict(), 200
+        return assistant.to_dict(), 200
 
     def put(self, id):
-        agent = Agent.get(id)
-        if not agent:
-            return {"message": "agent not found"}, 404
+        assistant = Assistant.get(id)
+        if not assistant:
+            return {"message": "assistant not found"}, 404
 
         data = request.get_json()
         # ignore 'id' or 'filenames' if provided in JSON payload
         data.pop("filenames", None)
         data.pop("id", None)
-        agent.update(**data)
+        assistant.update(**data)
 
-        return {"message": "agent updated successfully"}, 200
+        return {"message": "assistant updated successfully"}, 200
 
     def delete(self, id):
-        agent = Agent.get(id)
-        if not agent:
-            return {"message": "agent not found"}, 404
+        assistant = Assistant.get(id)
+        if not assistant:
+            return {"message": "assistant not found"}, 404
 
-        agent.delete()
-        vector_db.delete_document_chunks({"agent_id": agent.id})
-        return {"message": "agent deleted successfully"}, 200
+        assistant.delete()
+        vector_db.delete_document_chunks({"assistant_id": assistant.id})
+        return {"message": "assistant deleted successfully"}, 200
 
 
-class AgentDocuments(Resource):
+class AssistantDocuments(Resource):
     def post(self, id):
-        agent = Agent.get(id)
-        if not agent:
-            return {"message": "agent not found"}, 404
+        assistant = Assistant.get(id)
+        if not assistant:
+            return {"message": "assistant not found"}, 404
 
         # Check if the post request has the file part
         if "file" not in request.files:
@@ -109,16 +109,16 @@ class AgentDocuments(Resource):
         def generate_progress():
             for file in files:
                 yield json.dumps({"file": file.display_name, "step": "start"}) + "\n"
-                embed_files([file], agent)
-                add_filenames_to_agent([file], agent)
+                embed_files([file], assistant)
+                add_filenames_to_assistant([file], assistant)
                 yield json.dumps({"file": file.display_name, "step": "end"}) + "\n"
 
         return Response(stream_with_context(generate_progress()), mimetype="application/json")
 
     def delete(self, id):
-        agent = Agent.get(id)
-        if not agent:
-            return {"message": "agent not found"}, 404
+        assistant = Assistant.get(id)
+        if not assistant:
+            return {"message": "assistant not found"}, 404
 
         source = request.json.get("source")
         full_path = request.json.get("full_path")
@@ -134,7 +134,7 @@ class AgentDocuments(Resource):
             metadata["full_path"] = full_path
 
         try:
-            deleted = remove_files(agent, metadata)
+            deleted = remove_files(assistant, metadata)
         except ValueError as err:
             return {"message": str(err)}, 400
         except Exception:
@@ -146,20 +146,20 @@ class AgentDocuments(Resource):
         return {"message": f"{count} document(s) deleted", "count": count, "deleted": deleted}, 200
 
 
-class AgentChatApi(Resource):
+class AssistantChatApi(Resource):
     def post(self, id):
-        agent = self._get_agent(id)
-        if not agent:
-            return {"message": "agent not found"}, 404
+        assistant = self._get_assistant(id)
+        if not assistant:
+            return {"message": "assistant not found"}, 404
 
         log.debug("querying vector DB")
         question, session_uuid, stream, previous_messages, interaction_id, client = (
             self._extract_request_data()
         )
         embedding = self._embed_question(question)
-        search_results = self._get_search_results(agent.id, question, embedding)
+        search_results = self._get_search_results(assistant.id, question, embedding)
         llm_response = self._call_llm(
-            agent, previous_messages, question, search_results, stream, interaction_id
+            assistant, previous_messages, question, search_results, stream, interaction_id
         )
 
         if self._is_streaming_response(llm_response, stream):
@@ -183,8 +183,8 @@ class AgentChatApi(Resource):
             client,
         )
 
-    def _get_agent(self, agent_id):
-        return Agent.get(agent_id)
+    def _get_assistant(self, assistant_id):
+        return Assistant.get(assistant_id)
 
     def _extract_request_data(self):
         question = request.json.get("query")
@@ -198,9 +198,11 @@ class AgentChatApi(Resource):
     def _embed_question(self, question):
         return embed_query(question)
 
-    def _call_llm(self, agent, previous_messages, question, search_results, stream, interaction_id):
+    def _call_llm(
+        self, assistant, previous_messages, question, search_results, stream, interaction_id
+    ):
         return llm.ask(
-            agent,
+            assistant,
             previous_messages,
             question,
             search_results,
@@ -225,8 +227,8 @@ class AgentChatApi(Resource):
         ]
 
     @staticmethod
-    def _get_search_results(agent_id, query, embedding):
-        return search_engine.search(agent_id, query, embedding)
+    def _get_search_results(assistant_id, query, embedding):
+        return search_engine.search(assistant_id, query, embedding)
 
     def _handle_streaming_response(
         self,

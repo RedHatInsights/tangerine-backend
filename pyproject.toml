@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tangerine"
 version = "0.0.1"
-description = "A slim and light-weight RAG (Retieval Augmented Generated) system used to create and manage chat bot agents."
+description = "A slim and light-weight RAG (Retieval Augmented Generated) system used to create and manage chat bot assistants."
 readme = "README.md"
 requires-python = ">=3.12"
 classifiers = [

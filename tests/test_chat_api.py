@@ -3,16 +3,16 @@ from unittest.mock import MagicMock
 import pytest
 from langchain_core.documents import Document
 
-from tangerine.resources.agent import AgentChatApi  # Import your API class
+from tangerine.resources.assistant import AssistantChatApi  # Import your API class
 
 
 @pytest.fixture
-def agent_chat_api():
-    """Fixture to create an instance of AgentChatApi with dependencies mocked."""
-    api_instance = AgentChatApi()
+def assistant_chat_api():
+    """Fixture to create an instance of AssistantChatApi with dependencies mocked."""
+    api_instance = AssistantChatApi()
 
     # Mock dependencies
-    api_instance._get_agent = MagicMock()
+    api_instance._get_assistant = MagicMock()
     api_instance._extract_request_data = MagicMock()
     api_instance._get_search_results = MagicMock()
     api_instance._parse_search_results = MagicMock()
@@ -27,21 +27,21 @@ def agent_chat_api():
     return api_instance
 
 
-def test_post_chat_agent_not_found(agent_chat_api):
-    """Test case when the agent is not found."""
+def test_post_chat_assistant_not_found(assistant_chat_api):
+    """Test case when the assistant is not found."""
 
-    agent_chat_api._get_agent.return_value = None  # Simulate no agent found
+    assistant_chat_api._get_assistant.return_value = None  # Simulate no assistant found
 
-    response, status_code = agent_chat_api.post(1)
+    response, status_code = assistant_chat_api.post(1)
 
     assert status_code == 404
-    assert response == {"message": "agent not found"}
+    assert response == {"message": "assistant not found"}
 
 
-def test_post_chat_non_streaming(agent_chat_api):
+def test_post_chat_non_streaming(assistant_chat_api):
     """Test case when chat is non-streaming."""
 
-    mock_agent = MagicMock()
+    mock_assistant = MagicMock()
     mock_query = "What is AI?"
     mock_session_uuid = "1234-5678"
     mock_previous_messages = []
@@ -54,8 +54,8 @@ def test_post_chat_non_streaming(agent_chat_api):
     mock_client = "client"
 
     # Configure mocks
-    agent_chat_api._get_agent.return_value = mock_agent
-    agent_chat_api._extract_request_data.return_value = (
+    assistant_chat_api._get_assistant.return_value = mock_assistant
+    assistant_chat_api._extract_request_data.return_value = (
         mock_query,
         mock_session_uuid,
         False,
@@ -63,32 +63,32 @@ def test_post_chat_non_streaming(agent_chat_api):
         mock_interaction_id,
         mock_client,
     )
-    agent_chat_api._embed_question.return_value = mock_embedding
-    agent_chat_api._get_search_results.return_value = mock_search_results
-    agent_chat_api._call_llm.return_value = mock_llm_response
-    agent_chat_api._is_streaming_response.return_value = False
-    agent_chat_api._handle_final_response.return_value = {"response": mock_llm_response}, 200
-    agent_chat_api._interaction_storage_enabled.return_value = True
+    assistant_chat_api._embed_question.return_value = mock_embedding
+    assistant_chat_api._get_search_results.return_value = mock_search_results
+    assistant_chat_api._call_llm.return_value = mock_llm_response
+    assistant_chat_api._is_streaming_response.return_value = False
+    assistant_chat_api._handle_final_response.return_value = {"response": mock_llm_response}, 200
+    assistant_chat_api._interaction_storage_enabled.return_value = True
 
-    response, status_code = agent_chat_api.post(1)
+    response, status_code = assistant_chat_api.post(1)
 
     # Assertions
     assert status_code == 200
     assert response == {"response": mock_llm_response}
 
     # Ensure all expected functions were called
-    agent_chat_api._get_agent.assert_called_once_with(1)
-    agent_chat_api._extract_request_data.assert_called_once()
-    agent_chat_api._embed_question.assert_called_once_with(mock_query)
-    agent_chat_api._call_llm.assert_called_once_with(
-        mock_agent,
+    assistant_chat_api._get_assistant.assert_called_once_with(1)
+    assistant_chat_api._extract_request_data.assert_called_once()
+    assistant_chat_api._embed_question.assert_called_once_with(mock_query)
+    assistant_chat_api._call_llm.assert_called_once_with(
+        mock_assistant,
         mock_previous_messages,
         mock_query,
         mock_search_results,
         False,
         mock_interaction_id,
     )
-    agent_chat_api._handle_final_response.assert_called_once_with(
+    assistant_chat_api._handle_final_response.assert_called_once_with(
         mock_llm_response,
         mock_query,
         mock_embedding,
@@ -99,10 +99,10 @@ def test_post_chat_non_streaming(agent_chat_api):
     )
 
 
-def test_post_chat_streaming(agent_chat_api):
+def test_post_chat_streaming(assistant_chat_api):
     """Test case when chat is streaming."""
 
-    mock_agent = MagicMock()
+    mock_assistant = MagicMock()
     mock_query = "What is AI?"
     mock_session_uuid = "1234-5678"
     mock_previous_messages = []
@@ -116,8 +116,8 @@ def test_post_chat_streaming(agent_chat_api):
     mock_client = "client"
 
     # Configure mocks
-    agent_chat_api._get_agent.return_value = mock_agent
-    agent_chat_api._extract_request_data.return_value = (
+    assistant_chat_api._get_assistant.return_value = mock_assistant
+    assistant_chat_api._extract_request_data.return_value = (
         mock_query,
         mock_session_uuid,
         True,
@@ -125,31 +125,31 @@ def test_post_chat_streaming(agent_chat_api):
         mock_interaction_id,
         mock_client,
     )
-    agent_chat_api._embed_question.return_value = mock_embedding
-    agent_chat_api._get_search_results.return_value = mock_search_results
-    agent_chat_api._call_llm.return_value = mock_llm_response
-    agent_chat_api._is_streaming_response.return_value = True
-    agent_chat_api._handle_streaming_response.return_value = "mock_stream_response"
-    agent_chat_api._interaction_storage_enabled.return_value = True
+    assistant_chat_api._embed_question.return_value = mock_embedding
+    assistant_chat_api._get_search_results.return_value = mock_search_results
+    assistant_chat_api._call_llm.return_value = mock_llm_response
+    assistant_chat_api._is_streaming_response.return_value = True
+    assistant_chat_api._handle_streaming_response.return_value = "mock_stream_response"
+    assistant_chat_api._interaction_storage_enabled.return_value = True
 
-    response = agent_chat_api.post(1)
+    response = assistant_chat_api.post(1)
 
     # Assertions
     assert response == "mock_stream_response"
 
     # Ensure all expected functions were called
-    agent_chat_api._get_agent.assert_called_once_with(1)
-    agent_chat_api._extract_request_data.assert_called_once()
-    agent_chat_api._embed_question.assert_called_once_with(mock_query)
-    agent_chat_api._call_llm.assert_called_once_with(
-        mock_agent,
+    assistant_chat_api._get_assistant.assert_called_once_with(1)
+    assistant_chat_api._extract_request_data.assert_called_once()
+    assistant_chat_api._embed_question.assert_called_once_with(mock_query)
+    assistant_chat_api._call_llm.assert_called_once_with(
+        mock_assistant,
         mock_previous_messages,
         mock_query,
         mock_search_results,
         True,
         mock_interaction_id,
     )
-    agent_chat_api._handle_streaming_response.assert_called_once_with(
+    assistant_chat_api._handle_streaming_response.assert_called_once_with(
         mock_llm_response,
         mock_query,
         mock_embedding,
