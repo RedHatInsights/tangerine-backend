@@ -264,13 +264,18 @@ class AssistantChatApi(Resource):
         self,
         llm_response,
         question,
-        search_results,
         embedding,
+        search_results,
         session_uuid,
         interaction_id,
         client,
     ):
         source_doc_info = self._parse_search_results(search_results)
+
+        if isinstance(llm_response, dict):
+            # if the LLM response is a dictionary with 'text_content' use that, as _log_interaction
+            # expects a string for llm_response
+            llm_response = llm_response["text_content"]
 
         self._log_interaction(
             question,
