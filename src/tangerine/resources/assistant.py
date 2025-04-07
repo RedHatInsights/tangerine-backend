@@ -272,7 +272,7 @@ class AssistantChatApi(Resource):
     ):
         source_doc_info = self._parse_search_results(search_results)
 
-        if llm_response.get("text_content") is not None:
+        if isinstance(llm_response, dict):
             # if the LLM response is a dictionary with 'text_content' use that, as _log_interaction
             # expects a string for llm_response
             llm_response = llm_response["text_content"]
