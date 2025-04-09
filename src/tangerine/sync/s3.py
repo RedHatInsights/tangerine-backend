@@ -6,11 +6,11 @@ from pathlib import Path
 from typing import Iterator, List, Optional
 
 import boto3
-import boto3.session
 import jinja2
 import yaml
 from flask import current_app
 from pydantic import BaseModel
+from sqlalchemy import text
 
 import tangerine.config as cfg
 from tangerine.db import db
@@ -322,11 +322,26 @@ def download_s3_files_and_embed(
     return completed_files, download_errors, embed_errors
 
 
+def _purge_docs_with_agent_metadata():
+    # remove any lingering documents that still use 'agent_id',
+    # as we have now migrated to 'assistant_id'
+    query = text("SELECT DISTINCT cmetadata->'agent_id' AS id FROM langchain_pg_embedding")
+    results = db.session.execute(query).all()
+    for row in results:
+        agent_id = str(row.id)
+        if agent_id.isdigit():
+            log.info("purging old documents using obsolete field 'agent_id' = %s", agent_id)
+            vector_db.delete_document_chunks({"agent_id": agent_id})
+
+
 def run(resync: bool = False) -> int:
     sync_config = get_sync_config()
 
     # remove any lingering inactive documents
     vector_db.delete_document_chunks({"active": False})
+
+    if resync:
+        _purge_docs_with_agent_metadata()
 
     download_errors_for_assistant = {}
     embed_errors_for_assistant = {}
