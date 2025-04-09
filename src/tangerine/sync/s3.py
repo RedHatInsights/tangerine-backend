@@ -325,12 +325,12 @@ def download_s3_files_and_embed(
 def _purge_docs_with_agent_metadata():
     # remove any lingering documents that still use 'agent_id',
     # as we have now migrated to 'assistant_id'
-    query = text("select distinct cmetadata->'agent_id' from langchain_pg_embedding")
-    agent_ids = db.session.execute(query).all()
-    for agent_id in agent_ids:
-        agent_id = str(agent_id)
+    query = text("SELECT DISTINCT cmetadata->'agent_id' AS id FROM langchain_pg_embedding")
+    results = db.session.execute(query).all()
+    for row in results:
+        agent_id = str(row.id)
         if agent_id.isdigit():
-            log.info("purging old documents with agent_id = %s", agent_id)
+            log.info("purging old documents using obsolete field 'agent_id' = %s", agent_id)
             vector_db.delete_document_chunks({"agent_id": agent_id})
 
 
