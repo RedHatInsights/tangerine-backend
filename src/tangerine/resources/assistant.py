@@ -147,6 +147,10 @@ class AssistantDocuments(Resource):
 
 
 class AssistantChatApi(Resource):
+    @staticmethod
+    def _is_streaming_response(stream):
+        return bool(stream)
+
     def post(self, id):
         assistant = self._get_assistant(id)
         if not assistant:
@@ -158,13 +162,14 @@ class AssistantChatApi(Resource):
         )
         embedding = self._embed_question(question)
         search_results = self._get_search_results(assistant.id, question, embedding)
-        llm_response = self._call_llm(
-            assistant, previous_messages, question, search_results, stream, interaction_id
+        llm_response, search_metadata = self._call_llm(
+            assistant, previous_messages, question, search_results, interaction_id
         )
 
-        if self._is_streaming_response(llm_response, stream):
+        if self._is_streaming_response(stream):
             return self._handle_streaming_response(
                 llm_response,
+                search_metadata,
                 question,
                 embedding,
                 search_results,
@@ -173,8 +178,9 @@ class AssistantChatApi(Resource):
                 client,
             )
 
-        return self._handle_final_response(
+        return self._handle_standard_response(
             llm_response,
+            search_metadata,
             question,
             embedding,
             search_results,
@@ -198,21 +204,14 @@ class AssistantChatApi(Resource):
     def _embed_question(self, question):
         return embed_query(question)
 
-    def _call_llm(
-        self, assistant, previous_messages, question, search_results, stream, interaction_id
-    ):
+    def _call_llm(self, assistant, previous_messages, question, search_results, interaction_id):
         return llm.ask(
             assistant,
             previous_messages,
             question,
             search_results,
-            stream=stream,
             interaction_id=interaction_id,
         )
-
-    @staticmethod
-    def _is_streaming_response(llm_response, stream):
-        return stream and (callable(llm_response) or hasattr(llm_response, "__iter__"))
 
     @staticmethod
     def _parse_search_results(search_results: list[Document]) -> list[dict]:
@@ -233,6 +232,7 @@ class AssistantChatApi(Resource):
     def _handle_streaming_response(
         self,
         llm_response,
+        search_metadata,
         question,
         embedding,
         search_results,
@@ -242,15 +242,22 @@ class AssistantChatApi(Resource):
     ):
         source_doc_info = self._parse_search_results(search_results)
 
-        def accumulate_and_stream():
-            accumulated_response = ""
-            for raw_chunk in llm_response():
-                text_content = self._extract_text_from_chunk(raw_chunk)
-                accumulated_response += text_content
-                yield raw_chunk
+        # TODO: change the way we stream to something more standardized...
+        def __api_response_generator():
+            accumulated_text = ""
+
+            for text in llm_response:
+                accumulated_text += text
+                chunk = {"text_content": text}
+                yield f"data: {json.dumps(chunk)}\r\n"
+
+            # final piece of content returned is the search metadata
+            yield f"data: {json.dumps({'search_metadata': search_metadata})}\r\n"
+
+            # log user interaction at the end
             self._log_interaction(
                 question,
-                accumulated_response,
+                accumulated_text,
                 source_doc_info,
                 embedding,
                 session_uuid,
@@ -258,11 +265,12 @@ class AssistantChatApi(Resource):
                 client,
             )
 
-        return Response(stream_with_context(accumulate_and_stream()))
+        return Response(stream_with_context(__api_response_generator()))
 
-    def _handle_final_response(
+    def _handle_standard_response(
         self,
         llm_response,
+        search_metadata,
         question,
         embedding,
         search_results,
@@ -272,46 +280,39 @@ class AssistantChatApi(Resource):
     ):
         source_doc_info = self._parse_search_results(search_results)
 
-        if isinstance(llm_response, dict):
-            # if the LLM response is a dictionary with 'text_content' use that, as _log_interaction
-            # expects a string for llm_response
-            llm_response = llm_response["text_content"]
+        response = {"text_content": "".join(llm_response), "search_metadata": search_metadata}
 
         self._log_interaction(
             question,
-            llm_response,
+            response["text_content"],
             source_doc_info,
             embedding,
             session_uuid,
             interaction_id,
             client,
         )
-        return {"response": llm_response}, 200
-
-    def _extract_text_from_chunk(self, raw_chunk):
-        try:
-            # the raw_chunk is a string that looks like this:
-            # data: {"text_content": "Hello, how can I help you today?"}\r\n
-            # we need to extract the text_content from it for logging interactions
-            _, data = raw_chunk.split("data:")
-            return json.loads(data.strip()).get("text_content", "")
-        except Exception:
-            log.exception("error extracting text_content from chunk")
-            return ""
+        return response, 200
 
     # Looks like a silly function but it makes it easier to mock in tests
     def _interaction_storage_enabled(self) -> bool:
         return config.STORE_INTERACTIONS is True
 
     def _log_interaction(
-        self, question, response, source_doc_info, embedding, session_uuid, interaction_id, client
+        self,
+        question,
+        response_text,
+        source_doc_info,
+        embedding,
+        session_uuid,
+        interaction_id,
+        client,
     ):
         if self._interaction_storage_enabled() is False:
             return
         try:
             store_interaction(
                 question=question,
-                llm_response=response,
+                llm_response=response_text,
                 source_doc_chunks=source_doc_info,
                 question_embedding=embedding,
                 session_uuid=session_uuid,
