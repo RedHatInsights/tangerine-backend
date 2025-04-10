@@ -1,4 +1,3 @@
-import json
 import logging
 import time
 from typing import Generator
@@ -99,7 +98,7 @@ def _build_context(search_results: list[Document], content_char_limit: int = 0):
 def _get_response(
     prompt: ChatPromptTemplate,
     prompt_params: dict,
-) -> Generator[dict, None, None]:
+) -> Generator[str, None, None]:
     chat = ChatOpenAI(
         model=cfg.LLM_MODEL_NAME,
         openai_api_base=cfg.LLM_BASE_URL,
@@ -119,8 +118,7 @@ def _get_response(
                 # this is the first output token received
                 completion_start = time.time()
             if len(chunk.content):
-                text_content = {"text_content": chunk.content}
-                yield text_content
+                yield chunk.content
 
             # end for
             completion_end = time.time()
@@ -141,13 +139,9 @@ def rerank(query, search_results):
     )
     prompt_params = {"query": query, "context": context}
 
-    llm_response = _get_response(prompt, prompt_params)
+    llm_response, _ = _get_response(prompt, prompt_params)
 
-    response = ""
-    for data in llm_response:
-        if "text_content" in data:
-            response += data["text_content"]
-    return response
+    return "".join(llm_response)
 
 
 def ask(
@@ -155,9 +149,8 @@ def ask(
     previous_messages,
     question,
     search_results: list[Document],
-    stream,
     interaction_id=None,
-):
+) -> tuple[Generator[str, None, None], list[dict]]:
     log.debug("llm 'ask' request")
     search_context = ""
     search_metadata = []
@@ -189,23 +182,4 @@ def ask(
     prompt_params = {"context": search_context, "question": question}
     llm_response = _get_response(ChatPromptTemplate(msg_list), prompt_params)
 
-    def api_response_generator():
-        for data in llm_response:
-            yield f"data: {json.dumps(data)}\r\n"
-        # final piece of content returned is the search metadata
-        yield f"data: {json.dumps({'search_metadata': search_metadata})}\r\n"
-
-    if stream:
-        log.debug("streaming response...")
-        return api_response_generator
-
-    # else, if stream=False ...
-    response = {"text_content": None, "search_metadata": None}
-    for data in llm_response:
-        if "text_content" in data:
-            if response["text_content"] is None:
-                response["text_content"] = data["text_content"]
-            else:
-                response["text_content"] += data["text_content"]
-        response["search_metadata"] = search_metadata
-    return response
+    return llm_response, search_metadata
