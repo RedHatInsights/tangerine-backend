@@ -30,7 +30,6 @@ pypdf2 = "*"
 scikit-learn = "*"
 flask-migrate = "*"
 httpx-retries = "*"
-tangerine = {path = "."}
 
 [dev-packages]
 ipython = "*"
