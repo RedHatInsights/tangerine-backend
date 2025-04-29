@@ -343,6 +343,7 @@ def run(resync: bool = False) -> int:
     if resync:
         _purge_docs_with_agent_metadata()
 
+    compare_errors_for_assistant = {}
     download_errors_for_assistant = {}
     embed_errors_for_assistant = {}
 
@@ -358,14 +359,19 @@ def run(resync: bool = False) -> int:
             assistant = Assistant.create(**dict(assistant_config))
 
         # determine what changes need to be made
-        (
-            assistant_objects_to_delete,
-            files_to_insert,
-            metadata_update_args,
-            num_adding,
-            num_deleting,
-            num_updating,
-        ) = compare_files(assistant_config, assistant, sync_config.defaults, resync)
+        try:
+            (
+                assistant_objects_to_delete,
+                files_to_insert,
+                metadata_update_args,
+                num_adding,
+                num_deleting,
+                num_updating,
+            ) = compare_files(assistant_config, assistant, sync_config.defaults, resync)
+        except Exception as err:
+            log.exception("s3 sync: unexpected error when comparing files, moving on...")
+            compare_errors_for_assistant[assistant.id] = str(err)
+            continue
 
         log.info(
             "s3 sync: adding %d, deleting %d, updating %d, and %d metadata updates",
@@ -429,5 +435,11 @@ def run(resync: bool = False) -> int:
                 error_count,
             )
             exit_code = 1
+    for assistant_id, _ in compare_errors_for_assistant.items():
+        log.error(
+            "assistant %d hit errors during file comparison, check logs",
+            assistant_id,
+        )
+        exit_code = 1
 
     return exit_code
