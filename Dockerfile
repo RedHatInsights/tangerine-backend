@@ -32,10 +32,7 @@ COPY Pipfile.lock .
 
 RUN python3.12 -m venv .venv && \
     source .venv/bin/activate && \
-    python3.12 -m pip install --upgrade pip setuptools wheel && \
-    python3.12 -m pip install pipenv && \
-    pipenv install --system
-
+    python3.12 -m pip install --upgrade pip setuptools wheel pipenv
 
 ENV PATH="$APP_ROOT/.venv/bin:$PATH"
 
@@ -43,7 +40,7 @@ COPY pyproject.toml .
 COPY src ./src
 COPY migrations ./migrations
 COPY .flaskenv .
-RUN pipenv install .
+RUN pipenv install --system --deploy
 
 # remove devel packages that may have only been necessary for psycopg to compile
 RUN microdnf remove -y $( comm -13 packages-before-devel-install.txt packages-after-devel-install.txt ) && \
