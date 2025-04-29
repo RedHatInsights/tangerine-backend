@@ -439,7 +439,6 @@ def run(resync: bool = False) -> int:
         log.error(
             "assistant %d hit errors during file comparison, check logs",
             assistant_id,
-            error_count,
         )
         exit_code = 1
 
