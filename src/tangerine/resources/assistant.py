@@ -321,3 +321,28 @@ class AssistantChatApi(Resource):
             )
         except Exception:
             log.exception("Failed to log interaction")
+
+
+class AssistantSearchApi(Resource):
+    def post(self, id):
+        query = request.json.get("query")
+        assistant = self._get_assistant(id)
+        if not assistant:
+            return {"message": "assistant not found"}, 404
+
+        log.debug("querying vector DB")
+
+        embedding = self._embed_question(query)
+        search_results = self._get_search_results(assistant.id, query, embedding)
+
+        return [result.to_json() for result in search_results], 200
+
+    def _get_assistant(self, assistant_id):
+        return Assistant.get(assistant_id)
+
+    def _embed_question(self, question):
+        return embed_query(question)
+
+    @staticmethod
+    def _get_search_results(assistant_id, query, embedding):
+        return search_engine.search(assistant_id, query, embedding)

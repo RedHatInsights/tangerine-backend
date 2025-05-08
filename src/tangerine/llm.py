@@ -139,8 +139,7 @@ def rerank(query, search_results):
     )
     prompt_params = {"query": query, "context": context}
 
-    llm_response, _ = _get_response(prompt, prompt_params)
-
+    llm_response = _get_response(prompt, prompt_params)
     return "".join(llm_response)
 
 

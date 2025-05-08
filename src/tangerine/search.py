@@ -28,6 +28,17 @@ class SearchResult:
         self.rank = 0
         self.rrf_score = 0
 
+    def to_json(self):
+        return {
+            "document": {
+                "content": self.document.page_content,
+                "metadata": self.document.metadata,
+            },
+            "score": self.score,
+            "rank": self.rank,
+            "rrf_score": self.rrf_score,
+        }
+
 
 # Search providers let us swap out different search algorithms
 # without changing the interface
@@ -279,9 +290,8 @@ class SearchEngine:
         Uses the LLM to rank search results based on relevance.
         """
         response = llm.rerank(query, search_results)
-
         valid_rankings = list(range(0, len(search_results)))
-        rankings = [int(num) - 1 for num in response.split(",")]
+        rankings = [int(num.strip()) - 1 for num in response.split(",")]
         log.debug("model response rankings: %s, valid rankings: %s", rankings, valid_rankings)
         if not rankings or not all([r in valid_rankings for r in rankings]):
             raise ValueError(

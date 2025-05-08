@@ -459,5 +459,6 @@ The API can be used to create/manage/update assistants, upload documents, and to
 | `/api/assistants/<id>/chat`            | `POST`   | Chat with an assistant         |
 | `/api/assistants/<id>/documents`       | `POST`   | Assistant document uploads     |
 | `/api/assistants/<id>/documents`       | `DELETE` | Delete assistant documents     |
+| `/api/assistants/<id>/search`          | `POST`    | Perform search results             |
 | `/api/assistantDefaults`               | `GET`    | Get assistant default settings |
 | `/ping`                            | `GET`    | Health check endpoint      |
