@@ -44,6 +44,15 @@ EMBED_BASE_URL = os.getenv("EMBED_BASE_URL", "http://localhost:11434/v1")
 EMBED_API_KEY = os.getenv("EMBED_API_KEY", "EMPTY")
 EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME", "nomic-embed-text")
 
+ENABLE_JIRA_AGENT = _is_true("ENABLE_JIRA_AGENT")
+JIRA_AGENT_URL = os.getenv("JIRA_AGENT_URL", "https://localhost:11435/v1")
+
+ENABLE_WEB_RCA_AGENT = _is_true("ENABLE_WEB_RCA_AGENT")
+WEB_RCA_AGENT_URL = os.getenv("WEB_RCA_AGENT_URL", "https://localhost:11436/v1")
+WEB_RCA_AGENT_CLIENT_ID = os.getenv("WEB_RCA_AGENT_CLIENT_ID", "EMPTY")
+WEB_RCA_AGENT_CLIENT_SECRET = os.getenv("WEB_RCA_AGENT_CLIENT_SECRET", "EMPTY")
+SSO_URL = os.getenv("SSO_URL", "https://sso.foo.com")
+
 # for nomic: 'search_query'
 # for snowflake-arctic-embed-m-long: 'Represent this sentence for searching relevant passages'
 EMBED_QUERY_PREFIX = os.getenv("EMBED_QUERY_PREFIX", "search_query")
@@ -170,3 +179,64 @@ Please rank the search results from most to least relevant to the question, base
 Your output should be a comma-separated list of the document numbers, with no explanations or extra text.
 [/INST]
 """.strip()
+
+AGENTIC_ROUTER_PROMPT = """
+<s>[INST] You are an AI model specialized in **routing queries** to the appropriate agent based on the content of the query. 
+You will be provided with a query, and your task is to determine which agent is best suited to handle the query.
+
+### Agents List:
+1. JiraAgent: Used for handling queries realted to Jira users and their activities.
+2. WebRCAAgent: Used for handling queries related to Web RCA Incidents and their activities.
+3. ChatAgent: Used for handling general queries and providing answers based on the context.
+
+### Example Queries:
+
+#### JiraAgent:
+- What is the recent Jira activity of john_joe?
+- Can you fetch the Jira activity for rh-ee-john.doe and rh-ee-jane.doe?
+- What are the Jira activities for the users: rh-ee-john.doe, rh-ee-jane.doe, and rh-ee-jack.smith?
+#### WebRCAAgent:
+- What is the the status of incident ITN-2025-00125?
+- Can you provide the details of incident ITN-2025-00123?
+- What is the summary of web rca incident ITN-2025-00124?
+#### ChatAgent:
+- What is the best way to implement a new feature in our application?
+- Can you explain the process of deploying a new version of our software?
+- How do I troubleshoot a network issue in our system?
+### Output Instructions:
+- Your output must only consist of the name of the agent that is best suited to handle the query.
+- Do not provide any explanations, justifications, or commentary.
+- Do not include any extra text or remarks other than the agent name.
+- The output should strictly follow this format: `JiraAgent`, `WebRCAAgent`, or `ChatAgent`.
+
+### Example Output:
+- For the query "What is the recent Jira activity of john_joe?", the output should be `JiraAgent`.
+- For the query "What is the the status of incident ITN-2025-00125?", the output should be `WebRCAAgent`.
+- For the query "What is the best way to implement a new feature in our application?", the output should be `ChatAgent`.
+
+If you are unsure about which agent to choose, please select the `ChatAgent` as a fallback option. The questions the user asks doesn't have to exactly match the examples provided, but 
+rather they will be similar in nature. Use your best judgement to determine the most appropriate agent for the query.
+
+[/INST]
+""".replace("\n", " ").strip()
+
+AGENTIC_ROUTER_USER_PROMPT = """
+[INST]
+User's Question: {query}
+Please route this query to the appropriate agent based on the provided agents list and example queries.
+[/INST]
+""".replace("\n", " ").strip()
+
+JIRA_SUMMARIZER_SYSTEM_PROMPT = """
+<s>[INST] You are an AI model specialized in summarizing Jira activity for users. 
+Your task is to provide a concise summary of the Jira activity in the form of a structured report.
+You will be provided with a query containing the Jira activity broken down by users, 
+and your task is to summarize the activity for each user and aggregate it into a single structured report.
+[/INST]
+"""
+JIRA_SUMMARIZER_USER_PROMPT = """
+[INST]
+User's Question: {query}
+Please summarize the Jira activity provided in the query.
+[/INST]
+""".replace("\n", " ").strip()

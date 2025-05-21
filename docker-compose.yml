@@ -32,7 +32,7 @@ services:
       depends_on:
         postgres:
           condition: service_healthy
-  ollama:
+  #ollama:
     # --- NVIDIA GPU ---
     # read https://hub.docker.com/r/ollama/ollama, install toolkit, and uncomment below
     # ------------------
@@ -60,20 +60,20 @@ services:
     # --- AMD GPU ---
     # change below to 'ollama/ollama:0.5.5-rocm'
     # ---------------
-    image: ollama/ollama:0.5.5
+    #image: ollama/ollama:0.5.5
 
-    container_name: tangerine-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ./data/ollama:/root/.ollama
-    healthcheck:
-      test: "bash -c 'cat < /dev/null > /dev/tcp/localhost/11434'"
-      start_period: 10s
-      start_interval: 1s
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    #container_name: tangerine-ollama
+    #ports:
+    #  - "11434:11434"
+    #volumes:
+    #  - ./data/ollama:/root/.ollama
+    #healthcheck:
+    #  test: "bash -c 'cat < /dev/null > /dev/tcp/localhost/11434'"
+    #  start_period: 10s
+    #  start_interval: 1s
+    #  interval: 10s
+    #  timeout: 5s
+    #  retries: 5
 
   # uncomment to use huggingface text-embeddings-inference
   #embeddings-service:
@@ -101,7 +101,7 @@ services:
       dockerfile: Dockerfile
     command: /bin/bash -c 'flask db upgrade && flask run'
     ports:
-      - "8000:8000"
+      - "8080:8000"
     environment:
       - DB_HOST=postgres
       - DB_USERNAME=citrus
