@@ -31,7 +31,7 @@ class WebRCAAgent:
         else:
             # Handle the error
             print(f"Error: {response.status_code}")
-            return None
+            return "I tried getting info from Web RCA, but something went wrong."
 
     def _find_incidents(self, query: str) -> str:
         # Matches patterns like ITN-2024-12345, optionally followed by punctuation

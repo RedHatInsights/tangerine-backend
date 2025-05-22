@@ -38,7 +38,7 @@ class JiraAgent:
         else:
             # Handle the error
             print(f"Error: {response.status_code}")
-            return None
+            return "I tried getting info from Jira, but something went wrong."
 
     def _higher_order_summary(self, summaries: str) -> str:
         # This function takes a list of summaries and returns a higher order summary
