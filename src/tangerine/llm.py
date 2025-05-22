@@ -144,6 +144,7 @@ def rerank(query, search_results):
     llm_response = get_response(prompt, prompt_params)
     return "".join(llm_response)
 
+
 def identify_agent(query):
     log.debug("llm 'identify_agent' request")
     prompt = ChatPromptTemplate(
@@ -165,14 +166,14 @@ def ask(
     log.debug("llm 'ask' request")
     search_context = ""
     search_metadata = []
-    
+
     agent = identify_agent(question)
     print(f"identified agent: {agent}")
     match agent.strip():
-        case 'JiraAgent':
+        case "JiraAgent":
             if cfg.ENABLE_JIRA_AGENT:
                 return JiraAgent().fetch(question), search_metadata
-        case 'WebRCAAgent':
+        case "WebRCAAgent":
             if cfg.ENABLE_WEB_RCA_AGENT:
                 return WebRCAAgent().fetch(question), search_metadata
 

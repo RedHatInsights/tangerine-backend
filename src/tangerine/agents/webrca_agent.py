@@ -3,7 +3,8 @@ import urllib
 import tangerine.config as cfg
 import requests
 
-class WebRCAAgent():
+
+class WebRCAAgent:
     def __init__(self):
         self.url = cfg.WEB_RCA_AGENT_URL
 
@@ -12,7 +13,12 @@ class WebRCAAgent():
         query_url = f"{self.url}/incidents?public_id={incidents}"
         token = self._get_token()
         # Perform the GET request
-        response = requests.get(query_url, headers={"Authorization": f"Bearer {token}"},params={"query": query}, timeout=120)
+        response = requests.get(
+            query_url,
+            headers={"Authorization": f"Bearer {token}"},
+            params={"query": query},
+            timeout=120,
+        )
         # Check if the request was successful
         if response.status_code == 200:
             # Parse the JSON response
@@ -24,7 +30,7 @@ class WebRCAAgent():
             # Handle the error
             print(f"Error: {response.status_code}")
             return None
-        
+
     def _find_incidents(self, query: str) -> str:
         # Matches patterns like ITN-2024-12345, optionally followed by punctuation
         matches = re.findall(r"\bITN-\d{4}-\d+\b", query, re.IGNORECASE)
