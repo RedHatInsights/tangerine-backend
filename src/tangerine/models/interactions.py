@@ -88,6 +88,7 @@ class Interaction(db.Model):
     source_doc_chunks = db.Column(db.JSON)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
     client = db.Column(db.String(50), nullable=True)
+    user  = db.Column(db.String(50), nullable=True)
 
 
 def insert(model, name="DB Model"):
