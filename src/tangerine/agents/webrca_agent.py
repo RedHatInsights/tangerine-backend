@@ -1,7 +1,9 @@
 import re
 import urllib
-import tangerine.config as cfg
+
 import requests
+
+import tangerine.config as cfg
 
 
 class WebRCAAgent:

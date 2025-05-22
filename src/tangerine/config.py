@@ -181,7 +181,7 @@ Your output should be a comma-separated list of the document numbers, with no ex
 """.strip()
 
 AGENTIC_ROUTER_PROMPT = """
-<s>[INST] You are an AI model specialized in **routing queries** to the appropriate agent based on the content of the query. 
+<s>[INST] You are an AI model specialized in **routing queries** to the appropriate agent based on the content of the query.
 You will be provided with a query, and your task is to determine which agent is best suited to handle the query.
 
 ### Agents List:
@@ -214,7 +214,7 @@ You will be provided with a query, and your task is to determine which agent is 
 - For the query "What is the the status of incident ITN-2025-00125?", the output should be `WebRCAAgent`.
 - For the query "What is the best way to implement a new feature in our application?", the output should be `ChatAgent`.
 
-If you are unsure about which agent to choose, please select the `ChatAgent` as a fallback option. The questions the user asks doesn't have to exactly match the examples provided, but 
+If you are unsure about which agent to choose, please select the `ChatAgent` as a fallback option. The questions the user asks doesn't have to exactly match the examples provided, but
 rather they will be similar in nature. Use your best judgement to determine the most appropriate agent for the query.
 
 [/INST]
@@ -228,9 +228,9 @@ Please route this query to the appropriate agent based on the provided agents li
 """.replace("\n", " ").strip()
 
 JIRA_SUMMARIZER_SYSTEM_PROMPT = """
-<s>[INST] You are an AI model specialized in summarizing Jira activity for users. 
+<s>[INST] You are an AI model specialized in summarizing Jira activity for users.
 Your task is to provide a concise summary of the Jira activity in the form of a structured report.
-You will be provided with a query containing the Jira activity broken down by users, 
+You will be provided with a query containing the Jira activity broken down by users,
 and your task is to summarize the activity for each user and aggregate it into a single structured report.
 [/INST]
 """

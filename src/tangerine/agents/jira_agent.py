@@ -1,10 +1,10 @@
-import requests
 import nltk
+import requests
+from langchain_core.prompts import ChatPromptTemplate
 from nltk.corpus import words
+
 import tangerine.config as cfg
 import tangerine.llm as llm
-from langchain_core.prompts import ChatPromptTemplate
-
 
 # Ensure the corpus is downloaded
 nltk.download("words", quiet=True)
