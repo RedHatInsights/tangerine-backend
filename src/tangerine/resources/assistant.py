@@ -157,7 +157,7 @@ class AssistantChatApi(Resource):
             return {"message": "assistant not found"}, 404
 
         log.debug("querying vector DB")
-        question, session_uuid, stream, previous_messages, interaction_id, client = (
+        question, session_uuid, stream, previous_messages, interaction_id, client, user = (
             self._extract_request_data()
         )
         embedding = self._embed_question(question)
@@ -176,6 +176,7 @@ class AssistantChatApi(Resource):
                 session_uuid,
                 interaction_id,
                 client,
+                user
             )
 
         return self._handle_standard_response(
@@ -187,6 +188,7 @@ class AssistantChatApi(Resource):
             session_uuid,
             interaction_id,
             client,
+            user
         )
 
     def _get_assistant(self, assistant_id):
@@ -199,7 +201,8 @@ class AssistantChatApi(Resource):
         previous_messages = request.json.get("prevMsgs")
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
-        return question, session_uuid, stream, previous_messages, interaction_id, client
+        user = request.json.get("user", "unknown")
+        return question, session_uuid, stream, previous_messages, interaction_id, client, user
 
     def _embed_question(self, question):
         return embed_query(question)
@@ -239,6 +242,7 @@ class AssistantChatApi(Resource):
         session_uuid,
         interaction_id,
         client,
+        user
     ):
         source_doc_info = self._parse_search_results(search_results)
 
@@ -263,6 +267,7 @@ class AssistantChatApi(Resource):
                 session_uuid,
                 interaction_id,
                 client,
+                user
             )
 
         return Response(stream_with_context(__api_response_generator()))
@@ -277,6 +282,7 @@ class AssistantChatApi(Resource):
         session_uuid,
         interaction_id,
         client,
+        user
     ):
         source_doc_info = self._parse_search_results(search_results)
 
@@ -290,6 +296,7 @@ class AssistantChatApi(Resource):
             session_uuid,
             interaction_id,
             client,
+            user
         )
         return response, 200
 
@@ -306,6 +313,7 @@ class AssistantChatApi(Resource):
         session_uuid,
         interaction_id,
         client,
+        user
     ):
         if self._interaction_storage_enabled() is False:
             return
@@ -318,6 +326,7 @@ class AssistantChatApi(Resource):
                 session_uuid=session_uuid,
                 interaction_id=interaction_id,
                 client=client,
+                user=user,
             )
         except Exception:
             log.exception("Failed to log interaction")

@@ -88,6 +88,7 @@ class Interaction(db.Model):
     source_doc_chunks = db.Column(db.JSON)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
     client = db.Column(db.String(50), nullable=True)
+    user  = db.Column(db.String(50), nullable=True)
 
 
 def insert(model, name="DB Model"):
@@ -110,6 +111,7 @@ def store_interaction(
     session_uuid=None,
     interaction_id=None,
     client=None,
+    user=None,
 ):
     """
     Logs a RAG interaction and its question embedding into the database.
@@ -133,6 +135,7 @@ def store_interaction(
         llm_response=llm_response,
         source_doc_chunks=source_doc_chunks,
         client=client,
+        user=user,
     )
     interaction = insert(interaction, "Interaction")
 
