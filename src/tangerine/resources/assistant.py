@@ -334,6 +334,10 @@ class AssistantChatApi(Resource):
 
 
 class AssistantAdvancedChatApi(AssistantChatApi):
+    """
+    API for advanced assistant chat supporting multiple assistants,
+    external chunk injection, and model override.
+    """
     def _convert_chunk_array_to_documents(self, chunks):
         """
         Converts an array of chunks into a list of Document objects.
@@ -364,7 +368,10 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         previous_messages = request.json.get("prevMsgs")
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
-        model = MODELS.get(request.json.get("model", "default"), DEFAULT_MODEL)
+        model_name = request.json.get("model", "default")
+        model = MODELS.get(model_name)
+        if model is None:
+            return {"message": f"Unknown model: {model_name}"}, 400
         embedding = embed_query(question)
         chunks = request.json.get("chunks", None)
         if chunks:

@@ -110,7 +110,7 @@ def _get_response(
     if model:
         # If a specific model configuration is provided, override the default
         chat = ChatOpenAI(
-            model=model.get("model_name", cfg.LLM_MODEL_NAME),
+            model=model.get("name", cfg.LLM_MODEL_NAME),
             openai_api_base=model.get("base_url", cfg.LLM_BASE_URL),
             openai_api_key=model.get("api_key", cfg.LLM_API_KEY),
             temperature=model.get("temperature", cfg.LLM_TEMPERATURE),
@@ -162,7 +162,7 @@ def ask_advanced(
     prompt: str = None,
     model: dict = None,
 ) -> tuple[Generator[str, None, None], list[dict]]:
-    log.debug("llm 'ask' request")
+    log.debug("llm 'ask_advanced' request")
     search_context = ""
     search_metadata = []
 
@@ -195,7 +195,7 @@ def ask_advanced(
     msg_list.append(("human", cfg.USER_PROMPT_TEMPLATE))
 
     prompt_params = {"context": search_context, "question": question}
-    llm_response = _get_response(ChatPromptTemplate(msg_list), prompt_params)
+    llm_response = _get_response(ChatPromptTemplate(msg_list), prompt_params, model)
 
     return llm_response, search_metadata
 
