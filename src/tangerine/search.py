@@ -18,11 +18,9 @@ from .vector import vector_db
 
 log = logging.getLogger("tangerine.search")
 
-
 DEFAULT_FILTER = {
     "active": "True",
 }
-
 
 class SearchResult:
     """Class to hold search results with document and scores."""
