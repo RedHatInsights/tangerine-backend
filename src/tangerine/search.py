@@ -23,6 +23,7 @@ DEFAULT_FILTER = {
     "active": "True",
 }
 
+
 class SearchResult:
     """Class to hold search results with document and scores."""
 
@@ -136,11 +137,10 @@ class FTSPostgresSearchProvider(SearchProvider):
     def _execute_query(self, assistant_ids, query, _embedding):
         fts_query = text(self.sql_query).bindparams(
             bindparam("query", value=query),
-            bindparam("assistant_ids", value=assistant_ids, type_=ARRAY(String))
-        )  
+            bindparam("assistant_ids", value=assistant_ids, type_=ARRAY(String)),
+        )
         results = db.session.execute(fts_query).fetchall()
         return results
-    
 
     def search(self, assistant_ids, query, embedding) -> list[SearchResult]:
         """Run full-text search over langchain_pg_embedding table."""
@@ -148,7 +148,7 @@ class FTSPostgresSearchProvider(SearchProvider):
         if not isinstance(assistant_ids, list):
             assistant_ids = [assistant_ids]
         try:
-            results  = self._execute_query(assistant_ids, query, embedding)
+            results = self._execute_query(assistant_ids, query, embedding)
         except Exception:
             log.exception("error running fts search")
 
@@ -156,6 +156,7 @@ class FTSPostgresSearchProvider(SearchProvider):
             return []
 
         return self._process_results(results)
+
 
 class MMRSearchProvider(SearchProvider):
     """Maximal Marginal Relevance (MMR) Search Provider."""
@@ -180,7 +181,6 @@ class SimilaritySearchProvider(SearchProvider):
     RETRIEVAL_METHOD = "similarity"
 
     def search(self, assistant_ids, query, embedding) -> list[SearchResult]:
-
         search_filter = vector_db.get_search_filter(assistant_ids)
 
         results = vector_db.store.similarity_search_with_score_by_vector(
@@ -203,7 +203,6 @@ class HybridSearchProvider(SearchProvider):
         self._load_sql_file()
 
     def _execute_query(self, assistant_ids, query, embedding):
-
         if not isinstance(assistant_ids, list):
             assistant_ids = [assistant_ids]
 
@@ -317,7 +316,6 @@ class SearchEngine:
             search_result.rrf_score = 1 / (1 + search_result.rank)  # for compatability
             sorted_results.append(search_result)
 
-
         return sorted_results
 
     def _sort_using_rrf(self, results: list[SearchResult]):
@@ -339,7 +337,7 @@ class SearchEngine:
         sorted_results = sorted(deduped_results, key=lambda r: r.rrf_score, reverse=True)
 
         return sorted_results
-    
+
     def search(self, assistant_ids, query, embedding=None):
         results = []
         embedding = embedding or embed_query(query)

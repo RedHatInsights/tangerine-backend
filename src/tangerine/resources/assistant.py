@@ -12,7 +12,7 @@ from tangerine.config import DEFAULT_SYSTEM_PROMPT
 from tangerine.embeddings import embed_query
 from tangerine.models.assistant import Assistant
 from tangerine.models.interactions import store_interaction
-from tangerine.search import search_engine
+from tangerine.search import search_engine, SearchResult
 from tangerine.utils import File, add_filenames_to_assistant, embed_files, remove_files
 from tangerine.vector import vector_db
 
@@ -157,8 +157,6 @@ class AssistantDocuments(Resource):
         return {"message": f"{count} document(s) deleted", "count": count, "deleted": deleted}, 200
 
 
-        
-        
 class AssistantChatApi(Resource):
     @staticmethod
     def _is_streaming_response(stream):
@@ -337,18 +335,26 @@ class AssistantChatApi(Resource):
 
 
 class AssistantAdvancedChatApi(AssistantChatApi):
+    def _convert_chunk_array_to_documents(self, chunks):
+        """
+        Converts an array of chunks into a list of Document objects.
+        """
+        return [
+            SearchResult(document=Document(page_content=chunk, metadata={}), score=1)
+            for chunk in chunks
+        ]
 
     def post(self, _id=None):
         assistant_names = request.json.get("assistants")
         assistants = []
-        
+
         if not assistant_names:
             return {"message": "assistant name(s) required"}, 400
         try:
             assistants = self._get_assistants(assistant_names)
         except ValueError as err:
             return {"message": str(err)}, 400
-        
+
         assistant_ids = [assistant.id for assistant in assistants]
         question = request.json.get("query")
         if not question:
@@ -361,7 +367,10 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         client = request.json.get("client", "unknown")
         model = MODELS.get(request.json.get("model", "default"), DEFAULT_MODEL)
         embedding = embed_query(question)
-        search_results = search_engine.search(assistant_ids, question, embedding)
+        chunks = request.json.get("chunks", None)
+        if chunks:
+            chunks = self._convert_chunk_array_to_documents(request.json.get("chunks"))
+        search_results = chunks or search_engine.search(assistant_ids, question, embedding)
         llm_response, search_metadata = llm.ask_advanced(
             assistants,
             previous_messages,
@@ -393,6 +402,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
             interaction_id,
             client,
         )
+
     def _get_assistants(self, assistant_names):
         assistants = []
         for name in assistant_names:

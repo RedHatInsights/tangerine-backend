@@ -152,13 +152,14 @@ def rerank(query, search_results):
     llm_response = _get_response(prompt, prompt_params)
     return "".join(llm_response)
 
+
 def ask_advanced(
     assistants: list[Assistant],
     previous_messages,
     question,
     search_results: list[Document],
     interaction_id=None,
-    prompt: str=None,
+    prompt: str = None,
     model: dict = None,
 ) -> tuple[Generator[str, None, None], list[dict]]:
     log.debug("llm 'ask' request")
