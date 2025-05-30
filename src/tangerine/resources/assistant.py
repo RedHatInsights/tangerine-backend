@@ -12,11 +12,22 @@ from tangerine.config import DEFAULT_SYSTEM_PROMPT
 from tangerine.embeddings import embed_query
 from tangerine.models.assistant import Assistant
 from tangerine.models.interactions import store_interaction
-from tangerine.search import search_engine
+from tangerine.search import SearchResult, search_engine
 from tangerine.utils import File, add_filenames_to_assistant, embed_files, remove_files
 from tangerine.vector import vector_db
 
 log = logging.getLogger("tangerine.resources")
+
+MODELS = {
+    "default": {
+        "base_url": config.LLM_BASE_URL,
+        "name": config.LLM_MODEL_NAME,
+        "api_key": config.LLM_API_KEY,
+        "temperature": config.LLM_TEMPERATURE,
+    }
+}
+
+DEFAULT_MODEL = MODELS["default"]
 
 
 class AssistantDefaultsApi(Resource):
@@ -161,7 +172,7 @@ class AssistantChatApi(Resource):
             self._extract_request_data()
         )
         embedding = self._embed_question(question)
-        search_results = self._get_search_results(assistant.id, question, embedding)
+        search_results = self._get_search_results([assistant.id], question, embedding)
         llm_response, search_metadata = self._call_llm(
             assistant, previous_messages, question, search_results, interaction_id
         )
@@ -321,6 +332,96 @@ class AssistantChatApi(Resource):
             )
         except Exception:
             log.exception("Failed to log interaction")
+
+
+class AssistantAdvancedChatApi(AssistantChatApi):
+    """
+    API for advanced assistant chat supporting multiple assistants,
+    external chunk injection, and model override.
+    """
+
+    def _convert_chunk_array_to_documents(self, chunks):
+        """
+        Converts an array of chunks into a list of Document objects.
+        """
+        return [
+            SearchResult(document=Document(page_content=chunk, metadata={}), score=1)
+            for chunk in chunks
+        ]
+
+    def post(self, _id=None):
+        assistant_names = request.json.get("assistants")
+        assistants = []
+
+        if not assistant_names:
+            return {"message": "assistant name(s) required"}, 400
+        try:
+            assistants = self._get_assistants(assistant_names)
+        except ValueError as err:
+            return {"message": str(err)}, 400
+
+        assistant_ids = [assistant.id for assistant in assistants]
+        question = request.json.get("query")
+        if not question:
+            return {"message": "query is required"}, 400
+        system_prompt = request.json.get("system_prompt", DEFAULT_SYSTEM_PROMPT)
+        session_uuid = request.json.get("sessionId", str(uuid.uuid4()))
+        stream = request.json.get("stream", "true") == "true"
+        previous_messages = request.json.get("prevMsgs")
+        interaction_id = request.json.get("interactionId", None)
+        client = request.json.get("client", "unknown")
+        model_name = request.json.get("model", "default")
+        model = MODELS.get(model_name)
+        if model is None:
+            return {"message": f"Unknown model: {model_name}"}, 400
+        embedding = embed_query(question)
+        chunks = request.json.get("chunks", None)
+        if chunks:
+            chunks = self._convert_chunk_array_to_documents(request.json.get("chunks"))
+        search_results = chunks or search_engine.search(assistant_ids, question, embedding)
+        llm_response, search_metadata = llm.ask_advanced(
+            assistants,
+            previous_messages,
+            question,
+            search_results,
+            interaction_id=interaction_id,
+            prompt=system_prompt,
+            model=model,
+        )
+        if self._is_streaming_response(stream):
+            return self._handle_streaming_response(
+                llm_response,
+                search_metadata,
+                question,
+                embedding,
+                search_results,
+                session_uuid,
+                interaction_id,
+                client,
+            )
+
+        return self._handle_standard_response(
+            llm_response,
+            search_metadata,
+            question,
+            embedding,
+            search_results,
+            session_uuid,
+            interaction_id,
+            client,
+        )
+
+    def _get_assistants(self, assistant_names):
+        assistants = []
+        for name in assistant_names:
+            assistant = Assistant.get_by_name(name)
+            if not assistant:
+                raise ValueError(f"Assistant '{name}' not found")
+            assistants.append(assistant)
+        return assistants
+
+    def _get_assistant_ids(self, assistants):
+        return [assistant.id for assistant in assistants]
 
 
 class AssistantSearchApi(Resource):
