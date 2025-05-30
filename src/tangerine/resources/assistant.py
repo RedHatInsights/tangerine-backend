@@ -29,7 +29,6 @@ MODELS = {
 
 DEFAULT_MODEL = MODELS["default"]
 
-
 class AssistantDefaultsApi(Resource):
     def get(self):
         return {"system_prompt": DEFAULT_SYSTEM_PROMPT}, 200
