@@ -98,6 +98,7 @@ def _build_context(search_results: list[Document], content_char_limit: int = 0):
 def _get_response(
     prompt: ChatPromptTemplate,
     prompt_params: dict,
+    model: dict = None,
 ) -> Generator[str, None, None]:
     chat = ChatOpenAI(
         model=cfg.LLM_MODEL_NAME,
@@ -106,6 +107,15 @@ def _get_response(
         temperature=cfg.LLM_TEMPERATURE,
         stream_usage=True,
     )
+    if model:
+        # If a specific model configuration is provided, override the default
+        chat = ChatOpenAI(
+            model=model.get("model_name", cfg.LLM_MODEL_NAME),
+            openai_api_base=model.get("base_url", cfg.LLM_BASE_URL),
+            openai_api_key=model.get("api_key", cfg.LLM_API_KEY),
+            temperature=model.get("temperature", cfg.LLM_TEMPERATURE),
+            stream_usage=True,
+        )
 
     chain = prompt | chat
 
@@ -141,6 +151,52 @@ def rerank(query, search_results):
 
     llm_response = _get_response(prompt, prompt_params)
     return "".join(llm_response)
+
+def ask_advanced(
+    assistants: list[Assistant],
+    previous_messages,
+    question,
+    search_results: list[Document],
+    interaction_id=None,
+    prompt: str=None,
+    model: dict = None,
+) -> tuple[Generator[str, None, None], list[dict]]:
+    log.debug("llm 'ask' request")
+    search_context = ""
+    search_metadata = []
+
+    if len(search_results) == 0:
+        log.debug("given 0 search results")
+        search_context = "No matching search results found"
+        for assistant in assistants:
+            # Increment no answer counter for each assistant
+            llm_no_answer.labels(assistant_id=assistant.id, assistant_name=assistant.name).inc()
+    else:
+        search_context, search_metadata = _build_context(search_results)
+        for assistant in assistants:
+            # Increment response counter for each assistant
+            assistant_response_counter.labels(
+                assistant_id=assistant.id, assistant_name=assistant.name
+            ).inc()
+
+    if not search_metadata:
+        search_metadata = [{}]
+    for m in search_metadata:
+        m["interactionId"] = interaction_id
+
+    msg_list = [("system", prompt or cfg.DEFAULT_SYSTEM_PROMPT)]
+    if previous_messages:
+        for msg in previous_messages:
+            if msg["sender"] == "human":
+                msg_list.append(("human", f"[INST] {msg['text']} [/INST]"))
+            if msg["sender"] == "ai":
+                msg_list.append(("ai", f"{msg['text']}</s>"))
+    msg_list.append(("human", cfg.USER_PROMPT_TEMPLATE))
+
+    prompt_params = {"context": search_context, "question": question}
+    llm_response = _get_response(ChatPromptTemplate(msg_list), prompt_params)
+
+    return llm_response, search_metadata
 
 
 def ask(
