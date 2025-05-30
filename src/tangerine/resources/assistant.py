@@ -12,7 +12,7 @@ from tangerine.config import DEFAULT_SYSTEM_PROMPT
 from tangerine.embeddings import embed_query
 from tangerine.models.assistant import Assistant
 from tangerine.models.interactions import store_interaction
-from tangerine.search import search_engine, SearchResult
+from tangerine.search import SearchResult, search_engine
 from tangerine.utils import File, add_filenames_to_assistant, embed_files, remove_files
 from tangerine.vector import vector_db
 
@@ -28,6 +28,7 @@ MODELS = {
 }
 
 DEFAULT_MODEL = MODELS["default"]
+
 
 class AssistantDefaultsApi(Resource):
     def get(self):
@@ -338,6 +339,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
     API for advanced assistant chat supporting multiple assistants,
     external chunk injection, and model override.
     """
+
     def _convert_chunk_array_to_documents(self, chunks):
         """
         Converts an array of chunks into a list of Document objects.

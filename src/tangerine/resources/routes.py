@@ -1,11 +1,11 @@
 from .assistant import (
+    AssistantAdvancedChatApi,
     AssistantApi,
     AssistantChatApi,
     AssistantDefaultsApi,
     AssistantDocuments,
     AssistantsApi,
     AssistantSearchApi,
-    AssistantAdvancedChatApi,
 )
 from .feedback import FeedbackApi
 from .ping import PingApi

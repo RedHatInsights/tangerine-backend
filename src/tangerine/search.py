@@ -3,11 +3,11 @@ import logging
 from abc import ABC, abstractmethod
 
 from langchain_core.documents import Document
+from pgvector.sqlalchemy import Vector
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from sqlalchemy import text, bindparam
-from sqlalchemy.types import ARRAY, String, Float
-from pgvector.sqlalchemy import Vector
+from sqlalchemy import bindparam, text
+from sqlalchemy.types import ARRAY, String
 
 import tangerine.config as cfg
 import tangerine.llm as llm
@@ -21,6 +21,7 @@ log = logging.getLogger("tangerine.search")
 DEFAULT_FILTER = {
     "active": "True",
 }
+
 
 class SearchResult:
     """Class to hold search results with document and scores."""
