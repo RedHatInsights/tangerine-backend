@@ -19,7 +19,10 @@
                 "LLM_MODEL_NAME": "mistral",
                 "EMBED_MODEL_NAME": "nomic-embed-text",
                 "STORE_INTERACTIONS": "true",
-                "ENABLE_HYBRID_SEARCH": "true",
+                "ENABLE_HYBRID_SEARCH": "false",
+                "ENABLE_FULL_TEXT_SEARCH": "true",
+                "ENABLE_MMR_SEARCH": "false",
+                "ENABLE_SIMILARITY_SEARCH": "false",
             },
             "args": [
                 "run",
