@@ -271,8 +271,10 @@ class VectorStoreInterface:
         metadata = {"active": str(active), "pending_removal": str(pending_removal)}
         self.update_cmetadata(metadata, search_filter)
 
-    def get_search_filter(self, assistant_id):
-        return {"assistant_id": str(assistant_id), "active": "True"}
+    def get_search_filter(self, assistant_ids):
+        if not isinstance(assistant_ids, list):
+            assistant_ids = [assistant_ids]
+        return {"assistant_id": {"$in": assistant_ids}, "active": "True"}
 
 
 vector_db = VectorStoreInterface()
