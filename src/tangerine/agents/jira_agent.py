@@ -1,16 +1,9 @@
-import nltk
 import requests
 from langchain_core.prompts import ChatPromptTemplate
-from nltk.corpus import words
 
 import tangerine.config as cfg
 import tangerine.llm as llm
 
-# Ensure the corpus is downloaded
-nltk.download("words", quiet=True)
-
-# Load English words into a set for fast lookup
-english_words = set(words.words())
 
 
 class JiraAgent:
@@ -62,7 +55,7 @@ class JiraAgent:
             token
             for token in tokens
             if token
-            and token not in english_words
+            and token not in cfg.ENGLISH_WORDS
             and token not in ["jira", "issue", "issues", "project", "projects"]
         ]
         # strip every username of any special characters

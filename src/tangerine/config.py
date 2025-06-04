@@ -1,7 +1,8 @@
 # flake8: noqa: E501
 
 import os
-
+import nltk
+from nltk.corpus import words
 
 def _is_true(env_var):
     return str(os.getenv(env_var, "false")).lower() in [
@@ -10,6 +11,10 @@ def _is_true(env_var):
         "true",
     ]
 
+
+# Ensure the corpus is downloaded
+nltk.download("words", quiet=True)
+ENGLISH_WORDS = set(words.words())
 
 LOG_LEVEL_GLOBAL = os.getenv("LOG_LEVEL_GLOBAL", "INFO").upper()
 LOG_LEVEL_APP = os.getenv("LOG_LEVEL_APP", "DEBUG").upper()
