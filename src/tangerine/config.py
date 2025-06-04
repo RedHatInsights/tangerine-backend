@@ -237,6 +237,7 @@ JIRA_SUMMARIZER_SYSTEM_PROMPT = """
 Your task is to provide a concise summary of the Jira activity in the form of a structured report.
 You will be provided with a query containing the Jira activity broken down by users,
 and your task is to summarize the activity for each user and aggregate it into a single structured report.
+Ensure that your response is valid markdown.
 [/INST]
 """
 JIRA_SUMMARIZER_USER_PROMPT = """

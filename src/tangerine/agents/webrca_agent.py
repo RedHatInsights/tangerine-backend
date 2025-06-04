@@ -1,10 +1,12 @@
 import re
 import urllib
+import logging
 
 import requests
 
 import tangerine.config as cfg
 
+log = logging.getLogger("tangerine.agents.webrca_agent")
 
 class WebRCAAgent:
     def __init__(self):
@@ -14,13 +16,17 @@ class WebRCAAgent:
         incidents = self._find_incidents(query)
         query_url = f"{self.url}/incidents?public_id={incidents}"
         token = self._get_token()
-        # Perform the GET request
-        response = requests.get(
-            query_url,
-            headers={"Authorization": f"Bearer {token}"},
-            params={"query": query},
-            timeout=120,
-        )
+        try:
+            # Perform the GET request
+            response = requests.get(
+                query_url,
+                headers={"Authorization": f"Bearer {token}"},
+                params={"query": query},
+                timeout=120,
+            )
+        except Exception as e:
+            log.error("Error connecting to Web RCA: %s", e)
+            return "I tried getting info from Web RCA, but something went wrong. I couldn't connect to the server."
         # Check if the request was successful
         if response.status_code == 200:
             # Parse the JSON response
@@ -30,7 +36,7 @@ class WebRCAAgent:
             return "\n".join(ai_summaies)
         else:
             # Handle the error
-            print(f"Error: {response.status_code}")
+            log.error("HTTP %d response for GET to %s", response.status_code, query_url)
             return "I tried getting info from Web RCA, but something went wrong."
 
     def _find_incidents(self, query: str) -> str:

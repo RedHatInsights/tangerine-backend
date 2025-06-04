@@ -1,10 +1,11 @@
 import requests
 from langchain_core.prompts import ChatPromptTemplate
+import logging
 
 import tangerine.config as cfg
 import tangerine.llm as llm
 
-
+log = logging.getLogger("tangerine.models.interactions")
 
 class JiraAgent:
     def __init__(self):
@@ -16,7 +17,11 @@ class JiraAgent:
         users = ",".join(user_list)
         query_url = f"{self.url}/?users={users}"
         # Perform the GET request
-        response = requests.get(query_url, timeout=120)
+        try:
+            response = requests.get(query_url, timeout=120)
+        except Exception as e:
+            log.error("Error connecting to Jira: %s", e)
+            return "I tried getting info from Jira, but something went wrong. I couldn't connect to the server."
         # Check if the request was successful
         if response.status_code == 200:
             # Parse the JSON response
@@ -30,7 +35,7 @@ class JiraAgent:
             return return_value
         else:
             # Handle the error
-            print(f"Error: {response.status_code}")
+            log.error("HTTP %d response for GET to %s", response.status_code, query_url)            
             return "I tried getting info from Jira, but something went wrong."
 
     def _higher_order_summary(self, summaries: str) -> str:

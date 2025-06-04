@@ -225,7 +225,7 @@ def ask(
     search_metadata = []
 
     agent = identify_agent(question)
-    print(f"identified agent: {agent}")
+    log.debug("identified agent: %s", agent)
     match agent.strip():
         case "JiraAgent":
             if cfg.ENABLE_JIRA_AGENT:
