@@ -4,6 +4,8 @@ import uuid
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects.postgresql import UUID
 
+from sqlalchemy import text
+
 from tangerine.db import db
 
 log = logging.getLogger("tangerine.models.interactions")
@@ -77,7 +79,6 @@ def store_user_feedback(
     insert(feedback_record, "Feedback")
     return feedback_record.id
 
-
 class Interaction(db.Model):
     __tablename__ = "interactions"
 
@@ -88,7 +89,44 @@ class Interaction(db.Model):
     source_doc_chunks = db.Column(db.JSON)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
     client = db.Column(db.String(50), nullable=True)
-    user  = db.Column(db.String(50), nullable=True)
+    user_id  = db.Column(db.String(50), nullable=True)
+    
+    @classmethod
+    def get_user_sessions(user_id):
+        """
+        Get all sessions for a user
+        Args:
+            user_id (str): The ID of the user whose sessions are to be retrieved.
+        """
+        query = text(
+            """
+            SELECT DISTINCT ON (session_uuid) *
+            FROM interactions
+            WHERE user_id = :user_id
+            ORDER BY timestamp ASC;
+            """
+        )
+        result = db.session.execute(query, {"user_id": user_id})
+        return result.fetchall()
+    
+    @classmethod
+    def get_session_interactions(user_id, session_uuid):
+        """
+        Get all interactions for a session
+        Args:
+            user_id (str): The ID of the user whose session interactions are to be retrieved.
+            session_uuid (str): The UUID of the session.
+        """
+        query = text(
+            """
+            SELECT *
+            FROM interactions
+            WHERE user_id = :user_id AND session_uuid = :session_uuid
+            ORDER BY timestamp ASC;
+            """
+        )
+        result = db.session.execute(query, {"user_id": user_id, "session_uuid": session_uuid})
+        return result.fetchall()
 
 
 def insert(model, name="DB Model"):
@@ -135,7 +173,7 @@ def store_interaction(
         llm_response=llm_response,
         source_doc_chunks=source_doc_chunks,
         client=client,
-        user=user,
+        user_id=user,
     )
     interaction = insert(interaction, "Interaction")
 
