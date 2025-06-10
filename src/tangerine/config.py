@@ -4,6 +4,10 @@ import os
 import nltk
 from nltk.corpus import words
 from nltk.data import find, path as nltk_data_path
+import logging
+
+# Configure logging
+log = logging.getLogger("tangerine.config")
 
 def _is_true(env_var):
     return str(os.getenv(env_var, "false")).lower() in [
@@ -12,16 +16,24 @@ def _is_true(env_var):
         "true",
     ]
 
-
-# Set the custom data directory
+# Use NLTK_DATA_DIR if set, else default to "./"
 NLTK_DATA_DIR = os.getenv("NLTK_DATA_DIR", "./")
-nltk_data_path.append(NLTK_DATA_DIR)
 
-# Check if the corpus is present; download only if missing
+# Add the directory to NLTK's search path
+if NLTK_DATA_DIR not in nltk_data_path:
+    nltk_data_path.insert(0, NLTK_DATA_DIR)
+
+# Check for the words corpus in the search path
 try:
     find("corpora/words")
 except LookupError:
+    log.info(
+        f"Downloading NLTK words corpus to {NLTK_DATA_DIR}..."
+    )
     nltk.download("words", quiet=True, download_dir=NLTK_DATA_DIR)
+
+# Now use the words corpus
+ENGLISH_WORDS = set(words.words())
 
 # Use the corpus
 ENGLISH_WORDS = set(words.words())
