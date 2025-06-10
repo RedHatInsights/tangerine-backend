@@ -3,6 +3,7 @@
 import os
 import nltk
 from nltk.corpus import words
+from nltk.data import find, path as nltk_data_path
 
 def _is_true(env_var):
     return str(os.getenv(env_var, "false")).lower() in [
@@ -12,9 +13,17 @@ def _is_true(env_var):
     ]
 
 
-# Ensure the corpus is downloaded
+# Set the custom data directory
 NLTK_DATA_DIR = os.getenv("NLTK_DATA_DIR", "./")
-nltk.download("words", quiet=True, download_dir=NLTK_DATA_DIR)
+nltk_data_path.append(NLTK_DATA_DIR)
+
+# Check if the corpus is present; download only if missing
+try:
+    find("corpora/words")
+except LookupError:
+    nltk.download("words", quiet=True, download_dir=NLTK_DATA_DIR)
+
+# Use the corpus
 ENGLISH_WORDS = set(words.words())
 
 LOG_LEVEL_GLOBAL = os.getenv("LOG_LEVEL_GLOBAL", "INFO").upper()
