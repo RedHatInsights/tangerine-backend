@@ -2,9 +2,10 @@
 
 import os
 import nltk
+import logging
+
 from nltk.corpus import words
 from nltk.data import find, path as nltk_data_path
-import logging
 
 # Configure logging
 log = logging.getLogger("tangerine.config")
@@ -33,9 +34,6 @@ except LookupError:
     nltk.download("words", quiet=True, download_dir=NLTK_DATA_DIR)
 
 # Now use the words corpus
-ENGLISH_WORDS = set(words.words())
-
-# Use the corpus
 ENGLISH_WORDS = set(words.words())
 
 LOG_LEVEL_GLOBAL = os.getenv("LOG_LEVEL_GLOBAL", "INFO").upper()
