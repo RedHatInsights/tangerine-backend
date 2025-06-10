@@ -13,7 +13,8 @@ def _is_true(env_var):
 
 
 # Ensure the corpus is downloaded
-nltk.download("words", quiet=True)
+NLTK_DATA_DIR = os.getenv("NLTK_DATA_DIR", "./")
+nltk.download("words", quiet=True, download_dir=NLTK_DATA_DIR)
 ENGLISH_WORDS = set(words.words())
 
 LOG_LEVEL_GLOBAL = os.getenv("LOG_LEVEL_GLOBAL", "INFO").upper()
