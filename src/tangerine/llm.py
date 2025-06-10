@@ -9,6 +9,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 import tangerine.config as cfg
+from tangerine.agents.jira_agent import JiraAgent
+from tangerine.agents.webrca_agent import WebRCAAgent
 from tangerine.metrics import get_counter, get_gauge
 from tangerine.models.assistant import Assistant
 
@@ -95,7 +97,7 @@ def _build_context(search_results: list[Document], content_char_limit: int = 0):
     return context, search_metadata
 
 
-def _get_response(
+def get_response(
     prompt: ChatPromptTemplate,
     prompt_params: dict,
     model: dict = None,
@@ -149,7 +151,18 @@ def rerank(query, search_results):
     )
     prompt_params = {"query": query, "context": context}
 
-    llm_response = _get_response(prompt, prompt_params)
+    llm_response = get_response(prompt, prompt_params)
+    return "".join(llm_response)
+
+
+def identify_agent(query):
+    log.debug("llm 'identify_agent' request")
+    prompt = ChatPromptTemplate(
+        [("system", cfg.AGENTIC_ROUTER_PROMPT), ("user", cfg.AGENTIC_ROUTER_USER_PROMPT)]
+    )
+    prompt_params = {"query": query}
+
+    llm_response = get_response(prompt, prompt_params)
     return "".join(llm_response)
 
 
@@ -195,7 +208,7 @@ def ask_advanced(
     msg_list.append(("human", cfg.USER_PROMPT_TEMPLATE))
 
     prompt_params = {"context": search_context, "question": question}
-    llm_response = _get_response(ChatPromptTemplate(msg_list), prompt_params, model)
+    llm_response = get_response(ChatPromptTemplate(msg_list), prompt_params, model)
 
     return llm_response, search_metadata
 
@@ -210,6 +223,16 @@ def ask(
     log.debug("llm 'ask' request")
     search_context = ""
     search_metadata = []
+
+    agent = identify_agent(question)
+    log.debug("identified agent: %s", agent)
+    match agent.strip():
+        case "JiraAgent":
+            if cfg.ENABLE_JIRA_AGENT:
+                return JiraAgent().fetch(question), search_metadata
+        case "WebRCAAgent":
+            if cfg.ENABLE_WEB_RCA_AGENT:
+                return WebRCAAgent().fetch(question), search_metadata
 
     if len(search_results) == 0:
         log.debug("given 0 search results")
@@ -236,6 +259,6 @@ def ask(
     msg_list.append(("human", cfg.USER_PROMPT_TEMPLATE))
 
     prompt_params = {"context": search_context, "question": question}
-    llm_response = _get_response(ChatPromptTemplate(msg_list), prompt_params)
+    llm_response = get_response(ChatPromptTemplate(msg_list), prompt_params)
 
     return llm_response, search_metadata

@@ -30,6 +30,7 @@ pypdf2 = "*"
 scikit-learn = "*"
 flask-migrate = "*"
 httpx-retries = "*"
+nltk = "*"
 
 [dev-packages]
 ipython = "*"
