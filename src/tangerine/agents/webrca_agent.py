@@ -24,20 +24,15 @@ class WebRCAAgent:
                 params={"query": query},
                 timeout=120,
             )
-        except Exception as e:
-            log.error("Error connecting to Web RCA: %s", e)
-            return "I tried getting info from Web RCA, but something went wrong. I couldn't connect to the server."
-        # Check if the request was successful
-        if response.status_code == 200:
-            # Parse the JSON response
+            response.raise_for_status()
             data = response.json()
-            # response is an object with a list of incients in the items key
-            ai_summaies = [incident.get("ai_summary", "") for incident in data.get("items", [])]
-            return "\n".join(ai_summaies)
-        else:
-            # Handle the error
-            log.error("HTTP %d response for GET to %s", response.status_code, query_url)
+        except Exception:
+            log.exception("Error fetching incidents from Web RCA")
             return "I tried getting info from Web RCA, but something went wrong."
+
+        # response is an object with a list of incients in the items key
+        ai_summaries = [incident.get("ai_summary", "") for incident in data.get("items", [])]
+        return "\n".join(ai_summaries)
 
     def _find_incidents(self, query: str) -> str:
         # Matches patterns like ITN-2024-12345, optionally followed by punctuation
