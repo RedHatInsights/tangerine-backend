@@ -19,24 +19,19 @@ class JiraAgent:
         # Perform the GET request
         try:
             response = requests.get(query_url, timeout=120)
-        except Exception as e:
-            log.error("Error connecting to Jira: %s", e)
-            return "I tried getting info from Jira, but something went wrong. I couldn't connect to the server."
-        # Check if the request was successful
-        if response.status_code == 200:
-            # Parse the JSON response
+            response.raise_for_status()
             summaries = response.json()
-            # data is a list of strings. we need to convert it to a string
-            summaries = "\n".join(summaries)
-            clean_summaries = summaries.replace("<br>", "\n")
-            return_value = clean_summaries
-            if user_count > 1:
-                return_value = self._higher_order_summary(summaries)
-            return return_value
-        else:
-            # Handle the error
-            log.error("HTTP %d response for GET to %s", response.status_code, query_url)            
+        except Exception:
+            log.exception("Error fetching info from Jira")
             return "I tried getting info from Jira, but something went wrong."
+
+        # data is a list of strings. we need to convert it to a string
+        summaries = "\n".join(summaries)
+        clean_summaries = summaries.replace("<br>", "\n")
+        return_value = clean_summaries
+        if user_count > 1:
+            return_value = self._higher_order_summary(summaries)
+        return return_value
 
     def _higher_order_summary(self, summaries: str) -> str:
         # This function takes a list of summaries and returns a higher order summary
