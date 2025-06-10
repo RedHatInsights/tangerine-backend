@@ -31,6 +31,8 @@ Each assistant is intended to answer questions related to a set of documents kno
 - [Deploying to OpenShift](#deploying-to-openshift)
 - [Run Tangerine Frontend Locally](#run-tangerine-frontend-locally)
 - [Available API Paths](#available-api-paths)
+- [Advanced Chat API](#advanced-chat-api)
+- [Multiple Model Support](#multiple-model-support)
 
 ## Overview
 
@@ -457,8 +459,151 @@ The API can be used to create/manage/update assistants, upload documents, and to
 | `/api/assistants/<id>`                 | `PUT`    | Update an assistant            |
 | `/api/assistants/<id>`                 | `DELETE` | Delete an assistant            |
 | `/api/assistants/<id>/chat`            | `POST`   | Chat with an assistant         |
+| `/api/assistants/chat`                 | `POST`   | Advanced chat API              |
 | `/api/assistants/<id>/documents`       | `POST`   | Assistant document uploads     |
 | `/api/assistants/<id>/documents`       | `DELETE` | Delete assistant documents     |
 | `/api/assistants/<id>/search`          | `POST`    | Perform search results             |
 | `/api/assistantDefaults`               | `GET`    | Get assistant default settings |
 | `/ping`                            | `GET`    | Health check endpoint      |
+
+## Advanced Chat API
+The default assistant chat API is optimized for simple chat experiences, such as GUI based chatbots with validated defaults. However, you may want to use Tangerine to power other kinds of experiences. For these workloads we have an advaced chat API that allows you to make more complex requests and tweak more of Tangerine's bevaior at run time.
+
+Here is a basic example of how to use the new API that acts like the standard chat API:
+
+```
+curl -X POST http://localhost:8080/api/assistants/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "assistants": ["support docs"],
+    "query": "How do I deploy my app?",
+    "sessionId": "433e4567-8e9b-22d3-a456-626614174000",
+    "interactionId": "137e6543-2f1b-12d3-b456-526614174999",
+    "client": "curl",
+    "stream": false,
+  }'
+```
+
+You can use data from multiple assistants with a single query by adding more assistants to the `assistants` array:
+
+```
+curl -X POST http://localhost:8080/api/assistants/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "assistants": ["support docs", "knowledge base"],
+    "query": "How do I deploy my app?",
+    "sessionId": "433e4567-8e9b-22d3-a456-626614174000",
+    "interactionId": "137e6543-2f1b-12d3-b456-526614174999",
+    "client": "curl",
+    "stream": false,
+  }'
+```
+
+You can bring your own chunks which will prevent a search and answer the question based on the chunks provided alone:
+
+```
+curl -X POST http://localhost:8080/api/assistants/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "How do I deploy my app?",
+    "sessionId": "433e4567-8e9b-22d3-a456-626614174000",
+    "interactionId": "137e6543-2f1b-12d3-b456-526614174999",
+    "client": "curl",
+    "stream": false,
+    "chunks": [
+      "To deploy your app run `app deploy`",
+      "Apps are deployed with the app command",
+      "The app command is available from our private repo."
+    ]
+  }'
+```
+
+If you've extended Tangerine to support multiple models you can specify your model of choice at query time:
+
+```
+curl -X POST http://localhost:8080/api/assistants/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "assistants": ["support docs"],
+    "query": "How do I deploy my app?",
+    "sessionId": "433e4567-8e9b-22d3-a456-626614174000",
+    "interactionId": "137e6543-2f1b-12d3-b456-526614174999",
+    "client": "curl",
+    "stream": false,
+    "model": "chatgpt-01"
+  }'
+```
+
+You can also provide your own system prompt to change how Tangerine handles your query:
+
+```
+curl -X POST http://localhost:8080/api/assistants/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "assistants": ["support docs", "knowledge base"],
+    "query": "How do I deploy my app?",
+    "sessionId": "433e4567-8e9b-22d3-a456-626614174000",
+    "interactionId": "137e6543-2f1b-12d3-b456-526614174999",
+    "client": "curl",
+    "stream": false,
+    "prompt": "<s>[INST]
+      You are a helpful chat bot that is integrated into a team wide 
+      chat application. You will recieve user queries as well as 
+      documentation excerpts. Please answer the user's question based on the
+      documentation excertps, and don't resort to any other external 
+      knowledge. As you are answering via a chat application please keep
+      your responses short, no more than 3 sentences.
+    [/INST]"
+  }'
+```
+
+## Multiple Model Support
+You can extend Tangerine to support multiple models for use with the advanced chat API. In the future we plan to offer this purely through config, but as of this writing it requires minor modification to the Tangerine code.
+
+In the file `src/tangerine/resources/assistant.py` you will find this `dict`:
+
+```
+MODELS = {
+    "default": {
+        "base_url": config.LLM_BASE_URL,
+        "name": config.LLM_MODEL_NAME,
+        "api_key": config.LLM_API_KEY,
+        "temperature": config.LLM_TEMPERATURE,
+    }
+}
+```
+
+To add a new model you would specify the config options there. For example you may add something like:
+
+```
+MODELS = {
+    "default": {
+        "base_url": config.LLM_BASE_URL,
+        "name": config.LLM_MODEL_NAME,
+        "api_key": config.LLM_API_KEY,
+        "temperature": config.LLM_TEMPERATURE,
+    },
+    "granite": {
+        "base_url": config.GRANITE_BASE_URL,
+        "name": config.GRANITE_MODEL_NAME,
+        "api_key": config.GRANITE_API_KEY,
+        "temperature": config.GRANITE_TEMPERATURE,
+    }
+}
+```
+
+And then add the requisite env vars to `src/tangerine/config.py` and your deployment / run time environment. After adding the above you could then query your new model with the advanced chat API:
+
+```
+curl -X POST http://localhost:8080/api/assistants/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "assistants": ["support docs"],
+    "query": "How do I deploy my app?",
+    "sessionId": "433e4567-8e9b-22d3-a456-626614174000",
+    "interactionId": "137e6543-2f1b-12d3-b456-526614174999",
+    "client": "curl",
+    "stream": false,
+    "model": "granite"
+  }'
+```
