@@ -22,6 +22,7 @@ from .resources.routes import initialize_routes
 from .sync.s3 import run as run_s3sync
 from .vector import vector_db
 
+
 def create_app():
     logging.basicConfig(level=getattr(logging, cfg.LOG_LEVEL_GLOBAL))
     logging.getLogger("tangerine").setLevel(cfg.LOG_LEVEL_APP)

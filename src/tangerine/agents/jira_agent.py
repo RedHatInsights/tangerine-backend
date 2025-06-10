@@ -1,11 +1,13 @@
+import logging
+
 import requests
 from langchain_core.prompts import ChatPromptTemplate
-import logging
 
 import tangerine.config as cfg
 import tangerine.llm as llm
 
 log = logging.getLogger("tangerine.models.interactions")
+
 
 class JiraAgent:
     def __init__(self):

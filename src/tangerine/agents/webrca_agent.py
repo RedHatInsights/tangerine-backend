@@ -1,12 +1,13 @@
+import logging
 import re
 import urllib
-import logging
 
 import requests
 
 import tangerine.config as cfg
 
 log = logging.getLogger("tangerine.agents.webrca_agent")
+
 
 class WebRCAAgent:
     def __init__(self):

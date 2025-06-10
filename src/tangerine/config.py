@@ -1,14 +1,16 @@
 # flake8: noqa: E501
 
-import os
-import nltk
 import logging
+import os
 
+import nltk
 from nltk.corpus import words
-from nltk.data import find, path as nltk_data_path
+from nltk.data import find
+from nltk.data import path as nltk_data_path
 
 # Configure logging
 log = logging.getLogger("tangerine.config")
+
 
 def _is_true(env_var):
     return str(os.getenv(env_var, "false")).lower() in [
@@ -16,6 +18,7 @@ def _is_true(env_var):
         "t",
         "true",
     ]
+
 
 # Use NLTK_DATA_DIR if set, else default to "./"
 NLTK_DATA_DIR = os.getenv("NLTK_DATA_DIR", "./")
@@ -28,9 +31,7 @@ if NLTK_DATA_DIR not in nltk_data_path:
 try:
     find("corpora/words")
 except LookupError:
-    log.info(
-        f"Downloading NLTK words corpus to {NLTK_DATA_DIR}..."
-    )
+    log.info(f"Downloading NLTK words corpus to {NLTK_DATA_DIR}...")
     nltk.download("words", quiet=True, download_dir=NLTK_DATA_DIR)
 
 # Now use the words corpus
