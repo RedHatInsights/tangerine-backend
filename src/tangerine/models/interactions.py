@@ -89,7 +89,7 @@ class Interaction(db.Model):
     source_doc_chunks = db.Column(db.JSON)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
     client = db.Column(db.String(50), nullable=True)
-    user_id  = db.Column(db.String(50), nullable=True)
+    user_id  = db.Column(db.String(256), nullable=True)
     
     @classmethod
     def get_user_sessions(user_id):

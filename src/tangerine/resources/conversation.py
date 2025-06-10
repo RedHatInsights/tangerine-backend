@@ -1,17 +1,9 @@
-from flask import Response, request, stream_with_context
 from flask_restful import Resource
-from tangerine.models.interactions import Interaction
+from flask import request
 
+from tangerine.models.conversation import Conversation
 
-# I think sessions are going to need to be raised to the level of their own table and class
-# Right now we can get distinct session UUIDs from the interactions table
-# But we have no way to associate session specific data with a session such as its title, description, etc.
-# whenever we store an interaction we will try to store a session in a new session table
-# if it fails due to a duplicate session UUID, we will just ignore it
-# when we create a new session we will take the user's query and as the LLM to generate a title and description for the session
-
-
-class ConverationListApi(Resource):
+class ConversationListApi(Resource):
     """
     Get a list of conversations for a specific user_id
     """
@@ -33,8 +25,9 @@ class ConverationListApi(Resource):
             return {"error": "User ID is required"}, 400
 
         try:
-            conversations = Interaction.get_user_sessions(user_id)
-            return Response(conversations, mimetype='application/json')
+            conversation_objects = Conversation.get_by_user(user_id)
+            conversation_json = [conv.to_json() for conv in conversation_objects]
+            return conversation_json, 200
         except Exception as e:
             return {"error": str(e)}, 500
 
@@ -56,56 +49,33 @@ class ConversationRetrievalApi(Resource):
         if not data:
             return {"error": "No data provided"}, 400
 
-        user_id = data.get("user_id")
-        if not user_id:
-            return {"error": "User ID is required"}, 400
-    
-        session_id = data.get("session_id")
+        session_id = data.get("sessionId")
         if not session_id:
             return {"error": "Session ID is required"}, 400
 
         try:
-            interactions = Interaction.get_session_interactions(user_id, session_id)
-            conversation = self.construct_conversation(interactions)
-            return Response(conversation, mimetype='application/json')
+            conversation = Conversation.get_by_session(session_id)
+            if not conversation:
+                return {"error": "Conversation not found"}, 404
+            return conversation.to_json(), 200
         except Exception as e:
             return {"error": str(e)}, 500
-        
-    def construct_conversation(self, interactions):
-        """
-        Construct a conversation from the interactions.
-        """
-        conversation = []
-        for interaction in interactions:
-            human_entry = {
-                "text": interaction.question,
-                "sender": "human",
-                "done": True,
-                "interaction_id": interaction.id,
-            }
-            conversation.append(human_entry)
-            ai_entry = {
-                "text": interaction.llm_response,
-                "sender": "ai",
-                "done": True,
-                "search_metadata": self.construct_search_metadata(interaction.source_doc_chunks),
-            }
-            conversation.append(ai_entry)
-        return conversation
     
-    def construct_search_metadata(self, source_doc_chunks):
+    class ConversationUpsertApi(Resource):
         """
-        Construct search metadata from the interactions.
+        Upsert a conversation
         """
-        search_metadata = []
-        if source_doc_chunks:
-            for chunk in source_doc_chunks:
-                metadata = {
-                    "page_content": chunk.text,
-                    "metadata": {
-                        "relevance_score": chunk.score,
-                        
-                    }
-                }
-                search_metadata.append(metadata)
-        return search_metadata
+
+        def post(self):
+            """
+            Handle POST requests to upsert a conversation.
+            """
+            data = request.get_json()
+            if not data:
+                return {"error": "No data provided"}, 400
+
+            try:
+                conversation = Conversation.upsert(data)
+                return conversation.to_json(), 200
+            except Exception as e:
+                return {"error": str(e)}, 500

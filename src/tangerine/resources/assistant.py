@@ -11,6 +11,7 @@ from tangerine import config
 from tangerine.config import DEFAULT_SYSTEM_PROMPT
 from tangerine.embeddings import embed_query
 from tangerine.models.assistant import Assistant
+from tangerine.models.conversation import Conversation
 from tangerine.models.interactions import store_interaction
 from tangerine.search import search_engine
 from tangerine.utils import File, add_filenames_to_assistant, embed_files, remove_files
@@ -160,6 +161,7 @@ class AssistantChatApi(Resource):
         question, session_uuid, stream, previous_messages, interaction_id, client, user = (
             self._extract_request_data()
         )
+        Conversation.upsert(request.json)
         embedding = self._embed_question(question)
         search_results = self._get_search_results(assistant.id, question, embedding)
         llm_response, search_metadata = self._call_llm(
