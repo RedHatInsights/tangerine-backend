@@ -208,7 +208,7 @@ def ask_advanced(
     msg_list.append(("human", cfg.USER_PROMPT_TEMPLATE))
 
     prompt_params = {"context": search_context, "question": question}
-    llm_response = _get_response(ChatPromptTemplate(msg_list), prompt_params, model)
+    llm_response = get_response(ChatPromptTemplate(msg_list), prompt_params, model)
 
     return llm_response, search_metadata
 
