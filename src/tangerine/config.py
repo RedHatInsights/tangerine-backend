@@ -3,9 +3,6 @@
 import logging
 import os
 
-import nltk
-from nltk.corpus import words
-from nltk.data import find
 from nltk.data import path as nltk_data_path
 
 # Configure logging
@@ -21,21 +18,12 @@ def _is_true(env_var):
 
 
 # Use NLTK_DATA_DIR if set, else default to "./"
+NLTK_INIT_ON_STARTUP = _is_true("NLTK_INIT_ON_STARTUP")
 NLTK_DATA_DIR = os.getenv("NLTK_DATA_DIR", "./")
 
 # Add the directory to NLTK's search path
 if NLTK_DATA_DIR not in nltk_data_path:
     nltk_data_path.insert(0, NLTK_DATA_DIR)
-
-# Check for the words corpus in the search path
-try:
-    find("corpora/words")
-except LookupError:
-    log.info(f"Downloading NLTK words corpus to {NLTK_DATA_DIR}...")
-    nltk.download("words", quiet=True, download_dir=NLTK_DATA_DIR)
-
-# Now use the words corpus
-ENGLISH_WORDS = set(words.words())
 
 LOG_LEVEL_GLOBAL = os.getenv("LOG_LEVEL_GLOBAL", "INFO").upper()
 LOG_LEVEL_APP = os.getenv("LOG_LEVEL_APP", "DEBUG").upper()

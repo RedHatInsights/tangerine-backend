@@ -114,6 +114,8 @@ objects:
                     containerPort: 8000
                     protocol: TCP
                 env:
+                  - name: "NLTK_INIT_ON_STARTUP"
+                    value: "false"
                   - name: S3_SYNC_EXPORT_METRICS
                     value: ${S3_SYNC_EXPORT_METRICS}
                   - name: S3_SYNC_EXPORT_METRICS_SLEEP_SECS
