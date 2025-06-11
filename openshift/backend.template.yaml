@@ -49,6 +49,20 @@ parameters:
     value: "false"
   - name: MIGRATION_COMMAND
     value: "flask db upgrade"
+  - name: ENABLE_JIRA_AGENT
+    value: "false"
+  - name: ENABLE_WEBRCA_AGENT
+    value: "false"
+  - name: JIRA_AGENT_URL
+    value: "http://jira-agent:8000"
+  - name: WEBRCA_AGENT_URL
+    value: "http://webrca-agent:8000"
+  - name: WEB_RCA_AGENT_CLIENT_ID
+    value: "webrca-agent-client"
+  - name: WEB_RCA_AGENT_CLIENT_SECRET
+    value: "webrca-agent-secret"
+  - name: SSO_URL
+    value: "http://sso-service:8080"
 
 objects:
 # Secrets
@@ -216,6 +230,20 @@ objects:
                   secretKeyRef:
                     name: embed-api-key
                     key: api_key
+              - name: ENABLE_JIRA_AGENT
+                value: ${ENABLE_JIRA_AGENT}
+              - name: ENABLE_WEBRCA_AGENT
+                value: ${ENABLE_WEBRCA_AGENT}
+              - name: JIRA_AGENT_URL
+                value: ${JIRA_AGENT_URL}
+              - name: WEBRCA_AGENT_URL
+                value: ${WEBRCA_AGENT_URL}
+              - name: WEB_RCA_AGENT_CLIENT_ID
+                value: ${WEB_RCA_AGENT_CLIENT_ID}
+              - name: WEB_RCA_AGENT_CLIENT_SECRET
+                value: ${WEB_RCA_AGENT_CLIENT_SECRET}
+              - name: SSO_URL
+                value: ${SSO_URL}
             securityContext:
               capabilities: {}
               privileged: false
