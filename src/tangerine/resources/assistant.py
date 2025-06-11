@@ -27,6 +27,14 @@ MODELS = {
     }
 }
 
+if config.ENABLE_LLAMA4_SCOUT:
+    MODELS["llama4_scout"] = {
+        "base_url": config.LLAMA4_SCOUT_BASE_URL,
+        "name": config.LLAMA4_SCOUT_MODEL_NAME,
+        "api_key": config.LLAMA4_SCOUT_API_KEY,
+        "temperature": config.LLAMA4_SCOUT_TEMPERATURE,
+    }
+
 DEFAULT_MODEL = MODELS["default"]
 
 
