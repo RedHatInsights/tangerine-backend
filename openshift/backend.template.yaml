@@ -167,6 +167,8 @@ objects:
               failureThreshold: 3
             terminationMessagePath: /dev/termination-log
             env:
+              - name: "NLTK_INIT_ON_STARTUP"
+                value: "true"
               - name: ENABLE_FULL_TEXT_SEARCH
                 value: ${ENABLE_FULL_TEXT_SEARCH}
               - name: ENABLE_HYBRID_SEARCH
