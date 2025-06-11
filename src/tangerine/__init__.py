@@ -51,8 +51,8 @@ def create_app():
         db.session.commit()
         vector_db.initialize()
 
-    if cfg.NLTK_INIT_ON_STARTUP:
-        init_nltk()
+        if cfg.NLTK_INIT_ON_STARTUP:
+            init_nltk()
 
     return app
 

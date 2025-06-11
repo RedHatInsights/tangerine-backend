@@ -18,7 +18,7 @@ def _is_true(env_var):
 
 
 # Use NLTK_DATA_DIR if set, else default to "./"
-NLTK_INIT_ON_STARTUP = _is_true("NTLK_INIT_ON_STARTUP")
+NLTK_INIT_ON_STARTUP = _is_true("NLTK_INIT_ON_STARTUP")
 NLTK_DATA_DIR = os.getenv("NLTK_DATA_DIR", "./")
 
 # Add the directory to NLTK's search path
