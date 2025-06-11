@@ -271,7 +271,7 @@ def compare_files(
             metadata_update_args.append(
                 dict(
                     metadata={"citation_url": files_by_key[full_path].citation_url},
-                    filter={"full_path": full_path},
+                    search_filter={"full_path": full_path},
                 )
             )
 
