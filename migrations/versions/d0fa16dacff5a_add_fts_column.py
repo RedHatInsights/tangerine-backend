@@ -27,6 +27,7 @@ def upgrade():
         ON langchain_pg_embedding USING GIN (fts_vector)
     """)
 
+
 def downgrade():
     op.execute("DROP INDEX IF EXISTS idx_langchain_pg_embedding_fts")
     op.execute("ALTER TABLE langchain_pg_embedding DROP COLUMN IF EXISTS fts_vector")

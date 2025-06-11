@@ -547,10 +547,10 @@ curl -X POST http://localhost:8080/api/assistants/chat \
     "client": "curl",
     "stream": false,
     "prompt": "<s>[INST]
-      You are a helpful chat bot that is integrated into a team wide 
-      chat application. You will recieve user queries as well as 
+      You are a helpful chat bot that is integrated into a team wide
+      chat application. You will recieve user queries as well as
       documentation excerpts. Please answer the user's question based on the
-      documentation excertps, and don't resort to any other external 
+      documentation excertps, and don't resort to any other external
       knowledge. As you are answering via a chat application please keep
       your responses short, no more than 3 sentences.
     [/INST]"
