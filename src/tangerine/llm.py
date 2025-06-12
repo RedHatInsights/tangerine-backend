@@ -12,7 +12,8 @@ import tangerine.config as cfg
 from tangerine.agents.jira_agent import JiraAgent
 from tangerine.agents.webrca_agent import WebRCAAgent
 from tangerine.metrics import get_counter, get_gauge
-from tangerine.models.assistant import MODELS, Assistant
+from tangerine.models.assistant import Assistant
+from tangerine.resources.assistant import MODELS
 
 log = logging.getLogger("tangerine.llm")
 
