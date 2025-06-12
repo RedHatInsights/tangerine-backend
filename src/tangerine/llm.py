@@ -12,7 +12,7 @@ import tangerine.config as cfg
 from tangerine.agents.jira_agent import JiraAgent
 from tangerine.agents.webrca_agent import WebRCAAgent
 from tangerine.metrics import get_counter, get_gauge
-from tangerine.models.assistant import Assistant
+from tangerine.models.assistant import Assistant, MODELS
 
 log = logging.getLogger("tangerine.llm")
 
@@ -193,6 +193,12 @@ def ask_advanced(
                 assistant_id=assistant.id, assistant_name=assistant.name
             ).inc()
 
+    if not model:
+        model = MODELS.get(assistants[0].model, None)
+        if not model:
+            log.error("no model found for assistant %s", assistants[0].name)
+            raise ValueError("No model found for the specified assistant")
+
     if not search_metadata:
         search_metadata = [{}]
     for m in search_metadata:
@@ -259,6 +265,6 @@ def ask(
     msg_list.append(("human", cfg.USER_PROMPT_TEMPLATE))
 
     prompt_params = {"context": search_context, "question": question}
-    llm_response = get_response(ChatPromptTemplate(msg_list), prompt_params)
+    llm_response = get_response(ChatPromptTemplate(msg_list), prompt_params, MODELS.get(assistant.model, None))
 
     return llm_response, search_metadata

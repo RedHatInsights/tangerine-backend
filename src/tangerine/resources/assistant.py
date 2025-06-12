@@ -35,7 +35,7 @@ if config.ENABLE_LLAMA4_SCOUT:
         "temperature": config.LLAMA4_SCOUT_TEMPERATURE,
     }
 
-DEFAULT_MODEL = MODELS["default"]
+DEFAULT_MODEL = MODELS[config.DEFAULT_MODEL]
 
 
 class AssistantDefaultsApi(Resource):

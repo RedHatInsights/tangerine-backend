@@ -17,6 +17,8 @@ def _is_true(env_var):
     ]
 
 
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "default")
+
 # Use NLTK_DATA_DIR if set, else default to "./"
 NLTK_INIT_ON_STARTUP = _is_true("NLTK_INIT_ON_STARTUP")
 NLTK_DATA_DIR = os.getenv("NLTK_DATA_DIR", "./")
