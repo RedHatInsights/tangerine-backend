@@ -7,6 +7,10 @@ from .assistant import (
     AssistantsApi,
     AssistantSearchApi,
 )
+from .conversation import (
+    ConversationListApi,
+    ConversationRetrievalApi,
+)
 from .feedback import FeedbackApi
 from .ping import PingApi
 
@@ -21,3 +25,5 @@ def initialize_routes(api):
     api.add_resource(PingApi, "/ping", methods=["GET"])
     api.add_resource(FeedbackApi, "/api/feedback", methods=["POST"])
     api.add_resource(AssistantSearchApi, "/api/assistants/<id>/search", methods=["POST"])
+    api.add_resource(ConversationListApi, "/api/conversations/list", methods=["POST"])
+    api.add_resource(ConversationRetrievalApi, "/api/conversations/load", methods=["POST"])
