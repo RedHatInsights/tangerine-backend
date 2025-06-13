@@ -194,6 +194,7 @@ def ask_advanced(
             ).inc()
 
     if not model:
+        # TODO: refactor this to handle the case where assistants use different models
         model = cfg.get_model_config(assistants[0].model)
 
     if not search_metadata:
