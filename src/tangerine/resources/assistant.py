@@ -18,6 +18,7 @@ from tangerine.vector import vector_db
 
 log = logging.getLogger("tangerine.resources")
 
+
 class AssistantDefaultsApi(Resource):
     def get(self):
         return {"system_prompt": DEFAULT_SYSTEM_PROMPT}, 200

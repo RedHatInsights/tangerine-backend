@@ -112,6 +112,7 @@ if ENABLE_LLAMA4_SCOUT:
 
 DEFAULT_MODEL = MODELS[DEFAULT_MODEL]
 
+
 def get_model_config(model_name: str | None) -> dict:
     if not model_name:
         return DEFAULT_MODEL
@@ -119,6 +120,7 @@ def get_model_config(model_name: str | None) -> dict:
     if model_name not in MODELS:
         raise ValueError("invalid model name: {model_name}")
     return MODELS[model_name]
+
 
 USER_PROMPT_TEMPLATE = """
 [INST]
