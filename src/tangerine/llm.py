@@ -193,6 +193,10 @@ def ask_advanced(
                 assistant_id=assistant.id, assistant_name=assistant.name
             ).inc()
 
+    if not model:
+        # TODO: refactor this to handle the case where assistants use different models
+        model = cfg.get_model_config(assistants[0].model)
+
     if not search_metadata:
         search_metadata = [{}]
     for m in search_metadata:
@@ -259,6 +263,8 @@ def ask(
     msg_list.append(("human", cfg.USER_PROMPT_TEMPLATE))
 
     prompt_params = {"context": search_context, "question": question}
-    llm_response = get_response(ChatPromptTemplate(msg_list), prompt_params)
+    llm_response = get_response(
+        ChatPromptTemplate(msg_list), prompt_params, cfg.get_model_config(assistant.model)
+    )
 
     return llm_response, search_metadata
