@@ -359,7 +359,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
         model_name = request.json.get("model", "default")
-        model = config.MODELS.get(model_name)
+        model = config.get_model_config(model_name)
         if model is None:
             return {"message": f"Unknown model: {model_name}"}, 400
         embedding = embed_query(question)
