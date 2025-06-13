@@ -13,7 +13,7 @@ class Assistant(db.Model):
     description = db.Column(db.Text, nullable=False)
     system_prompt = db.Column(db.Text, nullable=True)
     filenames = db.Column(db.ARRAY(db.String), default=[], nullable=True)
-    model = db.Column(db.String(50), nullable=True, default=cfg.DEFAULT_MODEL)
+    model = db.Column(db.String(50), default=None, nullable=True)
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}

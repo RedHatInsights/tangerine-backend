@@ -53,7 +53,6 @@ LLAMA4_SCOUT_API_KEY = os.getenv("LLAMA4_SCOUT_API_KEY", LLM_API_KEY)
 LLAMA4_SCOUT_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "llama-4-scout")
 LLAMA4_SCOUT_TEMPERATURE = float(os.getenv("LLAMA4_SCOUT_TEMPERATURE", 0.7))
 
-
 STORE_INTERACTIONS = _is_true("STORE_INTERACTIONS")
 ENABLE_RERANKING = _is_true("ENABLE_RERANKING")
 ENABLE_QUALITY_DETECTION = _is_true("ENABLE_QUALITY_DETECTION")
@@ -93,6 +92,25 @@ METRICS_PREFIX = os.getenv("METRICS_PREFIX", "tangerine")
 
 STORE_QD_DATA = _is_true("STORE_QD_DATA")
 QD_DATA_PATH = os.getenv("QD_DATA_PATH", "./data")
+
+MODELS = {
+    "default": {
+        "base_url": LLM_BASE_URL,
+        "name": LLM_MODEL_NAME,
+        "api_key": LLM_API_KEY,
+        "temperature": LLM_TEMPERATURE,
+    }
+}
+
+if ENABLE_LLAMA4_SCOUT:
+    MODELS["llama4_scout"] = {
+        "base_url": LLAMA4_SCOUT_BASE_URL,
+        "name": LLAMA4_SCOUT_MODEL_NAME,
+        "api_key": LLAMA4_SCOUT_API_KEY,
+        "temperature": LLAMA4_SCOUT_TEMPERATURE,
+    }
+
+DEFAULT_MODEL = MODELS[DEFAULT_MODEL]
 
 USER_PROMPT_TEMPLATE = """
 [INST]

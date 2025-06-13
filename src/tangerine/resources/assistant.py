@@ -18,26 +18,6 @@ from tangerine.vector import vector_db
 
 log = logging.getLogger("tangerine.resources")
 
-MODELS = {
-    "default": {
-        "base_url": config.LLM_BASE_URL,
-        "name": config.LLM_MODEL_NAME,
-        "api_key": config.LLM_API_KEY,
-        "temperature": config.LLM_TEMPERATURE,
-    }
-}
-
-if config.ENABLE_LLAMA4_SCOUT:
-    MODELS["llama4_scout"] = {
-        "base_url": config.LLAMA4_SCOUT_BASE_URL,
-        "name": config.LLAMA4_SCOUT_MODEL_NAME,
-        "api_key": config.LLAMA4_SCOUT_API_KEY,
-        "temperature": config.LLAMA4_SCOUT_TEMPERATURE,
-    }
-
-DEFAULT_MODEL = MODELS[config.DEFAULT_MODEL]
-
-
 class AssistantDefaultsApi(Resource):
     def get(self):
         return {"system_prompt": DEFAULT_SYSTEM_PROMPT}, 200
@@ -379,7 +359,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
         model_name = request.json.get("model", "default")
-        model = MODELS.get(model_name)
+        model = config.MODELS.get(model_name)
         if model is None:
             return {"message": f"Unknown model: {model_name}"}, 400
         embedding = embed_query(question)

@@ -13,7 +13,6 @@ from tangerine.agents.jira_agent import JiraAgent
 from tangerine.agents.webrca_agent import WebRCAAgent
 from tangerine.metrics import get_counter, get_gauge
 from tangerine.models.assistant import Assistant
-from tangerine.resources.assistant import MODELS
 
 log = logging.getLogger("tangerine.llm")
 
@@ -197,9 +196,9 @@ def ask_advanced(
     if not model:
         # This isn't ideal. We are only using the first assistant's model if multiple assistants are provided.
         # I'm not sure of a better way to handle this.
-        model = MODELS.get(assistants[0].model, None)
+        model = cfg.MODELS.get(assistants[0].model, None)
     if not model:
-        model = MODELS.get(cfg.DEFAULT_MODEL, None)
+        model = cfg.MODELS.get(cfg.DEFAULT_MODEL, None)
 
     if not search_metadata:
         search_metadata = [{}]
@@ -268,7 +267,7 @@ def ask(
 
     prompt_params = {"context": search_context, "question": question}
     llm_response = get_response(
-        ChatPromptTemplate(msg_list), prompt_params, MODELS.get(assistant.model, None)
+        ChatPromptTemplate(msg_list), prompt_params, cfg.MODELS.get(assistant.model, None)
     )
 
     return llm_response, search_metadata
