@@ -110,11 +110,13 @@ if ENABLE_LLAMA4_SCOUT:
         "temperature": LLAMA4_SCOUT_TEMPERATURE,
     }
 
+
 def get_model_config(model_name: str | None) -> dict:
     model_name = model_name or DEFAULT_MODEL
     if model_name not in MODELS:
         raise ValueError("invalid model name: {model_name}")
     return MODELS[model_name]
+
 
 DEFAULT_MODEL = get_model_config(None)
 
