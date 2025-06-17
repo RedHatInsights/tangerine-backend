@@ -34,7 +34,7 @@ class AssistantConfig(BaseModel):
     description: str
     system_prompt: Optional[str] = None
     bucket: str
-    model: str = None
+    model: Optional[str] = None
     paths: List[PathConfig]
 
 
