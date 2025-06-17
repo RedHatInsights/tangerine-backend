@@ -560,7 +560,7 @@ curl -X POST http://localhost:8080/api/assistants/chat \
 ## Multiple Model Support
 You can extend Tangerine to support multiple models for use with the advanced chat API. In the future we plan to offer this purely through config, but as of this writing it requires minor modification to the Tangerine code.
 
-In the file `src/tangerine/resources/assistant.py` you will find this `dict`:
+In the file `src/tangerine/config.py` you will find this `dict`:
 
 ```
 MODELS = {
