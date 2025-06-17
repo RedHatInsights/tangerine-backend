@@ -102,13 +102,10 @@ def get_response(
     prompt_params: dict,
     model_name: str = None,
 ) -> Generator[str, None, None]:
-    model = cfg.get_model_config(model_name)
+    model_config = cfg.get_model_config(model_name)
 
     chat = ChatOpenAI(
-        model=model.get("name", cfg.LLM_MODEL_NAME),
-        openai_api_base=model.get("base_url", cfg.LLM_BASE_URL),
-        openai_api_key=model.get("api_key", cfg.LLM_API_KEY),
-        temperature=model.get("temperature", cfg.LLM_TEMPERATURE),
+        **model_config,
         stream_usage=True,
     )
 

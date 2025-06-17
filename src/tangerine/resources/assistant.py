@@ -360,9 +360,10 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
         model_name = request.json.get("model")
-        model = config.get_model_config(model_name)
-        if model is None:
-            return {"message": f"Unknown model: {model_name}"}, 400
+
+        if model_name and model_name not in config.MODELS:
+            return {"message": f"Invalid model name: {model_name}"}, 400
+
         embedding = embed_query(question)
         chunks = request.json.get("chunks", None)
         if chunks:
@@ -375,7 +376,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
             search_results,
             interaction_id=interaction_id,
             prompt=system_prompt,
-            model=model,
+            model=model_name,
         )
         if self._is_streaming_response(stream):
             return self._handle_streaming_response(

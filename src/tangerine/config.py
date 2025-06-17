@@ -95,30 +95,37 @@ QD_DATA_PATH = os.getenv("QD_DATA_PATH", "./data")
 
 MODELS = {
     "default": {
-        "base_url": LLM_BASE_URL,
-        "name": LLM_MODEL_NAME,
-        "api_key": LLM_API_KEY,
+        "model": LLM_MODEL_NAME,
+        "openai_api_base": LLM_BASE_URL,
+        "openai_api_key": LLM_API_KEY,
         "temperature": LLM_TEMPERATURE,
     }
 }
 
 if ENABLE_LLAMA4_SCOUT:
     MODELS["llama4_scout"] = {
-        "base_url": LLAMA4_SCOUT_BASE_URL,
-        "name": LLAMA4_SCOUT_MODEL_NAME,
-        "api_key": LLAMA4_SCOUT_API_KEY,
+        "model": LLAMA4_SCOUT_MODEL_NAME,
+        "openai_api_base": LLAMA4_SCOUT_BASE_URL,
+        "openai_api_key": LLAMA4_SCOUT_API_KEY,
         "temperature": LLAMA4_SCOUT_TEMPERATURE,
     }
 
 
 def get_model_config(model_name: str | None) -> dict:
     model_name = model_name or DEFAULT_MODEL
+
     if model_name not in MODELS:
-        raise ValueError("invalid model name: {model_name}")
+        raise ValueError(f"invalid model name: {model_name}")
+
+    model_config = MODELS[model_name]
+
+    required_keys = ("model", "openai_api_base", "openai_api_key", "temperature")
+    if not all([key in model_config for key in required_keys]):
+        raise ValueError(
+            f"model config for '{model_name}' missing one or more of required keys: {required_keys}"
+        )
+
     return MODELS[model_name]
-
-
-DEFAULT_MODEL = get_model_config(None)
 
 
 USER_PROMPT_TEMPLATE = """
