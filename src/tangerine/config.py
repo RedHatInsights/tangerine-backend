@@ -17,6 +17,8 @@ def _is_true(env_var):
     ]
 
 
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "default")
+
 # Use NLTK_DATA_DIR if set, else default to "./"
 NLTK_INIT_ON_STARTUP = _is_true("NLTK_INIT_ON_STARTUP")
 NLTK_DATA_DIR = os.getenv("NLTK_DATA_DIR", "./")
@@ -50,7 +52,6 @@ LLAMA4_SCOUT_BASE_URL = os.getenv("LLAMA4_SCOUT_BASE_URL", "http://localhost:114
 LLAMA4_SCOUT_API_KEY = os.getenv("LLAMA4_SCOUT_API_KEY", LLM_API_KEY)
 LLAMA4_SCOUT_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "llama-4-scout")
 LLAMA4_SCOUT_TEMPERATURE = float(os.getenv("LLAMA4_SCOUT_TEMPERATURE", 0.7))
-
 
 STORE_INTERACTIONS = _is_true("STORE_INTERACTIONS")
 ENABLE_RERANKING = _is_true("ENABLE_RERANKING")
@@ -91,6 +92,41 @@ METRICS_PREFIX = os.getenv("METRICS_PREFIX", "tangerine")
 
 STORE_QD_DATA = _is_true("STORE_QD_DATA")
 QD_DATA_PATH = os.getenv("QD_DATA_PATH", "./data")
+
+MODELS = {
+    "default": {
+        "model": LLM_MODEL_NAME,
+        "openai_api_base": LLM_BASE_URL,
+        "openai_api_key": LLM_API_KEY,
+        "temperature": LLM_TEMPERATURE,
+    }
+}
+
+if ENABLE_LLAMA4_SCOUT:
+    MODELS["llama4_scout"] = {
+        "model": LLAMA4_SCOUT_MODEL_NAME,
+        "openai_api_base": LLAMA4_SCOUT_BASE_URL,
+        "openai_api_key": LLAMA4_SCOUT_API_KEY,
+        "temperature": LLAMA4_SCOUT_TEMPERATURE,
+    }
+
+
+def get_model_config(model_name: str | None) -> dict:
+    model_name = model_name or DEFAULT_MODEL
+
+    if model_name not in MODELS:
+        raise ValueError(f"invalid model name: {model_name}")
+
+    model_config = MODELS[model_name]
+
+    required_keys = ("model", "openai_api_base", "openai_api_key", "temperature")
+    if not all([key in model_config for key in required_keys]):
+        raise ValueError(
+            f"model config for '{model_name}' missing one or more of required keys: {required_keys}"
+        )
+
+    return MODELS[model_name]
+
 
 USER_PROMPT_TEMPLATE = """
 [INST]
