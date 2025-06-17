@@ -100,24 +100,18 @@ def _build_context(search_results: list[Document], content_char_limit: int = 0):
 def get_response(
     prompt: ChatPromptTemplate,
     prompt_params: dict,
-    model: dict = None,
+    model_name: str = None,
 ) -> Generator[str, None, None]:
+
+    model = cfg.get_model_config(model_name)
+ 
     chat = ChatOpenAI(
-        model=cfg.LLM_MODEL_NAME,
-        openai_api_base=cfg.LLM_BASE_URL,
-        openai_api_key=cfg.LLM_API_KEY,
-        temperature=cfg.LLM_TEMPERATURE,
+        model=model.get("name", cfg.LLM_MODEL_NAME),
+        openai_api_base=model.get("base_url", cfg.LLM_BASE_URL),
+        openai_api_key=model.get("api_key", cfg.LLM_API_KEY),
+        temperature=model.get("temperature", cfg.LLM_TEMPERATURE),
         stream_usage=True,
     )
-    if model:
-        # If a specific model configuration is provided, override the default
-        chat = ChatOpenAI(
-            model=model.get("name", cfg.LLM_MODEL_NAME),
-            openai_api_base=model.get("base_url", cfg.LLM_BASE_URL),
-            openai_api_key=model.get("api_key", cfg.LLM_API_KEY),
-            temperature=model.get("temperature", cfg.LLM_TEMPERATURE),
-            stream_usage=True,
-        )
 
     chain = prompt | chat
 
@@ -173,7 +167,7 @@ def ask_advanced(
     search_results: list[Document],
     interaction_id=None,
     prompt: str = None,
-    model: dict = None,
+    model: str = None,
 ) -> tuple[Generator[str, None, None], list[dict]]:
     log.debug("llm 'ask_advanced' request")
     search_context = ""
@@ -192,10 +186,6 @@ def ask_advanced(
             assistant_response_counter.labels(
                 assistant_id=assistant.id, assistant_name=assistant.name
             ).inc()
-
-    if not model:
-        # TODO: refactor this to handle the case where assistants use different models
-        model = cfg.get_model_config(assistants[0].model)
 
     if not search_metadata:
         search_metadata = [{}]
@@ -264,7 +254,7 @@ def ask(
 
     prompt_params = {"context": search_context, "question": question}
     llm_response = get_response(
-        ChatPromptTemplate(msg_list), prompt_params, cfg.get_model_config(assistant.model)
+        ChatPromptTemplate(msg_list), prompt_params
     )
 
     return llm_response, search_metadata
