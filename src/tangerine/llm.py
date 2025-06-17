@@ -102,9 +102,8 @@ def get_response(
     prompt_params: dict,
     model_name: str = None,
 ) -> Generator[str, None, None]:
-
     model = cfg.get_model_config(model_name)
- 
+
     chat = ChatOpenAI(
         model=model.get("name", cfg.LLM_MODEL_NAME),
         openai_api_base=model.get("base_url", cfg.LLM_BASE_URL),
@@ -253,8 +252,6 @@ def ask(
     msg_list.append(("human", cfg.USER_PROMPT_TEMPLATE))
 
     prompt_params = {"context": search_context, "question": question}
-    llm_response = get_response(
-        ChatPromptTemplate(msg_list), prompt_params
-    )
+    llm_response = get_response(ChatPromptTemplate(msg_list), prompt_params)
 
     return llm_response, search_metadata
