@@ -206,7 +206,7 @@ class AssistantChatApi(Resource):
 
     def _call_llm(self, assistant, previous_messages, question, search_results, interaction_id):
         return llm.ask(
-            assistant,
+            [assistant],
             previous_messages,
             question,
             search_results,
@@ -369,7 +369,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         if chunks:
             chunks = self._convert_chunk_array_to_documents(request.json.get("chunks"))
         search_results = chunks or search_engine.search(assistant_ids, question, embedding)
-        llm_response, search_metadata = llm.ask_advanced(
+        llm_response, search_metadata = llm.ask(
             assistants,
             previous_messages,
             question,
