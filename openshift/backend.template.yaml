@@ -117,6 +117,13 @@ objects:
           - name: db-migrations
             image: ${IMAGE}:${IMAGE_TAG}
             command: ["/bin/bash", "-c", "${MIGRATION_COMMAND}"]
+            resources:
+              requests:
+                memory: ${MEMORY_REQUEST}
+                cpu: ${CPU_REQUEST}
+              limits:
+                memory: ${MEMORY_LIMIT}
+                cpu: ${CPU_LIMIT}
             env:
               - name: LOG_LEVEL_APP
                 value: ${LOG_LEVEL_APP}
