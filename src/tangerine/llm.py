@@ -197,6 +197,9 @@ def ask_advanced(
                 msg_list.append(("ai", f"{msg['text']}</s>"))
     msg_list.append(("human", cfg.USER_PROMPT_TEMPLATE))
 
+    # TODO: handle the case where assistants are configured with different models
+    model = model or assistants[0].model
+
     prompt_params = {"context": search_context, "question": question}
     llm_response = get_response(ChatPromptTemplate(msg_list), prompt_params, model)
 
@@ -249,6 +252,6 @@ def ask(
     msg_list.append(("human", cfg.USER_PROMPT_TEMPLATE))
 
     prompt_params = {"context": search_context, "question": question}
-    llm_response = get_response(ChatPromptTemplate(msg_list), prompt_params)
+    llm_response = get_response(ChatPromptTemplate(msg_list), prompt_params, assistant.model)
 
     return llm_response, search_metadata
