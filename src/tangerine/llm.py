@@ -100,24 +100,14 @@ def _build_context(search_results: list[Document], content_char_limit: int = 0):
 def get_response(
     prompt: ChatPromptTemplate,
     prompt_params: dict,
-    model: dict = None,
+    model_name: str | None = None,
 ) -> Generator[str, None, None]:
+    model_config = cfg.get_model_config(model_name)
+
     chat = ChatOpenAI(
-        model=cfg.LLM_MODEL_NAME,
-        openai_api_base=cfg.LLM_BASE_URL,
-        openai_api_key=cfg.LLM_API_KEY,
-        temperature=cfg.LLM_TEMPERATURE,
+        **model_config,
         stream_usage=True,
     )
-    if model:
-        # If a specific model configuration is provided, override the default
-        chat = ChatOpenAI(
-            model=model.get("name", cfg.LLM_MODEL_NAME),
-            openai_api_base=model.get("base_url", cfg.LLM_BASE_URL),
-            openai_api_key=model.get("api_key", cfg.LLM_API_KEY),
-            temperature=model.get("temperature", cfg.LLM_TEMPERATURE),
-            stream_usage=True,
-        )
 
     chain = prompt | chat
 
@@ -166,18 +156,28 @@ def identify_agent(query):
     return "".join(llm_response)
 
 
-def ask_advanced(
+def ask(
     assistants: list[Assistant],
     previous_messages,
     question,
     search_results: list[Document],
     interaction_id=None,
-    prompt: str = None,
-    model: dict = None,
+    prompt: str | None = None,
+    model: str | None = None,
 ) -> tuple[Generator[str, None, None], list[dict]]:
-    log.debug("llm 'ask_advanced' request")
+    log.debug("llm 'ask' request")
     search_context = ""
     search_metadata = []
+
+    agent = identify_agent(question)
+    log.debug("identified agent: %s", agent)
+    match agent.strip():
+        case "JiraAgent":
+            if cfg.ENABLE_JIRA_AGENT:
+                return JiraAgent().fetch(question), search_metadata
+        case "WebRCAAgent":
+            if cfg.ENABLE_WEB_RCA_AGENT:
+                return WebRCAAgent().fetch(question), search_metadata
 
     if len(search_results) == 0:
         log.debug("given 0 search results")
@@ -198,7 +198,11 @@ def ask_advanced(
     for m in search_metadata:
         m["interactionId"] = interaction_id
 
-    msg_list = [("system", prompt or cfg.DEFAULT_SYSTEM_PROMPT)]
+    # Determine system prompt: use provided prompt, then first assistant's system_prompt, then default
+    # TODO: handle the case where assistants are configured with different system prompts
+    system_prompt = prompt or assistants[0].system_prompt or cfg.DEFAULT_SYSTEM_PROMPT
+
+    msg_list = [("system", system_prompt)]
     if previous_messages:
         for msg in previous_messages:
             if msg["sender"] == "human":
@@ -207,58 +211,11 @@ def ask_advanced(
                 msg_list.append(("ai", f"{msg['text']}</s>"))
     msg_list.append(("human", cfg.USER_PROMPT_TEMPLATE))
 
-    prompt_params = {"context": search_context, "question": question}
-    llm_response = get_response(ChatPromptTemplate(msg_list), prompt_params, model)
-
-    return llm_response, search_metadata
-
-
-def ask(
-    assistant: Assistant,
-    previous_messages,
-    question,
-    search_results: list[Document],
-    interaction_id=None,
-) -> tuple[Generator[str, None, None], list[dict]]:
-    log.debug("llm 'ask' request")
-    search_context = ""
-    search_metadata = []
-
-    agent = identify_agent(question)
-    log.debug("identified agent: %s", agent)
-    match agent.strip():
-        case "JiraAgent":
-            if cfg.ENABLE_JIRA_AGENT:
-                return JiraAgent().fetch(question), search_metadata
-        case "WebRCAAgent":
-            if cfg.ENABLE_WEB_RCA_AGENT:
-                return WebRCAAgent().fetch(question), search_metadata
-
-    if len(search_results) == 0:
-        log.debug("given 0 search results")
-        search_context = "No matching search results found"
-        llm_no_answer.labels(assistant_id=assistant.id, assistant_name=assistant.name).inc()
-    else:
-        search_context, search_metadata = _build_context(search_results)
-        assistant_response_counter.labels(
-            assistant_id=assistant.id, assistant_name=assistant.name
-        ).inc()
-
-    if not search_metadata:
-        search_metadata = [{}]
-    for m in search_metadata:
-        m["interactionId"] = interaction_id
-
-    msg_list = [("system", assistant.system_prompt or cfg.DEFAULT_SYSTEM_PROMPT)]
-    if previous_messages:
-        for msg in previous_messages:
-            if msg["sender"] == "human":
-                msg_list.append(("human", f"[INST] {msg['text']} [/INST]"))
-            if msg["sender"] == "ai":
-                msg_list.append(("ai", f"{msg['text']}</s>"))
-    msg_list.append(("human", cfg.USER_PROMPT_TEMPLATE))
+    # Determine model: use provided model, then first assistant's model
+    # TODO: handle the case where assistants are configured with different models
+    selected_model = model or assistants[0].model
 
     prompt_params = {"context": search_context, "question": question}
-    llm_response = get_response(ChatPromptTemplate(msg_list), prompt_params)
+    llm_response = get_response(ChatPromptTemplate(msg_list), prompt_params, selected_model)
 
     return llm_response, search_metadata

@@ -18,6 +18,7 @@ import tangerine.models  # noqa
 from tangerine.db import db, migrate
 
 from .metrics import metrics
+from .nltk import init_nltk
 from .resources.routes import initialize_routes
 from .sync.s3 import run as run_s3sync
 from .vector import vector_db
@@ -49,6 +50,9 @@ def create_app():
     with app.app_context():
         db.session.commit()
         vector_db.initialize()
+
+        if cfg.NLTK_INIT_ON_STARTUP:
+            init_nltk()
 
     return app
 

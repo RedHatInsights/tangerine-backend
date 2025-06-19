@@ -63,6 +63,16 @@ parameters:
     value: "webrca-agent-secret"
   - name: SSO_URL
     value: "http://sso-service:8080"
+  - name: ENABLE_LLAMA4_SCOUT
+    value: "false"
+  - name: LLAMA4_SCOUT_BASE_URL
+    value: "http://localhost:11434/v1"
+  - name: LLAMA4_SCOUT_API_KEY
+    value: "yourApiKey"
+  - name: LLAMA4_SCOUT_MODEL_NAME
+    value: "llama-4-scout"
+  - name: LLAMA4_SCOUT_TEMPERATURE
+    value: "0.7"
 
 objects:
 # Secrets
@@ -107,6 +117,13 @@ objects:
           - name: db-migrations
             image: ${IMAGE}:${IMAGE_TAG}
             command: ["/bin/bash", "-c", "${MIGRATION_COMMAND}"]
+            resources:
+              requests:
+                memory: ${MEMORY_REQUEST}
+                cpu: ${CPU_REQUEST}
+              limits:
+                memory: ${MEMORY_LIMIT}
+                cpu: ${CPU_LIMIT}
             env:
               - name: LOG_LEVEL_APP
                 value: ${LOG_LEVEL_APP}
@@ -167,6 +184,8 @@ objects:
               failureThreshold: 3
             terminationMessagePath: /dev/termination-log
             env:
+              - name: "NLTK_INIT_ON_STARTUP"
+                value: "true"
               - name: ENABLE_FULL_TEXT_SEARCH
                 value: ${ENABLE_FULL_TEXT_SEARCH}
               - name: ENABLE_HYBRID_SEARCH
@@ -244,6 +263,19 @@ objects:
                 value: ${WEB_RCA_AGENT_CLIENT_SECRET}
               - name: SSO_URL
                 value: ${SSO_URL}
+              - name: ENABLE_LLAMA4_SCOUT
+                value: ${ENABLE_LLAMA4_SCOUT}
+              - name: LLAMA4_SCOUT_BASE_URL
+                value: ${LLAMA4_SCOUT_BASE_URL}
+              - name: LLAMA4_SCOUT_API_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: llm-api-key
+                    key: api_key
+              - name: LLAMA4_SCOUT_MODEL_NAME
+                value: ${LLAMA4_SCOUT_MODEL_NAME}
+              - name: LLAMA4_SCOUT_TEMPERATURE
+                value: ${LLAMA4_SCOUT_TEMPERATURE}
             securityContext:
               capabilities: {}
               privileged: false

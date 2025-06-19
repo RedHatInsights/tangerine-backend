@@ -5,6 +5,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 import tangerine.config as cfg
 import tangerine.llm as llm
+from tangerine.nltk import get_words
 
 log = logging.getLogger("tangerine.models.interactions")
 
@@ -57,7 +58,7 @@ class JiraAgent:
             token
             for token in tokens
             if token
-            and token not in cfg.ENGLISH_WORDS
+            and token not in get_words()
             and token not in ["jira", "issue", "issues", "project", "projects"]
         ]
         # strip every username of any special characters

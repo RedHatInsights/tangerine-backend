@@ -43,6 +43,9 @@ COPY migrations ./migrations
 COPY .flaskenv .
 RUN pip install .
 
+RUN mkdir /nltk_data && chown -R 1001:0 /nltk_data && chmod -R g=u /nltk_data
+ENV NLTK_DATA_DIR=/nltk_data
+
 # remove devel packages that may have only been necessary for psycopg to compile
 RUN microdnf remove -y $( comm -13 packages-before-devel-install.txt packages-after-devel-install.txt ) && \
     rm packages-before-devel-install.txt packages-after-devel-install.txt && \

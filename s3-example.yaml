@@ -14,6 +14,7 @@ assistants:
   - name: assistant2
     description: Assistant Two
     bucket: mybucket
+    model: llama4_scout
     paths:
       - prefix: other/path/in/bucket
         citation_url_template: 'https://some.site/{{ full_path | replace("other/", "") }}'
