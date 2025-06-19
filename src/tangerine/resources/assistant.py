@@ -11,6 +11,7 @@ from tangerine import config
 from tangerine.config import DEFAULT_SYSTEM_PROMPT
 from tangerine.embeddings import embed_query
 from tangerine.models.assistant import Assistant
+from tangerine.models.conversation import Conversation
 from tangerine.models.interactions import store_interaction
 from tangerine.search import SearchResult, search_engine
 from tangerine.utils import File, add_filenames_to_assistant, embed_files, remove_files
@@ -157,9 +158,10 @@ class AssistantChatApi(Resource):
             return {"message": "assistant not found"}, 404
 
         log.debug("querying vector DB")
-        question, session_uuid, stream, previous_messages, interaction_id, client = (
+        question, session_uuid, stream, previous_messages, interaction_id, client, user = (
             self._extract_request_data()
         )
+        Conversation.upsert(request.json)
         embedding = self._embed_question(question)
         search_results = self._get_search_results([assistant.id], question, embedding)
         llm_response, search_metadata = self._call_llm(
@@ -176,6 +178,7 @@ class AssistantChatApi(Resource):
                 session_uuid,
                 interaction_id,
                 client,
+                user
             )
 
         return self._handle_standard_response(
@@ -187,6 +190,7 @@ class AssistantChatApi(Resource):
             session_uuid,
             interaction_id,
             client,
+            user
         )
 
     def _get_assistant(self, assistant_id):
@@ -199,7 +203,8 @@ class AssistantChatApi(Resource):
         previous_messages = request.json.get("prevMsgs")
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
-        return question, session_uuid, stream, previous_messages, interaction_id, client
+        user = request.json.get("user", "unknown")
+        return question, session_uuid, stream, previous_messages, interaction_id, client, user
 
     def _embed_question(self, question):
         return embed_query(question)
@@ -239,6 +244,7 @@ class AssistantChatApi(Resource):
         session_uuid,
         interaction_id,
         client,
+        user
     ):
         source_doc_info = self._parse_search_results(search_results)
 
@@ -263,6 +269,7 @@ class AssistantChatApi(Resource):
                 session_uuid,
                 interaction_id,
                 client,
+                user
             )
 
         return Response(stream_with_context(__api_response_generator()))
@@ -277,6 +284,7 @@ class AssistantChatApi(Resource):
         session_uuid,
         interaction_id,
         client,
+        user
     ):
         source_doc_info = self._parse_search_results(search_results)
 
@@ -290,6 +298,7 @@ class AssistantChatApi(Resource):
             session_uuid,
             interaction_id,
             client,
+            user
         )
         return response, 200
 
@@ -306,6 +315,7 @@ class AssistantChatApi(Resource):
         session_uuid,
         interaction_id,
         client,
+        user
     ):
         if self._interaction_storage_enabled() is False:
             return
@@ -318,6 +328,7 @@ class AssistantChatApi(Resource):
                 session_uuid=session_uuid,
                 interaction_id=interaction_id,
                 client=client,
+                user=user,
             )
         except Exception:
             log.exception("Failed to log interaction")
