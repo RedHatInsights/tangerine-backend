@@ -55,7 +55,7 @@ parameters:
     value: "false"
   - name: JIRA_AGENT_URL
     value: "http://jira-agent:8000"
-  - name: WEBRCA_AGENT_URL
+  - name: WEB_RCA_AGENT_URL
     value: "http://webrca-agent:8000"
   - name: WEB_RCA_AGENT_CLIENT_ID
     value: "webrca-agent-client"
@@ -255,8 +255,8 @@ objects:
                 value: ${ENABLE_WEB_RCA_AGENT}
               - name: JIRA_AGENT_URL
                 value: ${JIRA_AGENT_URL}
-              - name: WEBRCA_AGENT_URL
-                value: ${WEBRCA_AGENT_URL}
+              - name: WEB_RCA_AGENT_URL
+                value: ${WEB_RCA_AGENT_URL}
               - name: WEB_RCA_AGENT_CLIENT_ID
                 value: ${WEB_RCA_AGENT_CLIENT_ID}
               - name: WEB_RCA_AGENT_CLIENT_SECRET
