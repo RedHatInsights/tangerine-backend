@@ -51,7 +51,7 @@ parameters:
     value: "flask db upgrade"
   - name: ENABLE_JIRA_AGENT
     value: "false"
-  - name: ENABLE_WEBRCA_AGENT
+  - name: ENABLE_WEB_RCA_AGENT
     value: "false"
   - name: JIRA_AGENT_URL
     value: "http://jira-agent:8000"
@@ -251,8 +251,8 @@ objects:
                     key: api_key
               - name: ENABLE_JIRA_AGENT
                 value: ${ENABLE_JIRA_AGENT}
-              - name: ENABLE_WEBRCA_AGENT
-                value: ${ENABLE_WEBRCA_AGENT}
+              - name: ENABLE_WEB_RCA_AGENT
+                value: ${ENABLE_WEB_RCA_AGENT}
               - name: JIRA_AGENT_URL
                 value: ${JIRA_AGENT_URL}
               - name: WEBRCA_AGENT_URL
