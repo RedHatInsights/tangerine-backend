@@ -22,7 +22,6 @@ class WebRCAAgent:
             response = requests.get(
                 query_url,
                 headers={"Authorization": f"Bearer {token}"},
-                params={"query": query},
                 timeout=120,
             )
             response.raise_for_status()
