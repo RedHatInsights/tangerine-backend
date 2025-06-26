@@ -219,7 +219,7 @@ class AssistantChatApi(Resource):
         )
 
     @staticmethod
-    def _parse_search_results(search_results: list[Document]) -> list[dict]:
+    def _parse_search_results(search_results: list[SearchResult]) -> list[dict]:
         return [
             {
                 "text": doc.document.page_content,
@@ -371,6 +371,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
         model_name = request.json.get("model")
+        user = request.json.get("user", "unknown")
 
         if model_name and model_name not in config.MODELS:
             return {"message": f"Invalid model name: {model_name}"}, 400
@@ -380,14 +381,16 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         if chunks:
             chunks = self._convert_chunk_array_to_documents(request.json.get("chunks"))
         search_results = chunks or search_engine.search(assistant_ids, question, embedding)
+        # Convert SearchResult objects to Document objects for llm.ask()
+        documents = [result.document for result in search_results]
         llm_response, search_metadata = llm.ask(
             assistants,
             previous_messages,
             question,
-            search_results,
+            documents,
             interaction_id=interaction_id,
             prompt=system_prompt,
-            model=model_name,
+            model=model_name
         )
         if self._is_streaming_response(stream):
             return self._handle_streaming_response(
@@ -399,6 +402,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
                 session_uuid,
                 interaction_id,
                 client,
+                user
             )
 
         return self._handle_standard_response(
@@ -410,6 +414,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
             session_uuid,
             interaction_id,
             client,
+            user
         )
 
     def _get_assistants(self, assistant_names):
