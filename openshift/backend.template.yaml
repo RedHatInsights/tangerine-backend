@@ -51,11 +51,11 @@ parameters:
     value: "flask db upgrade"
   - name: ENABLE_JIRA_AGENT
     value: "false"
-  - name: ENABLE_WEBRCA_AGENT
+  - name: ENABLE_WEB_RCA_AGENT
     value: "false"
   - name: JIRA_AGENT_URL
     value: "http://jira-agent:8000"
-  - name: WEBRCA_AGENT_URL
+  - name: WEB_RCA_AGENT_URL
     value: "http://webrca-agent:8000"
   - name: WEB_RCA_AGENT_CLIENT_ID
     value: "webrca-agent-client"
@@ -90,6 +90,15 @@ objects:
     name: embed-api-key
   stringData:
     api_key: yourApiKey
+  type: Opaque
+
+- kind: Secret
+  apiVersion: v1
+  metadata:
+    name: web-rca-client-credentials
+  stringData:
+    WEB_RCA_CLIENT_ID: yourClientId
+    WEB_RCA_CLIENT_SECRET: yourClientSecret
   type: Opaque
 
 # Deployment
@@ -251,16 +260,22 @@ objects:
                     key: api_key
               - name: ENABLE_JIRA_AGENT
                 value: ${ENABLE_JIRA_AGENT}
-              - name: ENABLE_WEBRCA_AGENT
-                value: ${ENABLE_WEBRCA_AGENT}
+              - name: ENABLE_WEB_RCA_AGENT
+                value: ${ENABLE_WEB_RCA_AGENT}
               - name: JIRA_AGENT_URL
                 value: ${JIRA_AGENT_URL}
-              - name: WEBRCA_AGENT_URL
-                value: ${WEBRCA_AGENT_URL}
+              - name: WEB_RCA_AGENT_URL
+                value: ${WEB_RCA_AGENT_URL}
               - name: WEB_RCA_AGENT_CLIENT_ID
-                value: ${WEB_RCA_AGENT_CLIENT_ID}
+                valueFrom:
+                  secretKeyRef:
+                    name: web-rca-client-credentials
+                    key: WEB_RCA_CLIENT_ID
               - name: WEB_RCA_AGENT_CLIENT_SECRET
-                value: ${WEB_RCA_AGENT_CLIENT_SECRET}
+                valueFrom:
+                  secretKeyRef:
+                    name: web-rca-client-credentials
+                    key: WEB_RCA_CLIENT_SECRET
               - name: SSO_URL
                 value: ${SSO_URL}
               - name: ENABLE_LLAMA4_SCOUT
