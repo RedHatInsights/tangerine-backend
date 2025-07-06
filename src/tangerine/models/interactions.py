@@ -2,9 +2,8 @@ import logging
 import uuid
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy.dialects.postgresql import UUID
-
 from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import UUID
 
 from tangerine.db import db
 
@@ -79,6 +78,7 @@ def store_user_feedback(
     insert(feedback_record, "Feedback")
     return feedback_record.id
 
+
 class Interaction(db.Model):
     __tablename__ = "interactions"
 
@@ -89,8 +89,8 @@ class Interaction(db.Model):
     source_doc_chunks = db.Column(db.JSON)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
     client = db.Column(db.String(50), nullable=True)
-    user_id  = db.Column(db.String(256), nullable=True)
-    
+    user_id = db.Column(db.String(256), nullable=True)
+
     @classmethod
     def get_user_sessions(user_id):
         """
@@ -108,7 +108,7 @@ class Interaction(db.Model):
         )
         result = db.session.execute(query, {"user_id": user_id})
         return result.fetchall()
-    
+
     @classmethod
     def get_session_interactions(user_id, session_uuid):
         """

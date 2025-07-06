@@ -8,10 +8,10 @@ from .assistant import (
     AssistantSearchApi,
 )
 from .conversation import (
+    ConversationDeleteApi,
     ConversationListApi,
     ConversationRetrievalApi,
     ConversationUpsertApi,
-    ConversationDeleteApi,
 )
 from .feedback import FeedbackApi
 from .ping import PingApi

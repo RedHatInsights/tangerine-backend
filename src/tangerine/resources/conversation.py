@@ -1,7 +1,8 @@
-from flask_restful import Resource
 from flask import request
+from flask_restful import Resource
 
 from tangerine.models.conversation import Conversation
+
 
 class ConversationListApi(Resource):
     """

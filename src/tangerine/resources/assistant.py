@@ -38,7 +38,7 @@ class AssistantsApi(Resource):
     def post(self):
         if not request.json:
             return {"message": "No JSON data provided"}, 400
-            
+
         name = request.json.get("name")
         description = request.json.get("description")
         if not name:
@@ -128,7 +128,7 @@ class AssistantDocuments(Resource):
 
         if not request.json:
             return {"message": "No JSON data provided"}, 400
-            
+
         source = request.json.get("source")
         full_path = request.json.get("full_path")
         delete_all = bool(request.json.get("all", False))
@@ -186,7 +186,7 @@ class AssistantChatApi(Resource):
                 interaction_id,
                 client,
                 user,
-                previous_messages
+                previous_messages,
             )
 
         return self._handle_standard_response(
@@ -199,7 +199,7 @@ class AssistantChatApi(Resource):
             interaction_id,
             client,
             user,
-            previous_messages
+            previous_messages,
         )
 
     def _get_assistant(self, assistant_id):
@@ -254,7 +254,7 @@ class AssistantChatApi(Resource):
         interaction_id,
         client,
         user,
-        previous_messages=None
+        previous_messages=None,
     ):
         source_doc_info = self._parse_search_results(search_results)
 
@@ -279,16 +279,12 @@ class AssistantChatApi(Resource):
                 session_uuid,
                 interaction_id,
                 client,
-                user
+                user,
             )
-            
+
             # Update conversation history with both user query and assistant response
             self._update_conversation_history(
-                question, 
-                accumulated_text, 
-                session_uuid, 
-                previous_messages, 
-                user
+                question, accumulated_text, session_uuid, previous_messages, user
             )
 
         return Response(stream_with_context(__api_response_generator()))
@@ -304,7 +300,7 @@ class AssistantChatApi(Resource):
         interaction_id,
         client,
         user,
-        previous_messages=None
+        previous_messages=None,
     ):
         source_doc_info = self._parse_search_results(search_results)
 
@@ -318,18 +314,14 @@ class AssistantChatApi(Resource):
             session_uuid,
             interaction_id,
             client,
-            user
+            user,
         )
-        
+
         # Update conversation history with both user query and assistant response
         self._update_conversation_history(
-            question, 
-            response["text_content"], 
-            session_uuid, 
-            previous_messages, 
-            user
+            question, response["text_content"], session_uuid, previous_messages, user
         )
-        
+
         return response, 200
 
     # Looks like a silly function but it makes it easier to mock in tests
@@ -345,7 +337,7 @@ class AssistantChatApi(Resource):
         session_uuid,
         interaction_id,
         client,
-        user
+        user,
     ):
         if self._interaction_storage_enabled() is False:
             return
@@ -363,43 +355,41 @@ class AssistantChatApi(Resource):
         except Exception:
             log.exception("Failed to log interaction")
 
-    def _update_conversation_history(self, question, response_text, session_uuid, previous_messages, user):
+    def _update_conversation_history(
+        self, question, response_text, session_uuid, previous_messages, user
+    ):
         """Update the conversation with the complete conversation history including the latest exchange."""
         try:
             # Validate required parameters
             if not question or not response_text or not session_uuid:
                 log.warning("Missing required parameters for conversation history update")
                 return
-                
+
             # Build the updated conversation history
             updated_messages = previous_messages.copy() if previous_messages else []
-            
+
             # Add the user's question
-            updated_messages.append({
-                "sender": "human",
-                "text": question
-            })
-            
+            updated_messages.append({"sender": "human", "text": question})
+
             # Add the assistant's response
-            updated_messages.append({
-                "sender": "ai", 
-                "text": response_text
-            })
-            
+            updated_messages.append({"sender": "ai", "text": response_text})
+
             # Create the conversation payload
             conversation_payload = {
                 "sessionId": session_uuid,
                 "user": user,
                 "query": question,
-                "prevMsgs": updated_messages
+                "prevMsgs": updated_messages,
             }
-            
+
             # Upsert the conversation
             Conversation.upsert(conversation_payload)
             log.debug("Successfully updated conversation history for session %s", session_uuid)
-            
+
         except Exception as e:
-            log.exception("Failed to update conversation history for session %s: %s", session_uuid, str(e))
+            log.exception(
+                "Failed to update conversation history for session %s: %s", session_uuid, str(e)
+            )
 
 
 class AssistantAdvancedChatApi(AssistantChatApi):
@@ -458,7 +448,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
             documents,
             interaction_id=interaction_id,
             prompt=system_prompt,
-            model=model_name
+            model=model_name,
         )
         if self._is_streaming_response(stream):
             return self._handle_streaming_response(
@@ -471,7 +461,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
                 interaction_id,
                 client,
                 user,
-                previous_messages
+                previous_messages,
             )
 
         return self._handle_standard_response(
@@ -484,7 +474,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
             interaction_id,
             client,
             user,
-            previous_messages
+            previous_messages,
         )
 
     def _get_assistants(self, assistant_names):

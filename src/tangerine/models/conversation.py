@@ -1,25 +1,30 @@
 import uuid
+
 from sqlalchemy.dialects.postgresql import UUID
+
 from tangerine.db import db
+
 
 class Conversation(db.Model):
     __tablename__ = "conversations"
 
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id  = db.Column(db.String(256), nullable=True)
+    user_id = db.Column(db.String(256), nullable=True)
     session_id = db.Column(UUID(as_uuid=True), nullable=False)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
-    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+    updated_at = db.Column(
+        db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp()
+    )
     payload = db.Column(db.JSON, nullable=False)
     title = db.Column(db.String(256), nullable=True)
-    
+
     @classmethod
     def get_by_session(cls, session_id):
         """
         Retrieve a conversation by user ID and session ID.
         """
         return cls.query.filter_by(session_id=session_id).first()
-    
+
     @classmethod
     def get_by_user(cls, user_id):
         """
@@ -31,7 +36,7 @@ class Conversation(db.Model):
     def upsert(cls, conversation_json):
         user_id = conversation_json.get("user")
         session_id = conversation_json.get("sessionId")
-        
+
         # Convert session_id to UUID if it's a string
         if isinstance(session_id, str):
             try:
@@ -40,9 +45,7 @@ class Conversation(db.Model):
                 # If it's not a valid UUID, generate a new one
                 session_id = uuid.uuid4()
 
-        conversation = cls.query.filter_by(
-            session_id=session_id
-        ).first()
+        conversation = cls.query.filter_by(session_id=session_id).first()
 
         if conversation and conversation.is_owned_by(user_id):
             # Update existing conversation
@@ -80,7 +83,7 @@ class Conversation(db.Model):
             # Simple title generation logic, can be replaced with LLM call
             return f"{user_query[:50]}..."
         return "Untitled Conversation"
-    
+
     @classmethod
     def from_json(cls, conversation_json):
         """
@@ -89,7 +92,7 @@ class Conversation(db.Model):
         session_id = conversation_json.get("sessionId")
         if isinstance(session_id, str):
             session_id = uuid.UUID(session_id)
-        
+
         conversation = cls()
         conversation.user_id = conversation_json.get("user")
         conversation.session_id = session_id
@@ -110,7 +113,7 @@ class Conversation(db.Model):
         new_conversation.payload = self.payload.copy() if self.payload else None
         new_conversation.title = self.title
         return new_conversation
-    
+
     def is_owned_by(self, user_id):
         """
         Check if the conversation is owned by the given user ID.
@@ -131,13 +134,13 @@ class Conversation(db.Model):
         Returns True if deleted, False if not found or not owned by user.
         """
         conversation = cls.query.filter_by(session_id=session_id).first()
-        
+
         if not conversation:
             return False, "Conversation not found"
-        
+
         if not conversation.is_owned_by(user_id):
             return False, "Unauthorized: You can only delete your own conversations"
-        
+
         conversation.delete()
         return True, "Conversation deleted successfully"
 
@@ -152,6 +155,5 @@ class Conversation(db.Model):
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "payload": self.payload,
-            "title": self.title
+            "title": self.title,
         }
-
