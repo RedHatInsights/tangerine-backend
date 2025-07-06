@@ -191,7 +191,7 @@ class TestConversationModel:
 
         result = Conversation.generate_title(conversation_json)
 
-        assert result == "This is a very long query that should be trunca..."
+        assert result == "This is a very long query that should be truncated..."
 
     def test_generate_title_without_query(self):
         """Test title generation without a query."""

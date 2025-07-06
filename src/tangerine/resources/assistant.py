@@ -206,6 +206,8 @@ class AssistantChatApi(Resource):
         return Assistant.get(assistant_id)
 
     def _extract_request_data(self):
+        if not request.json:
+            raise ValueError("No JSON data provided")
         question = request.json.get("query")
         session_uuid = request.json.get("sessionId", str(uuid.uuid4()))
         stream = request.json.get("stream", "true") == "true"
@@ -408,6 +410,9 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         ]
 
     def post(self, _id=None):
+        if not request.json:
+            return {"message": "No JSON data provided"}, 400
+        
         assistant_names = request.json.get("assistants")
         assistants = []
 
@@ -492,6 +497,9 @@ class AssistantAdvancedChatApi(AssistantChatApi):
 
 class AssistantSearchApi(Resource):
     def post(self, id):
+        if not request.json:
+            return {"message": "No JSON data provided"}, 400
+        
         query = request.json.get("query")
         assistant = self._get_assistant(id)
         if not assistant:

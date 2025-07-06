@@ -258,7 +258,9 @@ class TestAssistantConversationHistory:
                 # The update should be called within the generator function
                 # We need to execute the generator to verify this
                 generator_func = mock_stream.call_args[0][0]
-                list(generator_func())  # Execute the generator
+                # Execute the generator by consuming all its values
+                for _ in generator_func():
+                    pass
 
                 # Verify conversation history was updated
                 assistant_chat_api._update_conversation_history.assert_called_once_with(
