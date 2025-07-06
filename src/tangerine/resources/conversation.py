@@ -60,22 +60,54 @@ class ConversationRetrievalApi(Resource):
             return conversation.to_json(), 200
         except Exception as e:
             return {"error": str(e)}, 500
-    
-    class ConversationUpsertApi(Resource):
-        """
-        Upsert a conversation
-        """
 
-        def post(self):
-            """
-            Handle POST requests to upsert a conversation.
-            """
-            data = request.get_json()
-            if not data:
-                return {"error": "No data provided"}, 400
 
-            try:
-                conversation = Conversation.upsert(data)
-                return conversation.to_json(), 200
-            except Exception as e:
-                return {"error": str(e)}, 500
+class ConversationUpsertApi(Resource):
+    """
+    Upsert a conversation
+    """
+
+    def post(self):
+        """
+        Handle POST requests to upsert a conversation.
+        """
+        data = request.get_json()
+        if not data:
+            return {"error": "No data provided"}, 400
+
+        try:
+            conversation = Conversation.upsert(data)
+            return conversation.to_json(), 200
+        except Exception as e:
+            return {"error": str(e)}, 500
+
+
+class ConversationDeleteApi(Resource):
+    """
+    Delete a conversation
+    """
+
+    def post(self):
+        """
+        Handle POST requests to delete a conversation.
+        """
+        data = request.get_json()
+        if not data:
+            return {"error": "No data provided"}, 400
+
+        session_id = data.get("sessionId")
+        user_id = data.get("user_id")
+
+        if not session_id:
+            return {"error": "Session ID is required"}, 400
+        if not user_id:
+            return {"error": "User ID is required"}, 400
+
+        try:
+            success, message = Conversation.delete_by_session(session_id, user_id)
+            if success:
+                return {"message": message}, 200
+            else:
+                return {"error": message}, 400 if "not found" in message.lower() else 403
+        except Exception as e:
+            return {"error": str(e)}, 500
