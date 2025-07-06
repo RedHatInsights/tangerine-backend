@@ -1,5 +1,4 @@
-import uuid
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -241,7 +240,7 @@ class TestAssistantConversationHistory:
         user = "test_user"
         previous_messages = [{"sender": "human", "text": "Hello"}]
 
-        with patch("tangerine.resources.assistant.Response") as mock_response:
+        with patch("tangerine.resources.assistant.Response"):
             with patch("tangerine.resources.assistant.stream_with_context") as mock_stream:
                 assistant_chat_api._handle_streaming_response(
                     llm_response,
