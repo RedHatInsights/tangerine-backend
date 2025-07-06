@@ -107,7 +107,9 @@ class TestConversationRetrievalApi:
         """Test successful conversation retrieval."""
         with patch("tangerine.resources.conversation.request") as mock_request:
             with patch("tangerine.resources.conversation.Conversation") as mock_conversation:
-                mock_request.get_json.return_value = {"sessionId": "12345678-1234-5678-9012-123456789012"}
+                mock_request.get_json.return_value = {
+                    "sessionId": "12345678-1234-5678-9012-123456789012"
+                }
                 mock_conversation.get_by_session.return_value = sample_conversation_object
 
                 response, status_code = conversation_retrieval_api.post()
@@ -294,7 +296,10 @@ class TestConversationDeleteApi:
         """Test conversation deletion when user not authorized."""
         with patch("tangerine.resources.conversation.request") as mock_request:
             with patch("tangerine.resources.conversation.Conversation") as mock_conversation:
-                mock_request.get_json.return_value = {"sessionId": "test-session", "user_id": "wrong_user"}
+                mock_request.get_json.return_value = {
+                    "sessionId": "test-session",
+                    "user_id": "wrong_user",
+                }
                 mock_conversation.delete_by_session.return_value = (
                     False,
                     "Unauthorized: You can only delete your own conversations",
@@ -303,13 +308,18 @@ class TestConversationDeleteApi:
                 response, status_code = conversation_delete_api.post()
 
                 assert status_code == 403
-                assert response == {"error": "Unauthorized: You can only delete your own conversations"}
+                assert response == {
+                    "error": "Unauthorized: You can only delete your own conversations"
+                }
 
     def test_post_exception(self, conversation_delete_api):
         """Test conversation deletion with database exception."""
         with patch("tangerine.resources.conversation.request") as mock_request:
             with patch("tangerine.resources.conversation.Conversation") as mock_conversation:
-                mock_request.get_json.return_value = {"sessionId": "test-session", "user_id": "test_user"}
+                mock_request.get_json.return_value = {
+                    "sessionId": "test-session",
+                    "user_id": "test_user",
+                }
                 mock_conversation.delete_by_session.side_effect = Exception("Database error")
 
                 response, status_code = conversation_delete_api.post()
@@ -322,7 +332,10 @@ class TestConversationDeleteApi:
         """Test that error messages are mapped to correct status codes."""
         with patch("tangerine.resources.conversation.request") as mock_request:
             with patch("tangerine.resources.conversation.Conversation") as mock_conversation:
-                mock_request.get_json.return_value = {"sessionId": "test-session", "user_id": "test_user"}
+                mock_request.get_json.return_value = {
+                    "sessionId": "test-session",
+                    "user_id": "test_user",
+                }
 
                 # Test 400 for "not found"
                 mock_conversation.delete_by_session.return_value = (False, "conversation not found")

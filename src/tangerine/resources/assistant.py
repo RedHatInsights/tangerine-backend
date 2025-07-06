@@ -412,7 +412,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
     def post(self, _id=None):
         if not request.json:
             return {"message": "No JSON data provided"}, 400
-        
+
         assistant_names = request.json.get("assistants")
         assistants = []
 
@@ -499,7 +499,7 @@ class AssistantSearchApi(Resource):
     def post(self, id):
         if not request.json:
             return {"message": "No JSON data provided"}, 400
-        
+
         query = request.json.get("query")
         assistant = self._get_assistant(id)
         if not assistant:
