@@ -105,6 +105,8 @@ def test_post_chat_non_streaming(assistant_chat_api):
         mock_session_uuid,
         mock_interaction_id,
         mock_client,
+        "test_user",
+        mock_previous_messages,
     )
 
 
@@ -168,4 +170,6 @@ def test_post_chat_streaming(assistant_chat_api):
         mock_session_uuid,
         mock_interaction_id,
         mock_client,
+        "test_user",
+        mock_previous_messages,
     )

@@ -47,10 +47,10 @@ class TestConversationListApi:
 
     def test_post_success(self, conversation_list_api, sample_conversation_object):
         """Test successful conversation list retrieval."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
             with patch("tangerine.resources.conversation.Conversation") as mock_conversation:
                 # Mock request data
-                mock_request.get_json.return_value = {"user_id": "test_user"}
+                mock_get_json.return_value = {"user_id": "test_user"}
 
                 # Mock Conversation.get_by_user
                 mock_conversation.get_by_user.return_value = [sample_conversation_object]
@@ -63,8 +63,8 @@ class TestConversationListApi:
 
     def test_post_no_data(self, conversation_list_api):
         """Test conversation list with no data provided."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
-            mock_request.get_json.return_value = None
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
+            mock_get_json.return_value = None
 
             response, status_code = conversation_list_api.post()
 
@@ -73,8 +73,8 @@ class TestConversationListApi:
 
     def test_post_no_user_id(self, conversation_list_api):
         """Test conversation list with no user_id provided."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
-            mock_request.get_json.return_value = {"other_field": "value"}
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
+            mock_get_json.return_value = {"other_field": "value"}
 
             response, status_code = conversation_list_api.post()
 
@@ -83,9 +83,9 @@ class TestConversationListApi:
 
     def test_post_exception(self, conversation_list_api):
         """Test conversation list with database exception."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
             with patch("tangerine.resources.conversation.Conversation") as mock_conversation:
-                mock_request.get_json.return_value = {"user_id": "test_user"}
+                mock_get_json.return_value = {"user_id": "test_user"}
                 mock_conversation.get_by_user.side_effect = Exception("Database error")
 
                 response, status_code = conversation_list_api.post()
@@ -105,11 +105,9 @@ class TestConversationRetrievalApi:
 
     def test_post_success(self, conversation_retrieval_api, sample_conversation_object):
         """Test successful conversation retrieval."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
             with patch("tangerine.resources.conversation.Conversation") as mock_conversation:
-                mock_request.get_json.return_value = {
-                    "sessionId": "12345678-1234-5678-9012-123456789012"
-                }
+                mock_get_json.return_value = {"sessionId": "12345678-1234-5678-9012-123456789012"}
                 mock_conversation.get_by_session.return_value = sample_conversation_object
 
                 response, status_code = conversation_retrieval_api.post()
@@ -122,8 +120,8 @@ class TestConversationRetrievalApi:
 
     def test_post_no_data(self, conversation_retrieval_api):
         """Test conversation retrieval with no data provided."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
-            mock_request.get_json.return_value = None
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
+            mock_get_json.return_value = None
 
             response, status_code = conversation_retrieval_api.post()
 
@@ -132,8 +130,8 @@ class TestConversationRetrievalApi:
 
     def test_post_no_session_id(self, conversation_retrieval_api):
         """Test conversation retrieval with no session ID provided."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
-            mock_request.get_json.return_value = {"other_field": "value"}
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
+            mock_get_json.return_value = {"other_field": "value"}
 
             response, status_code = conversation_retrieval_api.post()
 
@@ -142,9 +140,9 @@ class TestConversationRetrievalApi:
 
     def test_post_not_found(self, conversation_retrieval_api):
         """Test conversation retrieval when conversation not found."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
             with patch("tangerine.resources.conversation.Conversation") as mock_conversation:
-                mock_request.get_json.return_value = {"sessionId": "nonexistent-session"}
+                mock_get_json.return_value = {"sessionId": "nonexistent-session"}
                 mock_conversation.get_by_session.return_value = None
 
                 response, status_code = conversation_retrieval_api.post()
@@ -154,9 +152,9 @@ class TestConversationRetrievalApi:
 
     def test_post_exception(self, conversation_retrieval_api):
         """Test conversation retrieval with database exception."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
             with patch("tangerine.resources.conversation.Conversation") as mock_conversation:
-                mock_request.get_json.return_value = {"sessionId": "test-session"}
+                mock_get_json.return_value = {"sessionId": "test-session"}
                 mock_conversation.get_by_session.side_effect = Exception("Database error")
 
                 response, status_code = conversation_retrieval_api.post()
@@ -176,7 +174,7 @@ class TestConversationUpsertApi:
 
     def test_post_success(self, conversation_upsert_api, sample_conversation_object):
         """Test successful conversation upsert."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
             with patch("tangerine.resources.conversation.Conversation") as mock_conversation:
                 conversation_data = {
                     "sessionId": "12345678-1234-5678-9012-123456789012",
@@ -184,7 +182,7 @@ class TestConversationUpsertApi:
                     "query": "What is AI?",
                     "prevMsgs": [],
                 }
-                mock_request.get_json.return_value = conversation_data
+                mock_get_json.return_value = conversation_data
                 mock_conversation.upsert.return_value = sample_conversation_object
 
                 response, status_code = conversation_upsert_api.post()
@@ -195,8 +193,8 @@ class TestConversationUpsertApi:
 
     def test_post_no_data(self, conversation_upsert_api):
         """Test conversation upsert with no data provided."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
-            mock_request.get_json.return_value = None
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
+            mock_get_json.return_value = None
 
             response, status_code = conversation_upsert_api.post()
 
@@ -205,10 +203,10 @@ class TestConversationUpsertApi:
 
     def test_post_exception(self, conversation_upsert_api):
         """Test conversation upsert with database exception."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
             with patch("tangerine.resources.conversation.Conversation") as mock_conversation:
                 conversation_data = {"sessionId": "test-session", "user": "test_user"}
-                mock_request.get_json.return_value = conversation_data
+                mock_get_json.return_value = conversation_data
                 mock_conversation.upsert.side_effect = Exception("Database error")
 
                 response, status_code = conversation_upsert_api.post()
@@ -228,9 +226,9 @@ class TestConversationDeleteApi:
 
     def test_post_success(self, conversation_delete_api):
         """Test successful conversation deletion."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
             with patch("tangerine.resources.conversation.Conversation") as mock_conversation:
-                mock_request.get_json.return_value = {
+                mock_get_json.return_value = {
                     "sessionId": "12345678-1234-5678-9012-123456789012",
                     "user_id": "test_user",
                 }
@@ -249,8 +247,8 @@ class TestConversationDeleteApi:
 
     def test_post_no_data(self, conversation_delete_api):
         """Test conversation deletion with no data provided."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
-            mock_request.get_json.return_value = None
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
+            mock_get_json.return_value = None
 
             response, status_code = conversation_delete_api.post()
 
@@ -259,8 +257,8 @@ class TestConversationDeleteApi:
 
     def test_post_no_session_id(self, conversation_delete_api):
         """Test conversation deletion with no session ID provided."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
-            mock_request.get_json.return_value = {"user_id": "test_user"}
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
+            mock_get_json.return_value = {"user_id": "test_user"}
 
             response, status_code = conversation_delete_api.post()
 
@@ -269,8 +267,8 @@ class TestConversationDeleteApi:
 
     def test_post_no_user_id(self, conversation_delete_api):
         """Test conversation deletion with no user ID provided."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
-            mock_request.get_json.return_value = {"sessionId": "test-session"}
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
+            mock_get_json.return_value = {"sessionId": "test-session"}
 
             response, status_code = conversation_delete_api.post()
 
@@ -279,9 +277,9 @@ class TestConversationDeleteApi:
 
     def test_post_not_found(self, conversation_delete_api):
         """Test conversation deletion when conversation not found."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
             with patch("tangerine.resources.conversation.Conversation") as mock_conversation:
-                mock_request.get_json.return_value = {
+                mock_get_json.return_value = {
                     "sessionId": "nonexistent-session",
                     "user_id": "test_user",
                 }
@@ -294,9 +292,9 @@ class TestConversationDeleteApi:
 
     def test_post_unauthorized(self, conversation_delete_api):
         """Test conversation deletion when user not authorized."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
             with patch("tangerine.resources.conversation.Conversation") as mock_conversation:
-                mock_request.get_json.return_value = {
+                mock_get_json.return_value = {
                     "sessionId": "test-session",
                     "user_id": "wrong_user",
                 }
@@ -314,9 +312,9 @@ class TestConversationDeleteApi:
 
     def test_post_exception(self, conversation_delete_api):
         """Test conversation deletion with database exception."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
             with patch("tangerine.resources.conversation.Conversation") as mock_conversation:
-                mock_request.get_json.return_value = {
+                mock_get_json.return_value = {
                     "sessionId": "test-session",
                     "user_id": "test_user",
                 }
@@ -330,9 +328,9 @@ class TestConversationDeleteApi:
 
     def test_post_status_code_mapping(self, conversation_delete_api):
         """Test that error messages are mapped to correct status codes."""
-        with patch("tangerine.resources.conversation.request") as mock_request:
+        with patch("tangerine.resources.conversation.request.get_json") as mock_get_json:
             with patch("tangerine.resources.conversation.Conversation") as mock_conversation:
-                mock_request.get_json.return_value = {
+                mock_get_json.return_value = {
                     "sessionId": "test-session",
                     "user_id": "test_user",
                 }
