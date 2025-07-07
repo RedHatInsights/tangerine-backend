@@ -4,9 +4,7 @@ Focus on testing business logic only, not infrastructure like Flask or database 
 """
 
 import uuid
-from unittest.mock import Mock, patch
-
-import pytest
+from unittest.mock import patch
 
 from tangerine.resources.assistant import AssistantChatApi
 
