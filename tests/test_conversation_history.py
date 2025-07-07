@@ -43,6 +43,58 @@ class TestConversationHistoryLogic:
             assert call_args["prevMsgs"][2] == {"sender": "human", "text": question}
             assert call_args["prevMsgs"][3] == {"sender": "ai", "text": response_text}
 
+    def test_update_conversation_history_with_assistant_name(self):
+        """Test that assistant name is properly included in conversation history."""
+        api = AssistantChatApi()
+
+        # Mock the Conversation.upsert to capture what gets passed to it
+        with patch("tangerine.resources.assistant.Conversation") as mock_conv:
+            question = "What is AI?"
+            response_text = "AI is artificial intelligence."
+            session_uuid = "test-session-123"
+            previous_messages = []
+            user = "test_user"
+            assistant_name = "Support Bot"
+
+            api._update_conversation_history(
+                question, response_text, session_uuid, previous_messages, user, assistant_name
+            )
+
+            # Verify the payload passed to upsert includes assistant name
+            call_args = mock_conv.upsert.call_args[0][0]
+
+            assert call_args["sessionId"] == session_uuid
+            assert call_args["user"] == user
+            assert call_args["query"] == question
+            assert call_args["assistantName"] == assistant_name
+            assert len(call_args["prevMsgs"]) == 2
+            assert call_args["prevMsgs"][0] == {"sender": "human", "text": question}
+            assert call_args["prevMsgs"][1] == {"sender": "ai", "text": response_text}
+
+    def test_update_conversation_history_without_assistant_name(self):
+        """Test that conversation history works without assistant name."""
+        api = AssistantChatApi()
+
+        # Mock the Conversation.upsert to capture what gets passed to it
+        with patch("tangerine.resources.assistant.Conversation") as mock_conv:
+            question = "What is AI?"
+            response_text = "AI is artificial intelligence."
+            session_uuid = "test-session-123"
+            previous_messages = []
+            user = "test_user"
+
+            api._update_conversation_history(
+                question, response_text, session_uuid, previous_messages, user
+            )
+
+            # Verify the payload passed to upsert does not include assistant name
+            call_args = mock_conv.upsert.call_args[0][0]
+
+            assert call_args["sessionId"] == session_uuid
+            assert call_args["user"] == user
+            assert call_args["query"] == question
+            assert "assistantName" not in call_args
+
     def test_update_conversation_history_with_empty_previous_messages(self):
         """Test conversation history with no previous messages."""
         api = AssistantChatApi()
@@ -190,3 +242,45 @@ class TestConversationModelLogic:
         conversation = Conversation.from_json(conversation_json)
 
         assert conversation.session_id == session_uuid
+
+    def test_from_json_with_assistant_name(self):
+        """Test creating conversation from JSON with assistant name."""
+        from tangerine.models.conversation import Conversation
+
+        conversation_json = {
+            "sessionId": "12345678-1234-5678-9012-123456789012",
+            "user": "test_user",
+            "query": "Test query",
+            "assistantName": "Support Bot",
+            "prevMsgs": [],
+        }
+
+        conversation = Conversation.from_json(conversation_json)
+
+        assert conversation.user_id == "test_user"
+        assert conversation.assistant_name == "Support Bot"
+        assert conversation.payload == conversation_json
+        assert conversation.title == "Test query..."
+
+    def test_to_json_includes_assistant_name(self):
+        """Test that to_json includes assistant name in the output."""
+        from tangerine.models.conversation import Conversation
+
+        conversation = Conversation()
+        conversation.id = uuid.uuid4()
+        conversation.user_id = "test_user"
+        conversation.session_id = uuid.uuid4()
+        conversation.assistant_name = "Support Bot"
+        conversation.payload = {"query": "Test query"}
+        conversation.title = "Test query..."
+
+        # Mock the timestamp fields
+        from datetime import datetime
+        conversation.created_at = datetime.now()
+        conversation.updated_at = datetime.now()
+
+        json_output = conversation.to_json()
+
+        assert json_output["assistant_name"] == "Support Bot"
+        assert json_output["user_id"] == "test_user"
+        assert json_output["title"] == "Test query..."

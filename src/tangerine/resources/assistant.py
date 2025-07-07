@@ -187,6 +187,7 @@ class AssistantChatApi(Resource):
                 client,
                 user,
                 previous_messages,
+                assistant.name,
             )
 
         return self._handle_standard_response(
@@ -200,6 +201,7 @@ class AssistantChatApi(Resource):
             client,
             user,
             previous_messages,
+            assistant.name,
         )
 
     def _get_assistant(self, assistant_id):
@@ -257,6 +259,7 @@ class AssistantChatApi(Resource):
         client,
         user,
         previous_messages=None,
+        assistant_name=None,
     ):
         source_doc_info = self._parse_search_results(search_results)
 
@@ -286,7 +289,7 @@ class AssistantChatApi(Resource):
 
             # Update conversation history with both user query and assistant response
             self._update_conversation_history(
-                question, accumulated_text, session_uuid, previous_messages, user
+                question, accumulated_text, session_uuid, previous_messages, user, assistant_name
             )
 
         return Response(stream_with_context(__api_response_generator()))
@@ -303,6 +306,7 @@ class AssistantChatApi(Resource):
         client,
         user,
         previous_messages=None,
+        assistant_name=None,
     ):
         source_doc_info = self._parse_search_results(search_results)
 
@@ -321,7 +325,7 @@ class AssistantChatApi(Resource):
 
         # Update conversation history with both user query and assistant response
         self._update_conversation_history(
-            question, response["text_content"], session_uuid, previous_messages, user
+            question, response["text_content"], session_uuid, previous_messages, user, assistant_name
         )
 
         return response, 200
@@ -358,7 +362,7 @@ class AssistantChatApi(Resource):
             log.exception("Failed to log interaction")
 
     def _update_conversation_history(
-        self, question, response_text, session_uuid, previous_messages, user
+        self, question, response_text, session_uuid, previous_messages, user, assistant_name=None
     ):
         """Update the conversation with the complete conversation history including the latest exchange."""
         try:
@@ -383,6 +387,10 @@ class AssistantChatApi(Resource):
                 "query": question,
                 "prevMsgs": updated_messages,
             }
+
+            # Add assistant name if provided
+            if assistant_name:
+                conversation_payload["assistantName"] = assistant_name
 
             # Upsert the conversation
             Conversation.upsert(conversation_payload)
@@ -455,6 +463,9 @@ class AssistantAdvancedChatApi(AssistantChatApi):
             prompt=system_prompt,
             model=model_name,
         )
+        # Create combined assistant name for multiple assistants
+        combined_assistant_name = ", ".join([assistant.name for assistant in assistants])
+        
         if self._is_streaming_response(stream):
             return self._handle_streaming_response(
                 llm_response,
@@ -467,6 +478,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
                 client,
                 user,
                 previous_messages,
+                combined_assistant_name,
             )
 
         return self._handle_standard_response(
@@ -480,6 +492,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
             client,
             user,
             previous_messages,
+            combined_assistant_name,
         )
 
     def _get_assistants(self, assistant_names):
