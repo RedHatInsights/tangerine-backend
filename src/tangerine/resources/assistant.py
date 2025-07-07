@@ -325,7 +325,12 @@ class AssistantChatApi(Resource):
 
         # Update conversation history with both user query and assistant response
         self._update_conversation_history(
-            question, response["text_content"], session_uuid, previous_messages, user, assistant_name
+            question,
+            response["text_content"],
+            session_uuid,
+            previous_messages,
+            user,
+            assistant_name,
         )
 
         return response, 200
@@ -465,7 +470,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         )
         # Create combined assistant name for multiple assistants
         combined_assistant_name = ", ".join([assistant.name for assistant in assistants])
-        
+
         if self._is_streaming_response(stream):
             return self._handle_streaming_response(
                 llm_response,

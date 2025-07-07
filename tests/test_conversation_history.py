@@ -276,6 +276,7 @@ class TestConversationModelLogic:
 
         # Mock the timestamp fields
         from datetime import datetime
+
         conversation.created_at = datetime.now()
         conversation.updated_at = datetime.now()
 
