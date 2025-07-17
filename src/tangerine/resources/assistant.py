@@ -11,6 +11,7 @@ from tangerine import config
 from tangerine.config import DEFAULT_SYSTEM_PROMPT
 from tangerine.embeddings import embed_query
 from tangerine.models.assistant import Assistant
+from tangerine.models.conversation import Conversation
 from tangerine.models.interactions import store_interaction
 from tangerine.search import SearchResult, search_engine
 from tangerine.utils import File, add_filenames_to_assistant, embed_files, remove_files
@@ -35,6 +36,9 @@ class AssistantsApi(Resource):
         return {"data": [assistant.to_dict() for assistant in all_assistants]}, 200
 
     def post(self):
+        if not request.json:
+            return {"message": "No JSON data provided"}, 400
+
         name = request.json.get("name")
         description = request.json.get("description")
         if not name:
@@ -97,6 +101,8 @@ class AssistantDocuments(Resource):
         files = []
         for file in request.files.getlist("file"):
             content = file.stream.read()
+            if not file.filename:
+                return {"message": "File must have a filename"}, 400
             new_file = File(
                 source=request_source, full_path=file.filename, content=content.decode("utf-8")
             )
@@ -119,6 +125,9 @@ class AssistantDocuments(Resource):
         assistant = Assistant.get(id)
         if not assistant:
             return {"message": "assistant not found"}, 404
+
+        if not request.json:
+            return {"message": "No JSON data provided"}, 400
 
         source = request.json.get("source")
         full_path = request.json.get("full_path")
@@ -157,7 +166,7 @@ class AssistantChatApi(Resource):
             return {"message": "assistant not found"}, 404
 
         log.debug("querying vector DB")
-        question, session_uuid, stream, previous_messages, interaction_id, client = (
+        question, session_uuid, stream, previous_messages, interaction_id, client, user = (
             self._extract_request_data()
         )
         embedding = self._embed_question(question)
@@ -176,6 +185,9 @@ class AssistantChatApi(Resource):
                 session_uuid,
                 interaction_id,
                 client,
+                user,
+                previous_messages,
+                assistant.name,
             )
 
         return self._handle_standard_response(
@@ -187,19 +199,25 @@ class AssistantChatApi(Resource):
             session_uuid,
             interaction_id,
             client,
+            user,
+            previous_messages,
+            assistant.name,
         )
 
     def _get_assistant(self, assistant_id):
         return Assistant.get(assistant_id)
 
     def _extract_request_data(self):
+        if not request.json:
+            raise ValueError("No JSON data provided")
         question = request.json.get("query")
         session_uuid = request.json.get("sessionId", str(uuid.uuid4()))
         stream = request.json.get("stream", "true") == "true"
         previous_messages = request.json.get("prevMsgs")
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
-        return question, session_uuid, stream, previous_messages, interaction_id, client
+        user = request.json.get("user", "unknown")
+        return question, session_uuid, stream, previous_messages, interaction_id, client, user
 
     def _embed_question(self, question):
         return embed_query(question)
@@ -214,7 +232,7 @@ class AssistantChatApi(Resource):
         )
 
     @staticmethod
-    def _parse_search_results(search_results: list[Document]) -> list[dict]:
+    def _parse_search_results(search_results: list[SearchResult]) -> list[dict]:
         return [
             {
                 "text": doc.document.page_content,
@@ -239,6 +257,9 @@ class AssistantChatApi(Resource):
         session_uuid,
         interaction_id,
         client,
+        user,
+        previous_messages=None,
+        assistant_name=None,
     ):
         source_doc_info = self._parse_search_results(search_results)
 
@@ -263,6 +284,12 @@ class AssistantChatApi(Resource):
                 session_uuid,
                 interaction_id,
                 client,
+                user,
+            )
+
+            # Update conversation history with both user query and assistant response
+            self._update_conversation_history(
+                question, accumulated_text, session_uuid, previous_messages, user, assistant_name
             )
 
         return Response(stream_with_context(__api_response_generator()))
@@ -277,6 +304,9 @@ class AssistantChatApi(Resource):
         session_uuid,
         interaction_id,
         client,
+        user,
+        previous_messages=None,
+        assistant_name=None,
     ):
         source_doc_info = self._parse_search_results(search_results)
 
@@ -290,7 +320,19 @@ class AssistantChatApi(Resource):
             session_uuid,
             interaction_id,
             client,
+            user,
         )
+
+        # Update conversation history with both user query and assistant response
+        self._update_conversation_history(
+            question,
+            response["text_content"],
+            session_uuid,
+            previous_messages,
+            user,
+            assistant_name,
+        )
+
         return response, 200
 
     # Looks like a silly function but it makes it easier to mock in tests
@@ -306,6 +348,7 @@ class AssistantChatApi(Resource):
         session_uuid,
         interaction_id,
         client,
+        user,
     ):
         if self._interaction_storage_enabled() is False:
             return
@@ -318,9 +361,50 @@ class AssistantChatApi(Resource):
                 session_uuid=session_uuid,
                 interaction_id=interaction_id,
                 client=client,
+                user=user,
             )
         except Exception:
             log.exception("Failed to log interaction")
+
+    def _update_conversation_history(
+        self, question, response_text, session_uuid, previous_messages, user, assistant_name=None
+    ):
+        """Update the conversation with the complete conversation history including the latest exchange."""
+        try:
+            # Validate required parameters
+            if not question or not response_text or not session_uuid:
+                log.warning("Missing required parameters for conversation history update")
+                return
+
+            # Build the updated conversation history
+            updated_messages = previous_messages.copy() if previous_messages else []
+
+            # Add the user's question
+            updated_messages.append({"sender": "human", "text": question})
+
+            # Add the assistant's response
+            updated_messages.append({"sender": "ai", "text": response_text})
+
+            # Create the conversation payload
+            conversation_payload = {
+                "sessionId": session_uuid,
+                "user": user,
+                "query": question,
+                "prevMsgs": updated_messages,
+            }
+
+            # Add assistant name if provided
+            if assistant_name:
+                conversation_payload["assistantName"] = assistant_name
+
+            # Upsert the conversation
+            Conversation.upsert(conversation_payload)
+            log.debug("Successfully updated conversation history for session %s", session_uuid)
+
+        except Exception as e:
+            log.exception(
+                "Failed to update conversation history for session %s: %s", session_uuid, str(e)
+            )
 
 
 class AssistantAdvancedChatApi(AssistantChatApi):
@@ -339,6 +423,9 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         ]
 
     def post(self, _id=None):
+        if not request.json:
+            return {"message": "No JSON data provided"}, 400
+
         assistant_names = request.json.get("assistants")
         assistants = []
 
@@ -360,6 +447,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
         model_name = request.json.get("model")
+        user = request.json.get("user", "unknown")
 
         if model_name and model_name not in config.MODELS:
             return {"message": f"Invalid model name: {model_name}"}, 400
@@ -369,15 +457,20 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         if chunks:
             chunks = self._convert_chunk_array_to_documents(request.json.get("chunks"))
         search_results = chunks or search_engine.search(assistant_ids, question, embedding)
+        # Convert SearchResult objects to Document objects for llm.ask()
+        documents = [result.document for result in search_results]
         llm_response, search_metadata = llm.ask(
             assistants,
             previous_messages,
             question,
-            search_results,
+            documents,
             interaction_id=interaction_id,
             prompt=system_prompt,
             model=model_name,
         )
+        # Create combined assistant name for multiple assistants
+        combined_assistant_name = ", ".join([assistant.name for assistant in assistants])
+
         if self._is_streaming_response(stream):
             return self._handle_streaming_response(
                 llm_response,
@@ -388,6 +481,9 @@ class AssistantAdvancedChatApi(AssistantChatApi):
                 session_uuid,
                 interaction_id,
                 client,
+                user,
+                previous_messages,
+                combined_assistant_name,
             )
 
         return self._handle_standard_response(
@@ -399,6 +495,9 @@ class AssistantAdvancedChatApi(AssistantChatApi):
             session_uuid,
             interaction_id,
             client,
+            user,
+            previous_messages,
+            combined_assistant_name,
         )
 
     def _get_assistants(self, assistant_names):
@@ -416,6 +515,9 @@ class AssistantAdvancedChatApi(AssistantChatApi):
 
 class AssistantSearchApi(Resource):
     def post(self, id):
+        if not request.json:
+            return {"message": "No JSON data provided"}, 400
+
         query = request.json.get("query")
         assistant = self._get_assistant(id)
         if not assistant:

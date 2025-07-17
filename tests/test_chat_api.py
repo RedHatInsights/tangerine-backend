@@ -42,6 +42,7 @@ def test_post_chat_non_streaming(assistant_chat_api):
     """Test case when chat is non-streaming."""
 
     mock_assistant = MagicMock()
+    mock_assistant.name = "Test Assistant"
     mock_query = "What is AI?"
     mock_session_uuid = "1234-5678"
     mock_previous_messages = []
@@ -67,6 +68,7 @@ def test_post_chat_non_streaming(assistant_chat_api):
         mock_previous_messages,
         mock_interaction_id,
         mock_client,
+        "test_user",
     )
     assistant_chat_api._embed_question.return_value = mock_embedding
     assistant_chat_api._get_search_results.return_value = mock_search_results
@@ -104,6 +106,9 @@ def test_post_chat_non_streaming(assistant_chat_api):
         mock_session_uuid,
         mock_interaction_id,
         mock_client,
+        "test_user",
+        mock_previous_messages,
+        mock_assistant.name,
     )
 
 
@@ -111,6 +116,7 @@ def test_post_chat_streaming(assistant_chat_api):
     """Test case when chat is streaming."""
 
     mock_assistant = MagicMock()
+    mock_assistant.name = "Test Assistant"
     mock_query = "What is AI?"
     mock_session_uuid = "1234-5678"
     mock_previous_messages = []
@@ -133,6 +139,7 @@ def test_post_chat_streaming(assistant_chat_api):
         mock_previous_messages,
         mock_interaction_id,
         mock_client,
+        "test_user",
     )
     assistant_chat_api._embed_question.return_value = mock_embedding
     assistant_chat_api._get_search_results.return_value = mock_search_results
@@ -166,4 +173,7 @@ def test_post_chat_streaming(assistant_chat_api):
         mock_session_uuid,
         mock_interaction_id,
         mock_client,
+        "test_user",
+        mock_previous_messages,
+        mock_assistant.name,
     )
