@@ -1,7 +1,7 @@
 """add assistant to conversation
 
 Revision ID: 794cbe51a371
-Revises: 7c024f207c33
+Revises: b9791218a532, c88ac0c951d2
 Create Date: 2025-07-07 13:45:03.127827
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '794cbe51a371'
-down_revision = '7c024f207c33'
+down_revision = ('b9791218a532', 'c88ac0c951d2')
 branch_labels = None
 depends_on = None
 
