@@ -222,7 +222,7 @@ class TestConversationModelLogic:
         # Mock the LLM call
         from unittest.mock import patch
 
-        with patch("tangerine.llm.generate_conversation_title") as mock_generate:
+        with patch("tangerine.models.conversation.generate_conversation_title") as mock_generate:
             mock_generate.return_value = "Machine Learning Questions"
             title = Conversation.generate_title(conversation_json)
             assert title == "Machine Learning Questions"
@@ -241,10 +241,10 @@ class TestConversationModelLogic:
         # Mock LLM to fail, testing fallback
         from unittest.mock import patch
 
-        with patch("tangerine.llm.generate_conversation_title") as mock_generate:
+        with patch("tangerine.models.conversation.generate_conversation_title") as mock_generate:
             mock_generate.side_effect = Exception("LLM error")
             title = Conversation.generate_title(conversation_json)
-            assert title == long_query[: self.TRUNCATION_LENGTH] + "..."
+            assert title == long_query[:30] + "..."
 
     def test_generate_title_no_query(self):
         """Test title generation without user queries."""
@@ -281,7 +281,7 @@ class TestConversationModelLogic:
         }
 
         # Should use the second user query (first non-introduction)
-        with patch("tangerine.llm.generate_conversation_title") as mock_generate:
+        with patch("tangerine.models.conversation.generate_conversation_title") as mock_generate:
             mock_generate.return_value = "Machine Learning Questions"
             title = Conversation.generate_title(conversation_json)
             assert title == "Machine Learning Questions"
@@ -299,7 +299,7 @@ class TestConversationModelLogic:
             ]
         }
 
-        with patch("tangerine.llm.generate_conversation_title") as mock_generate:
+        with patch("tangerine.models.conversation.generate_conversation_title") as mock_generate:
             mock_generate.return_value = "Python Programming"
             title = Conversation.generate_title(conversation_json)
             assert title == "Python Programming"
@@ -342,7 +342,7 @@ class TestConversationModelLogic:
         from tangerine.models.conversation import Conversation
 
         # Mock the LLM title generation
-        with patch("tangerine.llm.generate_conversation_title") as mock_generate:
+        with patch("tangerine.models.conversation.generate_conversation_title") as mock_generate:
             mock_generate.return_value = "Machine Learning Basics"
 
             # Test the _update_title_if_needed method directly
@@ -384,7 +384,7 @@ class TestConversationModelLogic:
 
         from tangerine.models.conversation import Conversation
 
-        with patch("tangerine.llm.generate_conversation_title") as mock_generate:
+        with patch("tangerine.models.conversation.generate_conversation_title") as mock_generate:
             mock_generate.return_value = "Advanced AI Topics"
 
             # Conversation with existing real title
@@ -431,7 +431,7 @@ class TestConversationModelLogic:
             "prevMsgs": [{"sender": "human", "text": "Test query"}],
         }
 
-        with patch("tangerine.llm.generate_conversation_title") as mock_generate:
+        with patch("tangerine.models.conversation.generate_conversation_title") as mock_generate:
             mock_generate.return_value = "Test Query Title"
             conversation = Conversation.from_json(conversation_json)
 
@@ -454,7 +454,7 @@ class TestConversationModelLogic:
             "prevMsgs": [{"sender": "human", "text": "Test query"}],
         }
 
-        with patch("tangerine.llm.generate_conversation_title") as mock_generate:
+        with patch("tangerine.models.conversation.generate_conversation_title") as mock_generate:
             mock_generate.return_value = "Test Query Title"
             conversation = Conversation.from_json(conversation_json)
 
@@ -475,7 +475,7 @@ class TestConversationModelLogic:
             "prevMsgs": [{"sender": "human", "text": "Test query"}],
         }
 
-        with patch("tangerine.llm.generate_conversation_title") as mock_generate:
+        with patch("tangerine.models.conversation.generate_conversation_title") as mock_generate:
             mock_generate.return_value = "Test Query Title"
             conversation = Conversation.from_json(conversation_json)
 
