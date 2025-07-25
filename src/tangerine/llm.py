@@ -228,8 +228,12 @@ def generate_conversation_title(user_queries: list[str]) -> str:
     """
     log.debug("llm 'generate_conversation_title' request")
 
+    # Validate input: ensure at least one non-empty query is provided
+    if not user_queries or not user_queries[0].strip():
+        raise ValueError("The 'user_queries' list must contain at least one non-empty query.")
+
     # Take the first (and typically only) query
-    query = user_queries[0] if user_queries else ""
+    query = user_queries[0]
 
     # Create a simple prompt for title generation
     prompt = ChatPromptTemplate(
