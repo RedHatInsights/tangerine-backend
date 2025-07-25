@@ -90,41 +90,42 @@ class Conversation(db.Model):
     def generate_title(cls, conversation_json):
         """
         Generate a title for the conversation based on the first non-introduction user query.
-        
+
         Looks for the first user message that doesn't have isIntroductionPrompt=true.
         If isIntroductionPrompt field is missing, treats it as false (not an introduction).
         """
         prev_msgs = conversation_json.get("prevMsgs", [])
-        
+
         # Find the first user query that is not an introduction prompt
         for msg in prev_msgs:
             if msg.get("sender") == "human":
                 # Skip if this is marked as an introduction prompt
                 if msg.get("isIntroductionPrompt", False):
                     continue
-                
+
                 # This is a real user query, use it for title generation
                 try:
                     from tangerine.llm import generate_conversation_title
+
                     return generate_conversation_title([msg["text"]])
                 except Exception as e:
                     # Fallback to simple title if LLM call fails
                     return f"{msg['text'][:30]}..."
-        
+
         # No non-introduction user queries found - default to "New chat"
         return "New chat"
 
     @classmethod
     def _update_title_if_needed(cls, conversation, conversation_json):
         """
-        Update the conversation title if we've transitioned from introduction-only 
+        Update the conversation title if we've transitioned from introduction-only
         content to having real user queries.
-        
+
         This avoids magic string checks by comparing what the title would be
         for introduction-only content vs. the full conversation.
         """
         prev_msgs = conversation_json.get("prevMsgs", [])
-        
+
         # Create a version with only introduction prompts and AI messages
         intro_only_msgs = []
         for msg in prev_msgs:
@@ -132,11 +133,11 @@ class Conversation(db.Model):
                 intro_only_msgs.append(msg)
             elif msg.get("sender") == "human" and msg.get("isIntroductionPrompt", False):
                 intro_only_msgs.append(msg)
-        
+
         # Generate title for introduction-only scenario
         intro_only_conversation = {"prevMsgs": intro_only_msgs}
         intro_only_title = cls.generate_title(intro_only_conversation)
-        
+
         # Only generate full conversation title if current title matches intro-only title
         if conversation.title == intro_only_title:
             full_conversation_title = cls.generate_title(conversation_json)

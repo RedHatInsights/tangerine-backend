@@ -166,9 +166,16 @@ class AssistantChatApi(Resource):
             return {"message": "assistant not found"}, 404
 
         log.debug("querying vector DB")
-        question, session_uuid, stream, previous_messages, interaction_id, client, user, current_message = (
-            self._extract_request_data()
-        )
+        (
+            question,
+            session_uuid,
+            stream,
+            previous_messages,
+            interaction_id,
+            client,
+            user,
+            current_message,
+        ) = self._extract_request_data()
         embedding = self._embed_question(question)
         search_results = self._get_search_results([assistant.id], question, embedding)
         llm_response, search_metadata = self._call_llm(
@@ -219,7 +226,7 @@ class AssistantChatApi(Resource):
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
         user = request.json.get("user", "unknown")
-        
+
         # Extract the current message data to preserve all fields
         current_message = request.json.get("currentMessage", {})
         # If no currentMessage is provided, create it from available fields
@@ -229,8 +236,17 @@ class AssistantChatApi(Resource):
             for field in ["isIntroductionPrompt"]:
                 if field in request.json:
                     current_message[field] = request.json[field]
-        
-        return question, session_uuid, stream, previous_messages, interaction_id, client, user, current_message
+
+        return (
+            question,
+            session_uuid,
+            stream,
+            previous_messages,
+            interaction_id,
+            client,
+            user,
+            current_message,
+        )
 
     def _embed_question(self, question):
         return embed_query(question)
@@ -303,7 +319,13 @@ class AssistantChatApi(Resource):
 
             # Update conversation history with both user query and assistant response
             self._update_conversation_history(
-                question, accumulated_text, session_uuid, previous_messages, user, assistant_name, current_message
+                question,
+                accumulated_text,
+                session_uuid,
+                previous_messages,
+                user,
+                assistant_name,
+                current_message,
             )
 
         return Response(stream_with_context(__api_response_generator()))
@@ -383,7 +405,14 @@ class AssistantChatApi(Resource):
             log.exception("Failed to log interaction")
 
     def _update_conversation_history(
-        self, question, response_text, session_uuid, previous_messages, user, assistant_name=None, current_message=None
+        self,
+        question,
+        response_text,
+        session_uuid,
+        previous_messages,
+        user,
+        assistant_name=None,
+        current_message=None,
     ):
         """Update the conversation with the complete conversation history including the latest exchange."""
         try:
