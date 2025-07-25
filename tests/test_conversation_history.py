@@ -233,10 +233,10 @@ class TestConversationModelLogic:
         
         # Mock the LLM call to return a predictable title
         with patch('tangerine.llm.generate_conversation_title') as mock_generate:
-            mock_generate.return_value = "ML and Python Questions"
+            mock_generate.return_value = "Python Programming Questions"
             title = Conversation.generate_title(conversation_json)
-            assert title == "ML and Python Questions"
-            mock_generate.assert_called_once_with(["What is machine learning?", "What is Python?"])
+            assert title == "Python Programming Questions"
+            mock_generate.assert_called_once_with(["What is Python?"])  # Only the second query
 
     def test_generate_title_two_user_queries_llm_fallback(self):
         """Test title generation with 2 user queries when LLM fails - should use fallback."""
@@ -256,7 +256,7 @@ class TestConversationModelLogic:
         with patch('tangerine.llm.generate_conversation_title') as mock_generate:
             mock_generate.side_effect = Exception("LLM error")
             title = Conversation.generate_title(conversation_json)
-            assert title == "What is machine learning?..."  # Uses first query as fallback
+            assert title == "What is Python?..."  # Uses second query as fallback
 
     def test_generate_title_more_than_two_user_queries(self):
         """Test title generation with >2 user queries - should return None."""

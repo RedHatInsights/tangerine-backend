@@ -89,7 +89,7 @@ class Conversation(db.Model):
         Generate a title for the conversation based on the user's queries.
         Uses sophisticated logic based on the number of user messages:
         - 1 user query: "New chat"
-        - 2 user queries: Generate LLM-based summary
+        - 2 user queries: Generate LLM-based summary using the second user query
         - >2 user queries: Don't generate title (return None)
         """
         prev_msgs = conversation_json.get("prevMsgs", [])
@@ -101,13 +101,13 @@ class Conversation(db.Model):
         if user_query_count == 1:
             return "New chat"
         elif user_query_count == 2:
-            # Generate LLM-based title using both user queries
+            # Generate LLM-based title using the second user query specifically
             try:
                 from tangerine.llm import generate_conversation_title
-                return generate_conversation_title(user_queries)
+                return generate_conversation_title([user_queries[1]])  # Only the second query
             except Exception as e:
                 # Fallback to simple title if LLM call fails
-                return f"{user_queries[0][:30]}..."
+                return f"{user_queries[1][:30]}..."  # Use second query for fallback too
         else:
             # More than 2 user queries - don't generate title
             return None
