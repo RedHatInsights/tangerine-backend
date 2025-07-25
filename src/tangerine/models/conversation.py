@@ -105,8 +105,6 @@ class Conversation(db.Model):
 
                 # This is a real user query, use it for title generation
                 try:
-                    from tangerine.llm import generate_conversation_title
-
                     return generate_conversation_title([msg["text"]])
                 except Exception as _e:
                     # Fallback to simple title if LLM call fails
