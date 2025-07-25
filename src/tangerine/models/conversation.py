@@ -3,6 +3,7 @@ import uuid
 from sqlalchemy.dialects.postgresql import UUID
 
 from tangerine.db import db
+from tangerine.llm import generate_conversation_title
 
 
 class Conversation(db.Model):
