@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import uuid
@@ -10,6 +11,7 @@ import tangerine.llm as llm
 from tangerine import config
 from tangerine.config import DEFAULT_SYSTEM_PROMPT
 from tangerine.embeddings import embed_query
+from tangerine.metrics import get_counter
 from tangerine.models.assistant import Assistant
 from tangerine.models.conversation import Conversation
 from tangerine.models.interactions import store_interaction
@@ -18,6 +20,13 @@ from tangerine.utils import File, add_filenames_to_assistant, embed_files, remov
 from tangerine.vector import vector_db
 
 log = logging.getLogger("tangerine.resources")
+
+# Prometheus metrics
+user_interaction_counter = get_counter(
+    "user_interaction_counter",
+    "Total number of user interactions with assistants",
+    ["user", "client", "assistant_id", "assistant_name"],
+)
 
 
 class AssistantDefaultsApi(Resource):
@@ -160,6 +169,25 @@ class AssistantChatApi(Resource):
     def _is_streaming_response(stream):
         return bool(stream)
 
+    @staticmethod
+    def _anonymize_user_id(user_id):
+        """
+        Anonymize user ID using SHA256 hash, unless the user ID is 'unknown'.
+
+        Args:
+            user_id (str): The user ID to anonymize
+
+        Returns:
+            str: The anonymized user ID or 'unknown' if the input was 'unknown'
+        """
+        if user_id == "unknown":
+            return user_id
+
+        # Create a hash of the user ID for anonymization
+        return hashlib.sha256(user_id.encode("utf-8")).hexdigest()[
+            :16
+        ]  # Use first 16 chars of hash
+
     def post(self, id):
         assistant = self._get_assistant(id)
         if not assistant:
@@ -176,6 +204,15 @@ class AssistantChatApi(Resource):
             user,
             current_message,
         ) = self._extract_request_data()
+
+        # Record user interaction metrics
+        anonymized_user = self._anonymize_user_id(user)
+        user_interaction_counter.labels(
+            user=anonymized_user,
+            client=client,
+            assistant_id=assistant.id,
+            assistant_name=assistant.name,
+        ).inc()
         embedding = self._embed_question(question)
         search_results = self._get_search_results([assistant.id], question, embedding)
         llm_response, search_metadata = self._call_llm(
@@ -510,6 +547,16 @@ class AssistantAdvancedChatApi(AssistantChatApi):
 
         if model_name and model_name not in config.MODELS:
             return {"message": f"Invalid model name: {model_name}"}, 400
+
+        # Record user interaction metrics for each assistant
+        anonymized_user = self._anonymize_user_id(user)
+        for assistant in assistants:
+            user_interaction_counter.labels(
+                user=anonymized_user,
+                client=client,
+                assistant_id=assistant.id,
+                assistant_name=assistant.name,
+            ).inc()
 
         embedding = embed_query(question)
         chunks = request.json.get("chunks", None)
