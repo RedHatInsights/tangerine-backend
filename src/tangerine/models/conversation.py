@@ -108,7 +108,7 @@ class Conversation(db.Model):
                     from tangerine.llm import generate_conversation_title
 
                     return generate_conversation_title([msg["text"]])
-                except Exception as e:
+                except Exception as _e:
                     # Fallback to simple title if LLM call fails
                     return f"{msg['text'][:30]}..."
 
