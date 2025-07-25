@@ -219,3 +219,43 @@ def ask(
     llm_response = get_response(ChatPromptTemplate(msg_list), prompt_params, selected_model)
 
     return llm_response, search_metadata
+
+
+def generate_conversation_title(user_queries: list[str]) -> str:
+    """
+    Generate a conversation title based on a user query using LLM.
+    Expects a list with one query (kept as list for consistency).
+    """
+    log.debug("llm 'generate_conversation_title' request")
+
+    # Validate input: ensure at least one non-empty query is provided
+    if not user_queries or not user_queries[0].strip():
+        raise ValueError("The 'user_queries' list must contain at least one non-empty query.")
+
+    # Take the first (and typically only) query
+    query = user_queries[0]
+
+    # Create a simple prompt for title generation
+    prompt = ChatPromptTemplate(
+        [
+            (
+                "system",
+                "You are an AI assistant that creates very short, high-level conversation titles. "
+                "Generate a concise title (maximum 5-7 words) that captures the main topic or theme "
+                "of the user's query. The title should be professional and descriptive.",
+            ),
+            ("user", "Based on this user query, generate a short conversation title: {query}"),
+        ]
+    )
+
+    prompt_params = {"query": query}
+
+    llm_response = get_response(prompt, prompt_params, "default")
+    title = "".join(llm_response).strip()
+
+    # Ensure the title isn't too long and remove any quotes
+    title = title.replace('"', "").replace("'", "")
+    if len(title) > 60:
+        title = title[:57] + "..."
+
+    return title
