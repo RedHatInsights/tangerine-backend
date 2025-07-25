@@ -30,9 +30,9 @@ class Conversation(db.Model):
     @classmethod
     def get_by_user(cls, user_id):
         """
-        Retrieve all conversations for a specific user ID.
+        Retrieve all conversations for a specific user ID, ordered by most recently updated first.
         """
-        return cls.query.filter_by(user_id=user_id).all()
+        return cls.query.filter_by(user_id=user_id).order_by(cls.updated_at.desc()).all()
 
     @classmethod
     def upsert(cls, conversation_json):
