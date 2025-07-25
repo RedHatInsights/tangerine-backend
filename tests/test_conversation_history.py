@@ -244,7 +244,7 @@ class TestConversationModelLogic:
         with patch("tangerine.llm.generate_conversation_title") as mock_generate:
             mock_generate.side_effect = Exception("LLM error")
             title = Conversation.generate_title(conversation_json)
-            assert title == long_query[:self.TRUNCATION_LENGTH] + "..."
+            assert title == long_query[: self.TRUNCATION_LENGTH] + "..."
 
     def test_generate_title_no_query(self):
         """Test title generation without user queries."""
