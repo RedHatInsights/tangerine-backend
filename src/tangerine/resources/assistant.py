@@ -166,7 +166,7 @@ class AssistantChatApi(Resource):
             return {"message": "assistant not found"}, 404
 
         log.debug("querying vector DB")
-        question, session_uuid, stream, previous_messages, interaction_id, client, user = (
+        question, session_uuid, stream, previous_messages, interaction_id, client, user, current_message = (
             self._extract_request_data()
         )
         embedding = self._embed_question(question)
@@ -188,6 +188,7 @@ class AssistantChatApi(Resource):
                 user,
                 previous_messages,
                 assistant.name,
+                current_message,
             )
 
         return self._handle_standard_response(
@@ -202,6 +203,7 @@ class AssistantChatApi(Resource):
             user,
             previous_messages,
             assistant.name,
+            current_message,
         )
 
     def _get_assistant(self, assistant_id):
@@ -217,7 +219,18 @@ class AssistantChatApi(Resource):
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
         user = request.json.get("user", "unknown")
-        return question, session_uuid, stream, previous_messages, interaction_id, client, user
+        
+        # Extract the current message data to preserve all fields
+        current_message = request.json.get("currentMessage", {})
+        # If no currentMessage is provided, create it from available fields
+        if not current_message:
+            current_message = {"sender": "human", "text": question}
+            # Preserve any additional fields that might be in the root request
+            for field in ["isIntroductionPrompt"]:
+                if field in request.json:
+                    current_message[field] = request.json[field]
+        
+        return question, session_uuid, stream, previous_messages, interaction_id, client, user, current_message
 
     def _embed_question(self, question):
         return embed_query(question)
@@ -260,6 +273,7 @@ class AssistantChatApi(Resource):
         user,
         previous_messages=None,
         assistant_name=None,
+        current_message=None,
     ):
         source_doc_info = self._parse_search_results(search_results)
 
@@ -289,7 +303,7 @@ class AssistantChatApi(Resource):
 
             # Update conversation history with both user query and assistant response
             self._update_conversation_history(
-                question, accumulated_text, session_uuid, previous_messages, user, assistant_name
+                question, accumulated_text, session_uuid, previous_messages, user, assistant_name, current_message
             )
 
         return Response(stream_with_context(__api_response_generator()))
@@ -307,6 +321,7 @@ class AssistantChatApi(Resource):
         user,
         previous_messages=None,
         assistant_name=None,
+        current_message=None,
     ):
         source_doc_info = self._parse_search_results(search_results)
 
@@ -331,6 +346,7 @@ class AssistantChatApi(Resource):
             previous_messages,
             user,
             assistant_name,
+            current_message,
         )
 
         return response, 200
@@ -367,7 +383,7 @@ class AssistantChatApi(Resource):
             log.exception("Failed to log interaction")
 
     def _update_conversation_history(
-        self, question, response_text, session_uuid, previous_messages, user, assistant_name=None
+        self, question, response_text, session_uuid, previous_messages, user, assistant_name=None, current_message=None
     ):
         """Update the conversation with the complete conversation history including the latest exchange."""
         try:
@@ -379,8 +395,12 @@ class AssistantChatApi(Resource):
             # Build the updated conversation history
             updated_messages = previous_messages.copy() if previous_messages else []
 
-            # Add the user's question
-            updated_messages.append({"sender": "human", "text": question})
+            # Add the user's question - use the complete current_message to preserve all fields
+            if current_message:
+                updated_messages.append(current_message)
+            else:
+                # Fallback to minimal message if current_message not provided
+                updated_messages.append({"sender": "human", "text": question})
 
             # Add the assistant's response
             updated_messages.append({"sender": "ai", "text": response_text})
@@ -449,6 +469,16 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         model_name = request.json.get("model")
         user = request.json.get("user", "unknown")
 
+        # Extract the current message data to preserve all fields
+        current_message = request.json.get("currentMessage", {})
+        # If no currentMessage is provided, create it from available fields
+        if not current_message:
+            current_message = {"sender": "human", "text": question}
+            # Preserve any additional fields that might be in the root request
+            for field in ["isIntroductionPrompt"]:
+                if field in request.json:
+                    current_message[field] = request.json[field]
+
         if model_name and model_name not in config.MODELS:
             return {"message": f"Invalid model name: {model_name}"}, 400
 
@@ -484,6 +514,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
                 user,
                 previous_messages,
                 combined_assistant_name,
+                current_message,
             )
 
         return self._handle_standard_response(
@@ -498,6 +529,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
             user,
             previous_messages,
             combined_assistant_name,
+            current_message,
         )
 
     def _get_assistants(self, assistant_names):

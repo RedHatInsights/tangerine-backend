@@ -223,24 +223,25 @@ def ask(
 
 def generate_conversation_title(user_queries: list[str]) -> str:
     """
-    Generate a conversation title based on user queries using LLM.
+    Generate a conversation title based on a user query using LLM.
+    Expects a list with one query (kept as list for consistency).
     """
     log.debug("llm 'generate_conversation_title' request")
     
-    # Combine the user queries for title generation (typically just one query now)
-    combined_queries = " | ".join(user_queries)
+    # Take the first (and typically only) query
+    query = user_queries[0] if user_queries else ""
     
     # Create a simple prompt for title generation
     prompt = ChatPromptTemplate([
         ("system", "You are an AI assistant that creates very short, high-level conversation titles. "
                   "Generate a concise title (maximum 5-7 words) that captures the main topic or theme "
                   "of the user's query. The title should be professional and descriptive."),
-        ("user", "Based on this user query, generate a short conversation title: {queries}")
+        ("user", "Based on this user query, generate a short conversation title: {query}")
     ])
     
-    prompt_params = {"queries": combined_queries}
+    prompt_params = {"query": query}
     
-    llm_response = get_response(prompt, prompt_params)
+    llm_response = get_response(prompt, prompt_params, "default")
     title = "".join(llm_response).strip()
     
     # Ensure the title isn't too long and remove any quotes

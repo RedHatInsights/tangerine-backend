@@ -162,30 +162,75 @@ class TestConversationHistoryLogic:
             assert original_messages == original_copy
             assert len(original_messages) == 2
 
+    def test_update_conversation_history_preserves_current_message_fields(self):
+        """Test that current message fields like isIntroductionPrompt are preserved."""
+        api = AssistantChatApi()
+
+        with patch("tangerine.resources.assistant.Conversation") as mock_conv:
+            question = "Hello, I need help"
+            response_text = "Hi there!"
+            session_uuid = "test-session-123"
+            previous_messages = []
+            user = "test_user"
+            
+            # Current message with isIntroductionPrompt field
+            current_message = {
+                "sender": "human", 
+                "text": question,
+                "isIntroductionPrompt": True
+            }
+
+            api._update_conversation_history(
+                question, response_text, session_uuid, previous_messages, user, None, current_message
+            )
+
+            # Verify the payload passed to upsert preserves the isIntroductionPrompt field
+            call_args = mock_conv.upsert.call_args[0][0]
+
+            assert call_args["sessionId"] == session_uuid
+            assert call_args["user"] == user
+            assert call_args["query"] == question
+            assert len(call_args["prevMsgs"]) == 2
+            
+            # Check that the current message preserves all fields
+            user_message = call_args["prevMsgs"][0]
+            assert user_message["sender"] == "human"
+            assert user_message["text"] == question
+            assert user_message["isIntroductionPrompt"] is True  # This should be preserved!
+            
+            # Check AI response
+            ai_message = call_args["prevMsgs"][1]
+            assert ai_message["sender"] == "ai"
+            assert ai_message["text"] == response_text
+
 
 class TestConversationModelLogic:
     """Test core conversation model logic without database dependencies."""
 
     def test_generate_title_from_query(self):
-        """Test title generation from query."""
+        """Test title generation from first non-introduction query."""
         from tangerine.models.conversation import Conversation
 
-        # Test with 1 user message - should return "New chat"
+        # Test with user message that has no isIntroductionPrompt field (should generate title)
         conversation_json = {
             "query": "What is machine learning?",
             "prevMsgs": [
                 {"sender": "human", "text": "What is machine learning?"}
             ]
         }
-        title = Conversation.generate_title(conversation_json)
-
-        assert title == "New chat"
+        
+        # Mock the LLM call
+        from unittest.mock import patch
+        with patch('tangerine.llm.generate_conversation_title') as mock_generate:
+            mock_generate.return_value = "Machine Learning Questions"
+            title = Conversation.generate_title(conversation_json)
+            assert title == "Machine Learning Questions"
+            mock_generate.assert_called_once_with(["What is machine learning?"])
 
     def test_generate_title_long_query(self):
-        """Test title generation with long query gets truncated."""
+        """Test title generation with long query gets truncated on fallback."""
         from tangerine.models.conversation import Conversation
 
-        # Test with 1 user message - should return "New chat" regardless of length
         long_query = "This is a very long query that should be truncated because it exceeds the expected length"
         conversation_json = {
             "query": long_query,
@@ -193,94 +238,95 @@ class TestConversationModelLogic:
                 {"sender": "human", "text": long_query}
             ]
         }
+        
+        # Mock LLM to fail, testing fallback
+        from unittest.mock import patch
+        with patch('tangerine.llm.generate_conversation_title') as mock_generate:
+            mock_generate.side_effect = Exception("LLM error")
+            title = Conversation.generate_title(conversation_json)
+            assert title == long_query[:30] + "..."
+
+    def test_generate_title_no_query(self):
+        """Test title generation without user queries."""
+        from tangerine.models.conversation import Conversation
+
+        # Test with no previous messages - should return "New chat"
+        conversation_json = {"user": "test_user", "prevMsgs": []}
         title = Conversation.generate_title(conversation_json)
 
         assert title == "New chat"
 
-    def test_generate_title_no_query(self):
-        """Test title generation without query."""
-        from tangerine.models.conversation import Conversation
-
-        # Test with no previous messages - should return None
-        conversation_json = {"user": "test_user", "prevMsgs": []}
-        title = Conversation.generate_title(conversation_json)
-
-        assert title is None
-
     def test_generate_title_empty_query(self):
-        """Test title generation with empty query."""
+        """Test title generation with only AI messages."""
         from tangerine.models.conversation import Conversation
 
-        # Test with no previous messages - should return None
-        conversation_json = {"query": "", "prevMsgs": []}
+        # Test with only AI messages - should return "New chat"
+        conversation_json = {
+            "prevMsgs": [
+                {"sender": "ai", "text": "Hello! How can I help you?"}
+            ]
+        }
         title = Conversation.generate_title(conversation_json)
 
-        assert title is None
+        assert title == "New chat"
 
-    def test_generate_title_two_user_queries(self):
-        """Test title generation with 2 user queries - should use LLM."""
+    def test_generate_title_skip_introduction_prompt(self):
+        """Test title generation skips introduction prompts."""
         from tangerine.models.conversation import Conversation
         from unittest.mock import patch
 
         conversation_json = {
-            "query": "What is Python?",
             "prevMsgs": [
-                {"sender": "human", "text": "What is machine learning?"},
-                {"sender": "ai", "text": "Machine learning is..."},
-                {"sender": "human", "text": "What is Python?"}
+                {"sender": "human", "text": "Hello, I need help", "isIntroductionPrompt": True},
+                {"sender": "ai", "text": "Hi! How can I assist you?"},
+                {"sender": "human", "text": "What is machine learning?"}
             ]
         }
         
-        # Mock the LLM call to return a predictable title
+        # Should use the second user query (first non-introduction)
         with patch('tangerine.llm.generate_conversation_title') as mock_generate:
-            mock_generate.return_value = "Python Programming Questions"
+            mock_generate.return_value = "Machine Learning Questions"
             title = Conversation.generate_title(conversation_json)
-            assert title == "Python Programming Questions"
-            mock_generate.assert_called_once_with(["What is Python?"])  # Only the second query
+            assert title == "Machine Learning Questions"
+            mock_generate.assert_called_once_with(["What is machine learning?"])
 
-    def test_generate_title_two_user_queries_llm_fallback(self):
-        """Test title generation with 2 user queries when LLM fails - should use fallback."""
+    def test_generate_title_introduction_prompt_false(self):
+        """Test title generation with explicit isIntroductionPrompt=false."""
         from tangerine.models.conversation import Conversation
         from unittest.mock import patch
 
         conversation_json = {
-            "query": "What is Python?",
             "prevMsgs": [
-                {"sender": "human", "text": "What is machine learning?"},
-                {"sender": "ai", "text": "Machine learning is..."},
-                {"sender": "human", "text": "What is Python?"}
+                {"sender": "human", "text": "What is Python?", "isIntroductionPrompt": False}
             ]
         }
         
-        # Mock the LLM call to raise an exception
         with patch('tangerine.llm.generate_conversation_title') as mock_generate:
-            mock_generate.side_effect = Exception("LLM error")
+            mock_generate.return_value = "Python Programming"
             title = Conversation.generate_title(conversation_json)
-            assert title == "What is Python?..."  # Uses second query as fallback
+            assert title == "Python Programming"
+            mock_generate.assert_called_once_with(["What is Python?"])
 
-    def test_generate_title_more_than_two_user_queries(self):
-        """Test title generation with >2 user queries - should return None."""
+    def test_generate_title_all_introduction_prompts(self):
+        """Test title generation when all user queries are introduction prompts."""
         from tangerine.models.conversation import Conversation
 
         conversation_json = {
-            "query": "What is Java?",
             "prevMsgs": [
-                {"sender": "human", "text": "What is machine learning?"},
-                {"sender": "ai", "text": "Machine learning is..."},
-                {"sender": "human", "text": "What is Python?"},
-                {"sender": "ai", "text": "Python is..."},
-                {"sender": "human", "text": "What is Java?"}
+                {"sender": "human", "text": "Hello", "isIntroductionPrompt": True},
+                {"sender": "ai", "text": "Hi there!"},
+                {"sender": "human", "text": "I need help", "isIntroductionPrompt": True}
             ]
         }
         
         title = Conversation.generate_title(conversation_json)
-        assert title is None
+        assert title == "New chat"
 
     def test_generate_title_mixed_messages(self):
         """Test title generation with mixed AI and human messages."""
         from tangerine.models.conversation import Conversation
 
-        # Test with only AI messages - should return None
+        # Test with only AI messages - should return "New chat"
         conversation_json = {
             "prevMsgs": [
                 {"sender": "ai", "text": "Hello!"},
@@ -289,7 +335,78 @@ class TestConversationModelLogic:
         }
         
         title = Conversation.generate_title(conversation_json)
-        assert title is None
+        assert title == "New chat"
+
+    def test_title_updates_on_first_real_message(self):
+        """Test that title updates when first non-introduction message arrives."""
+        from tangerine.models.conversation import Conversation
+        from unittest.mock import patch
+        
+        # Mock the LLM title generation
+        with patch('tangerine.llm.generate_conversation_title') as mock_generate:
+            mock_generate.return_value = "Machine Learning Basics"
+            
+            # Test the _update_title_if_needed method directly
+            # Start with intro-only conversation
+            intro_conversation = {
+                "prevMsgs": [
+                    {"sender": "human", "text": "Hello", "isIntroductionPrompt": True},
+                    {"sender": "ai", "text": "Hi! How can I help?"}
+                ]
+            }
+            
+            # This should generate "New chat"
+            intro_title = Conversation.generate_title(intro_conversation)
+            assert intro_title == "New chat"
+            
+            # Now add a real user message
+            full_conversation = {
+                "prevMsgs": [
+                    {"sender": "human", "text": "Hello", "isIntroductionPrompt": True},
+                    {"sender": "ai", "text": "Hi! How can I help?"},
+                    {"sender": "human", "text": "What is machine learning?"}
+                ]
+            }
+            
+            # Mock conversation object
+            mock_conversation = type('MockConversation', (), {})()
+            mock_conversation.title = "New chat"  # Current title from intro-only
+            
+            # This should update the title
+            Conversation._update_title_if_needed(mock_conversation, full_conversation)
+            
+            # Title should now be the LLM-generated one
+            assert mock_conversation.title == "Machine Learning Basics"
+            mock_generate.assert_called_once()
+
+    def test_title_not_updated_if_already_real(self):
+        """Test that title doesn't get updated if it's already a real (non-default) title."""
+        from tangerine.models.conversation import Conversation
+        from unittest.mock import patch
+        
+        with patch('tangerine.llm.generate_conversation_title') as mock_generate:
+            mock_generate.return_value = "Advanced AI Topics"
+            
+            # Conversation with existing real title
+            conversation_data = {
+                "prevMsgs": [
+                    {"sender": "human", "text": "What is AI?"},
+                    {"sender": "ai", "text": "AI is..."},
+                    {"sender": "human", "text": "Tell me about neural networks"}
+                ]
+            }
+            
+            # Mock conversation with existing real title
+            mock_conversation = type('MockConversation', (), {})()
+            mock_conversation.title = "Artificial Intelligence Basics"  # Already has real title
+            
+            # This should NOT update the title
+            Conversation._update_title_if_needed(mock_conversation, conversation_data)
+            
+            # Title should remain unchanged
+            assert mock_conversation.title == "Artificial Intelligence Basics"
+            # LLM should not be called since we don't need to update
+            mock_generate.assert_not_called()
 
     def test_is_owned_by_user(self):
         """Test ownership validation."""
@@ -304,6 +421,7 @@ class TestConversationModelLogic:
     def test_from_json_creates_conversation(self):
         """Test creating conversation from JSON."""
         from tangerine.models.conversation import Conversation
+        from unittest.mock import patch
 
         conversation_json = {
             "sessionId": "12345678-1234-5678-9012-123456789012",
@@ -314,16 +432,19 @@ class TestConversationModelLogic:
             ],
         }
 
-        conversation = Conversation.from_json(conversation_json)
+        with patch('tangerine.llm.generate_conversation_title') as mock_generate:
+            mock_generate.return_value = "Test Query Title"
+            conversation = Conversation.from_json(conversation_json)
 
-        assert conversation.user_id == "test_user"
-        assert str(conversation.session_id) == "12345678-1234-5678-9012-123456789012"
-        assert conversation.payload == conversation_json
-        assert conversation.title == "New chat"  # Updated for new logic
+            assert conversation.user_id == "test_user"
+            assert str(conversation.session_id) == "12345678-1234-5678-9012-123456789012"
+            assert conversation.payload == conversation_json
+            assert conversation.title == "Test Query Title"
 
     def test_from_json_with_uuid_session_id(self):
         """Test creating conversation with UUID session ID."""
         from tangerine.models.conversation import Conversation
+        from unittest.mock import patch
 
         session_uuid = uuid.UUID("12345678-1234-5678-9012-123456789012")
         conversation_json = {
@@ -335,14 +456,17 @@ class TestConversationModelLogic:
             ]
         }
 
-        conversation = Conversation.from_json(conversation_json)
+        with patch('tangerine.llm.generate_conversation_title') as mock_generate:
+            mock_generate.return_value = "Test Query Title"
+            conversation = Conversation.from_json(conversation_json)
 
-        assert conversation.session_id == session_uuid
-        assert conversation.title == "New chat"  # Updated for new logic
+            assert conversation.session_id == session_uuid
+            assert conversation.title == "Test Query Title"
 
     def test_from_json_with_assistant_name(self):
         """Test creating conversation from JSON with assistant name."""
         from tangerine.models.conversation import Conversation
+        from unittest.mock import patch
 
         conversation_json = {
             "sessionId": "12345678-1234-5678-9012-123456789012",
@@ -354,12 +478,14 @@ class TestConversationModelLogic:
             ],
         }
 
-        conversation = Conversation.from_json(conversation_json)
+        with patch('tangerine.llm.generate_conversation_title') as mock_generate:
+            mock_generate.return_value = "Test Query Title"
+            conversation = Conversation.from_json(conversation_json)
 
-        assert conversation.user_id == "test_user"
-        assert conversation.assistant_name == "Support Bot"
-        assert conversation.payload == conversation_json
-        assert conversation.title == "New chat"  # Updated for new logic
+            assert conversation.user_id == "test_user"
+            assert conversation.assistant_name == "Support Bot"
+            assert conversation.payload == conversation_json
+            assert conversation.title == "Test Query Title"
 
     def test_to_json_includes_assistant_name(self):
         """Test that to_json includes assistant name in the output."""

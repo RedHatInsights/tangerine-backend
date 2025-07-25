@@ -69,6 +69,7 @@ def test_post_chat_non_streaming(assistant_chat_api):
         mock_interaction_id,
         mock_client,
         "test_user",
+        {"sender": "human", "text": mock_query},  # current_message
     )
     assistant_chat_api._embed_question.return_value = mock_embedding
     assistant_chat_api._get_search_results.return_value = mock_search_results
@@ -109,6 +110,7 @@ def test_post_chat_non_streaming(assistant_chat_api):
         "test_user",
         mock_previous_messages,
         mock_assistant.name,
+        {"sender": "human", "text": mock_query},  # current_message
     )
 
 
@@ -140,6 +142,7 @@ def test_post_chat_streaming(assistant_chat_api):
         mock_interaction_id,
         mock_client,
         "test_user",
+        {"sender": "human", "text": mock_query},  # current_message
     )
     assistant_chat_api._embed_question.return_value = mock_embedding
     assistant_chat_api._get_search_results.return_value = mock_search_results
@@ -176,4 +179,5 @@ def test_post_chat_streaming(assistant_chat_api):
         "test_user",
         mock_previous_messages,
         mock_assistant.name,
+        {"sender": "human", "text": mock_query},  # current_message
     )
