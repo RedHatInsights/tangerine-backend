@@ -131,7 +131,7 @@ def get_response(
     _record_metrics(cb, processing_start, completion_start, completion_end)
 
 
-def rerank(query, search_results):
+def rerank(query, search_results: list["SearchResult"]):
     log.debug("llm 'rerank' request")
     if len(search_results) <= 1:
         return search_results  # No need to rank if there's only one result
