@@ -1,10 +1,9 @@
 import logging
 import time
-from typing import Generator, TYPE_CHECKING
+from typing import TYPE_CHECKING, Generator
 
 from langchain_community.callbacks.manager import get_openai_callback
 from langchain_community.callbacks.openai_info import OpenAICallbackHandler
-from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
