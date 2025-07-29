@@ -4,6 +4,7 @@ import pytest
 from langchain_core.documents import Document
 
 from tangerine.resources.assistant import AssistantChatApi  # Import your API class
+from tangerine.search import SearchResult
 
 
 @pytest.fixture
