@@ -9,28 +9,30 @@ log = logging.getLogger("tangerine.models.knowledgebase")
 
 # Association table for many-to-many relationship between Assistant and KnowledgeBase
 assistant_knowledgebase = db.Table(
-    'assistant_knowledgebase',
-    db.Column('assistant_id', db.Integer, db.ForeignKey('assistant.id'), primary_key=True),
-    db.Column('knowledgebase_id', db.Integer, db.ForeignKey('knowledgebase.id'), primary_key=True)
+    "assistant_knowledgebase",
+    db.Column("assistant_id", db.Integer, db.ForeignKey("assistant.id"), primary_key=True),
+    db.Column("knowledgebase_id", db.Integer, db.ForeignKey("knowledgebase.id"), primary_key=True),
 )
 
 
 class KnowledgeBase(db.Model):
-    __tablename__ = 'knowledgebase'
-    
+    __tablename__ = "knowledgebase"
+
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(50), nullable=False, unique=True)
     description = db.Column(db.Text, nullable=False)
     filenames = db.Column(db.ARRAY(db.String), default=[], nullable=True)
     created_at = db.Column(db.DateTime, default=db.func.now(), nullable=False)
-    updated_at = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now(), nullable=False)
-    
+    updated_at = db.Column(
+        db.DateTime, default=db.func.now(), onupdate=db.func.now(), nullable=False
+    )
+
     # Many-to-many relationship with Assistant
     assistants = db.relationship(
-        'Assistant',
+        "Assistant",
         secondary=assistant_knowledgebase,
-        back_populates='knowledgebases',
-        lazy='dynamic'
+        back_populates="knowledgebases",
+        lazy="dynamic",
     )
 
     def to_dict(self):
@@ -38,7 +40,7 @@ class KnowledgeBase(db.Model):
         for c in self.__table__.columns:
             value = getattr(self, c.name)
             # Convert datetime objects to ISO format strings for JSON serialization
-            if hasattr(value, 'isoformat'):
+            if hasattr(value, "isoformat"):
                 value = value.isoformat()
             result[c.name] = value
         return result
@@ -132,8 +134,10 @@ class KnowledgeBase(db.Model):
         """Delete this knowledgebase. Raises ValueError if still associated with assistants."""
         if self.is_associated_with_assistants():
             associated = [a.name for a in self.get_associated_assistants()]
-            raise ValueError(f"Cannot delete knowledgebase '{self.name}' - still associated with assistants: {associated}")
-        
+            raise ValueError(
+                f"Cannot delete knowledgebase '{self.name}' - still associated with assistants: {associated}"
+            )
+
         db.session.delete(self)
         db.session.commit()
         log.debug("knowledgebase with id %d deleted", self.id)

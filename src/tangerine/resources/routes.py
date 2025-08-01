@@ -3,7 +3,6 @@ from .assistant import (
     AssistantApi,
     AssistantChatApi,
     AssistantDefaultsApi,
-    AssistantDocuments,
     AssistantKnowledgeBasesApi,
     AssistantsApi,
     AssistantSearchApi,
@@ -23,7 +22,6 @@ def initialize_routes(api):
     api.add_resource(AssistantDefaultsApi, "/api/assistantDefaults")
     api.add_resource(AssistantsApi, "/api/assistants")
     api.add_resource(AssistantApi, "/api/assistants/<id>")
-    api.add_resource(AssistantDocuments, "/api/assistants/<id>/documents")
     api.add_resource(AssistantKnowledgeBasesApi, "/api/assistants/<id>/knowledgebases")
     api.add_resource(AssistantChatApi, "/api/assistants/<id>/chat", methods=["POST"])
     api.add_resource(AssistantAdvancedChatApi, "/api/assistants/chat", methods=["POST"])

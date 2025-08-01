@@ -13,7 +13,7 @@ knowledgebases:
         citation_url_template: 'https://docs.example.com/{{ full_path | replace("product/docs/", "") }}'
 
   - name: support-docs
-    description: Support Documentation Knowledge Base  
+    description: Support Documentation Knowledge Base
     bucket: mybucket
     paths:
       - prefix: support/docs

@@ -47,6 +47,13 @@ pytest
 - Line length: 100 characters
 - Target Python version: 3.12
 
+### Exception Handling Best Practices
+- Keep `try` blocks as small as possible - only include the specific operation that might fail
+- Use specific exception types in `except` clauses rather than broad `Exception` catches
+- When multiple operations could fail differently, use separate try/except blocks for each
+- Import specific exception types (e.g., `SQLAlchemyError`) at the top of the file for cleaner code
+- Validate all inputs before performing operations to fail fast with clear error messages
+
 ## Project Architecture
 
 ### Core Components

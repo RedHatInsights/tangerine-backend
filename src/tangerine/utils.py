@@ -1,22 +1,17 @@
 from typing import List
 
 from .file import File, validate_file_path, validate_source
-from .models.assistant import Assistant
 from .vector import vector_db
 
 
-def embed_files(files: List[File], assistant: Assistant) -> None:
+def embed_files_for_knowledgebase(files: List[File], knowledgebase_id: int) -> None:
     for file in files:
         file.validate()
-        vector_db.add_file(file, assistant.id)
+        vector_db.add_file(file, knowledgebase_id)
 
 
-def add_filenames_to_assistant(files: List[File], assistant: Assistant) -> None:
-    assistant.add_files([file.display_name for file in files])
-
-
-def remove_files(assistant: Assistant, metadata: dict) -> List[str]:
-    metadata["assistant_id"] = assistant.id
+def remove_files_from_knowledgebase(knowledgebase, metadata: dict) -> List[str]:
+    metadata["knowledgebase_id"] = str(knowledgebase.id)
     if "full_path" in metadata:
         validate_file_path(metadata["full_path"])
     if "source" in metadata:
@@ -25,13 +20,13 @@ def remove_files(assistant: Assistant, metadata: dict) -> List[str]:
     # first delete docs from vector store, get metadata back for deleted files
     deleted_doc_metadatas = vector_db.delete_document_chunks(metadata)
 
-    # delete from assistant DB
+    # delete from knowledgebase DB
     file_display_names = set(
         [
-            File(source=metadata["source"], full_path=metadata["full_path"]).display_name
-            for metadata in deleted_doc_metadatas
+            File(source=doc_metadata["source"], full_path=doc_metadata["full_path"]).display_name
+            for doc_metadata in deleted_doc_metadatas
         ]
     )
-    assistant.remove_files(file_display_names)
+    knowledgebase.remove_files(file_display_names)
 
     return list(file_display_names)
