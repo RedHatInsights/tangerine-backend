@@ -144,10 +144,10 @@ class FTSPostgresSearchProvider(SearchProvider):
     def search(self, knowledgebase_ids, query, embedding) -> list[SearchResult]:
         """Run full-text search over langchain_pg_embedding table."""
         results = None
-        if not isinstance(assistant_ids, list):
-            assistant_ids = [assistant_ids]
+        if not isinstance(knowledgebase_ids, list):
+            knowledgebase_ids = [knowledgebase_ids]
         try:
-            results = self._execute_query(assistant_ids, query, embedding)
+            results = self._execute_query(knowledgebase_ids, query, embedding)
         except Exception:
             log.exception("error running fts search")
 
@@ -232,7 +232,7 @@ class HybridSearchProvider(SearchProvider):
             return []
 
         try:
-            results = self._execute_query(assistant_ids, query, embedding)
+            results = self._execute_query(knowledgebase_ids, query, embedding)
 
             # Process results into LangChain's SearchResult format
             search_results = []

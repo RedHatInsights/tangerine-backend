@@ -1,7 +1,6 @@
 import logging
 from typing import Iterable, List, Optional, Self
 
-import tangerine.config as cfg
 from tangerine.db import db
 
 log = logging.getLogger("tangerine.models.knowledgebase")

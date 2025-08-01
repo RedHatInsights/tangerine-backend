@@ -1,7 +1,5 @@
-import io
 import json
 import logging
-from typing import List
 
 from flask import Response, request, stream_with_context
 from flask_restful import Resource

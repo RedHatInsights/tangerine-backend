@@ -18,7 +18,6 @@ from tangerine.models.conversation import Conversation
 from tangerine.models.interactions import store_interaction
 from tangerine.models.knowledgebase import KnowledgeBase
 from tangerine.search import SearchResult, search_engine
-from tangerine.vector import vector_db
 
 log = logging.getLogger("tangerine.resources")
 
@@ -465,7 +464,6 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         except ValueError as err:
             return {"message": str(err)}, 400
 
-        assistant_ids = [assistant.id for assistant in assistants]
         question = request.json.get("query")
         if not question:
             return {"message": "query is required"}, 400

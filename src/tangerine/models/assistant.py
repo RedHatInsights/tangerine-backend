@@ -1,5 +1,5 @@
 import logging
-from typing import Iterable, List, Optional, Self
+from typing import List, Optional, Self
 
 import tangerine.config as cfg
 from tangerine.db import db
