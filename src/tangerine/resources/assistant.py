@@ -499,9 +499,9 @@ class AssistantAdvancedChatApi(AssistantChatApi):
     external chunk injection, and model override.
     """
 
-    def _convert_chunk_array_to_documents(self, chunks):
+    def _convert_chunk_array_to_search_results(self, chunks):
         """
-        Converts an array of chunks into a list of Document objects.
+        Converts an array of chunks into a list of SearchResult objects.
         """
         return [
             SearchResult(document=Document(page_content=chunk, metadata={}), score=1)
@@ -561,15 +561,13 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         embedding = embed_query(question)
         chunks = request.json.get("chunks", None)
         if chunks:
-            chunks = self._convert_chunk_array_to_documents(request.json.get("chunks"))
+            chunks = self._convert_chunk_array_to_search_results(request.json.get("chunks"))
         search_results = chunks or search_engine.search(assistant_ids, question, embedding)
-        # Convert SearchResult objects to Document objects for llm.ask()
-        documents = [result.document for result in search_results]
         llm_response, search_metadata = llm.ask(
             assistants,
             previous_messages,
             question,
-            documents,
+            search_results,
             interaction_id=interaction_id,
             prompt=system_prompt,
             model=model_name,

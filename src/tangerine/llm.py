@@ -1,12 +1,15 @@
 import logging
 import time
-from typing import Generator
+from typing import TYPE_CHECKING, Generator
 
 from langchain_community.callbacks.manager import get_openai_callback
 from langchain_community.callbacks.openai_info import OpenAICallbackHandler
-from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
+
+if TYPE_CHECKING:
+    # TODO: if llm.rerank() is taken out of search.py and circular import goes away, come back to edit this
+    from tangerine.search import SearchResult
 
 import tangerine.config as cfg
 from tangerine.agents.jira_agent import JiraAgent
@@ -72,13 +75,13 @@ def _record_metrics(
     llm_completion_rate.set(completion_rate)
 
 
-def _build_context(search_results: list[Document], content_char_limit: int = 0):
+def _build_context(search_results: list["SearchResult"], content_char_limit: int = 0):
     search_metadata = []
     context = ""
     log.debug("given %d search results as context", len(search_results))
-    for i, doc in enumerate(search_results):
-        page_content = doc.document.page_content
-        metadata = doc.document.metadata
+    for i, result in enumerate(search_results):
+        page_content = result.document.page_content
+        metadata = result.document.metadata
         search_metadata.append(
             {
                 "metadata": metadata,
@@ -129,7 +132,7 @@ def get_response(
     _record_metrics(cb, processing_start, completion_start, completion_end)
 
 
-def rerank(query, search_results):
+def rerank(query, search_results: list["SearchResult"]):
     log.debug("llm 'rerank' request")
     if len(search_results) <= 1:
         return search_results  # No need to rank if there's only one result
@@ -160,7 +163,7 @@ def ask(
     assistants: list[Assistant],
     previous_messages,
     question,
-    search_results: list[Document],
+    search_results: list["SearchResult"],
     interaction_id=None,
     prompt: str | None = None,
     model: str | None = None,
