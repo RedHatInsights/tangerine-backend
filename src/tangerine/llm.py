@@ -8,6 +8,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 if TYPE_CHECKING:
+    # TODO: if llm.rerank() is taken out of search.py and circular import goes away, come back to edit this
     from tangerine.search import SearchResult
 
 import tangerine.config as cfg
