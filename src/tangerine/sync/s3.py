@@ -14,7 +14,7 @@ from sqlalchemy import text
 
 import tangerine.config as cfg
 from tangerine.db import db
-from tangerine.models import Assistant
+from tangerine.models import Assistant, KnowledgeBase
 from tangerine.utils import File, embed_files
 from tangerine.vector import vector_db
 
@@ -29,13 +29,19 @@ class PathConfig(BaseModel):
     extensions: Optional[List[str]] = None
 
 
+class KnowledgeBaseConfig(BaseModel):
+    name: str
+    description: str
+    bucket: str
+    paths: List[PathConfig]
+
+
 class AssistantConfig(BaseModel):
     name: str
     description: str
     system_prompt: Optional[str] = None
-    bucket: str
     model: Optional[str] = None
-    paths: List[PathConfig]
+    knowledgebases: List[str]  # List of knowledgebase names
 
 
 class SyncConfigDefaults(BaseModel):
@@ -45,6 +51,7 @@ class SyncConfigDefaults(BaseModel):
 
 class SyncConfig(BaseModel):
     defaults: SyncConfigDefaults
+    knowledgebases: List[KnowledgeBaseConfig]
     assistants: List[AssistantConfig]
 
 

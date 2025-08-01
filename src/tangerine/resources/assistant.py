@@ -21,6 +21,18 @@ from tangerine.vector import vector_db
 
 log = logging.getLogger("tangerine.resources")
 
+
+def _get_search_results_for_assistant(assistant_id, query, embedding):
+    """Helper function to get search results for an assistant by querying its knowledgebases."""
+    assistant = Assistant.get(assistant_id)
+    if not assistant:
+        return []
+    knowledgebase_ids = assistant.get_knowledgebase_ids()
+    if not knowledgebase_ids:
+        return []
+    return search_engine.search(knowledgebase_ids, query, embedding)
+
+
 # Prometheus metrics
 user_interaction_counter = get_counter(
     "user_interaction_counter",
@@ -311,7 +323,7 @@ class AssistantChatApi(Resource):
 
     @staticmethod
     def _get_search_results(assistant_id, query, embedding):
-        return search_engine.search(assistant_id, query, embedding)
+        return _get_search_results_for_assistant(assistant_id, query, embedding)
 
     def _handle_streaming_response(
         self,
@@ -562,7 +574,19 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         chunks = request.json.get("chunks", None)
         if chunks:
             chunks = self._convert_chunk_array_to_search_results(request.json.get("chunks"))
-        search_results = chunks or search_engine.search(assistant_ids, question, embedding)
+
+        # Get all knowledgebase IDs from all assistants
+        all_knowledgebase_ids = set()
+        for assistant in assistants:
+            all_knowledgebase_ids.update(assistant.get_knowledgebase_ids())
+        knowledgebase_ids = list(all_knowledgebase_ids)
+
+        search_results = chunks or (
+            search_engine.search(knowledgebase_ids, question, embedding)
+            if knowledgebase_ids
+            else []
+        )
+
         llm_response, search_metadata = llm.ask(
             assistants,
             previous_messages,
@@ -644,4 +668,124 @@ class AssistantSearchApi(Resource):
 
     @staticmethod
     def _get_search_results(assistant_id, query, embedding):
-        return search_engine.search(assistant_id, query, embedding)
+        return _get_search_results_for_assistant(assistant_id, query, embedding)
+
+
+class AssistantKnowledgeBasesApi(Resource):
+    def get(self, id):
+        """Get knowledgebases associated with an assistant."""
+        try:
+            assistant_id = int(id)
+        except ValueError:
+            return {"error": "Invalid assistant ID"}, 400
+
+        assistant = Assistant.get(assistant_id)
+        if not assistant:
+            return {"error": "Assistant not found"}, 404
+
+        knowledgebases = assistant.get_knowledgebases()
+        return {"data": [kb.to_dict() for kb in knowledgebases]}
+
+    def post(self, id):
+        """Associate knowledgebases with an assistant."""
+        try:
+            assistant_id = int(id)
+        except ValueError:
+            return {"error": "Invalid assistant ID"}, 400
+
+        assistant = Assistant.get(assistant_id)
+        if not assistant:
+            return {"error": "Assistant not found"}, 404
+
+        data = request.get_json()
+        if not data or "knowledgebase_ids" not in data:
+            return {"error": "knowledgebase_ids array is required in request body"}, 400
+
+        knowledgebase_ids = data["knowledgebase_ids"]
+        if not isinstance(knowledgebase_ids, list):
+            return {"error": "knowledgebase_ids must be an array"}, 400
+
+        from tangerine.models import KnowledgeBase  # Import here to avoid circular import
+
+        associated = []
+        errors = []
+
+        for kb_id in knowledgebase_ids:
+            try:
+                kb = KnowledgeBase.get(kb_id)
+                if not kb:
+                    errors.append(f"KnowledgeBase {kb_id} not found")
+                    continue
+
+                assistant.associate_knowledgebase(kb)
+                associated.append(kb.to_dict())
+                log.info("associated knowledgebase %d with assistant %d", kb.id, assistant_id)
+
+            except Exception as e:
+                error_msg = f"Failed to associate knowledgebase {kb_id}: {str(e)}"
+                errors.append(error_msg)
+                log.exception(
+                    "error associating knowledgebase %d with assistant %d", kb_id, assistant_id
+                )
+
+        response_data = {"associated_knowledgebases": associated}
+
+        if errors:
+            response_data["errors"] = errors
+            status_code = 207  # Multi-status
+        else:
+            status_code = 200
+
+        return response_data, status_code
+
+    def delete(self, id):
+        """Disassociate knowledgebases from an assistant."""
+        try:
+            assistant_id = int(id)
+        except ValueError:
+            return {"error": "Invalid assistant ID"}, 400
+
+        assistant = Assistant.get(assistant_id)
+        if not assistant:
+            return {"error": "Assistant not found"}, 404
+
+        data = request.get_json()
+        if not data or "knowledgebase_ids" not in data:
+            return {"error": "knowledgebase_ids array is required in request body"}, 400
+
+        knowledgebase_ids = data["knowledgebase_ids"]
+        if not isinstance(knowledgebase_ids, list):
+            return {"error": "knowledgebase_ids must be an array"}, 400
+
+        from tangerine.models import KnowledgeBase  # Import here to avoid circular import
+
+        disassociated = []
+        errors = []
+
+        for kb_id in knowledgebase_ids:
+            try:
+                kb = KnowledgeBase.get(kb_id)
+                if not kb:
+                    errors.append(f"KnowledgeBase {kb_id} not found")
+                    continue
+
+                assistant.disassociate_knowledgebase(kb)
+                disassociated.append(kb.to_dict())
+                log.info("disassociated knowledgebase %d from assistant %d", kb.id, assistant_id)
+
+            except Exception as e:
+                error_msg = f"Failed to disassociate knowledgebase {kb_id}: {str(e)}"
+                errors.append(error_msg)
+                log.exception(
+                    "error disassociating knowledgebase %d from assistant %d", kb_id, assistant_id
+                )
+
+        response_data = {"disassociated_knowledgebases": disassociated}
+
+        if errors:
+            response_data["errors"] = errors
+            status_code = 207  # Multi-status
+        else:
+            status_code = 200
+
+        return response_data, status_code

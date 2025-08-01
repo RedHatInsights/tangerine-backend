@@ -62,7 +62,7 @@ class SearchProvider(ABC):
         log.debug("initializing search provider %s", self.__class__.__name__)
 
     @abstractmethod
-    def search(self, assistant_ids, query, embedding) -> list[SearchResult]:
+    def search(self, knowledgebase_ids, query, embedding) -> list[SearchResult]:
         """Runs the search and returns results with normalized scores."""
         pass
 
@@ -141,7 +141,7 @@ class FTSPostgresSearchProvider(SearchProvider):
         results = db.session.execute(fts_query).fetchall()
         return results
 
-    def search(self, assistant_ids, query, embedding) -> list[SearchResult]:
+    def search(self, knowledgebase_ids, query, embedding) -> list[SearchResult]:
         """Run full-text search over langchain_pg_embedding table."""
         results = None
         if not isinstance(assistant_ids, list):
@@ -162,8 +162,8 @@ class MMRSearchProvider(SearchProvider):
 
     RETRIEVAL_METHOD = "mmr"
 
-    def search(self, assistant_ids, query, embedding) -> list[SearchResult]:
-        search_filter = vector_db.get_search_filter(assistant_ids)
+    def search(self, knowledgebase_ids, query, embedding) -> list[SearchResult]:
+        search_filter = vector_db.get_search_filter(knowledgebase_ids)
         results = vector_db.store.max_marginal_relevance_search_with_score_by_vector(
             embedding=embedding,
             filter=search_filter,
@@ -179,8 +179,8 @@ class SimilaritySearchProvider(SearchProvider):
 
     RETRIEVAL_METHOD = "similarity"
 
-    def search(self, assistant_ids, query, embedding) -> list[SearchResult]:
-        search_filter = vector_db.get_search_filter(assistant_ids)
+    def search(self, knowledgebase_ids, query, embedding) -> list[SearchResult]:
+        search_filter = vector_db.get_search_filter(knowledgebase_ids)
 
         results = vector_db.store.similarity_search_with_score_by_vector(
             embedding=embedding,
@@ -219,7 +219,7 @@ class HybridSearchProvider(SearchProvider):
         # we handle setting rank in _process_results below, higher score = better result
         pass
 
-    def search(self, assistant_ids, query, embedding) -> list[SearchResult]:
+    def search(self, knowledgebase_ids, query, embedding) -> list[SearchResult]:
         """Hybrid search provider combining vector similarity and full-text BM25 search.
 
         Based on:
@@ -337,13 +337,13 @@ class SearchEngine:
 
         return sorted_results
 
-    def search(self, assistant_ids, query, embedding=None):
+    def search(self, knowledgebase_ids, query, embedding=None):
         results = []
         embedding = embedding or embed_query(query)
-        if not isinstance(assistant_ids, list):
-            assistant_ids = [assistant_ids]
+        if not isinstance(knowledgebase_ids, list):
+            knowledgebase_ids = [knowledgebase_ids]
         for provider in self.search_providers:
-            results.extend(provider.search(assistant_ids, query, embedding))
+            results.extend(provider.search(knowledgebase_ids, query, embedding))
 
         return self._finalize_results(query, results)
 
