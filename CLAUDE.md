@@ -38,7 +38,7 @@ pre-commit run --all
 pre-commit install
 
 # Run tests
-pytest
+pipenv run pytest
 ```
 
 ### Linting and Formatting
@@ -46,6 +46,13 @@ pytest
 - Use `flake8` for additional linting
 - Line length: 100 characters
 - Target Python version: 3.12
+
+### Python Environment
+**IMPORTANT**: This project uses `pipenv` for dependency management. Always run Python commands through pipenv:
+- Use `pipenv run python` instead of `python`
+- Use `pipenv run pytest` instead of `pytest`
+- Use `pipenv run flask [command]` instead of `flask [command]`
+- If you need to run multiple commands, use `pipenv shell` first
 
 ### Exception Handling Best Practices
 - Keep `try` blocks as small as possible - only include the specific operation that might fail
