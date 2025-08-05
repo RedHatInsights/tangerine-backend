@@ -59,7 +59,7 @@ class KnowledgeBaseApi(Resource):
         if not kb:
             return {"error": "KnowledgeBase not found"}, 404
 
-        return {"data": kb.to_dict()}
+        return {"data": kb.to_dict(get_filenames=True)}
 
     def put(self, id):
         """Update a knowledgebase."""
