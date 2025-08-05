@@ -28,6 +28,11 @@ def _get_search_results_for_assistant(assistant_id, query, embedding):
     if not assistant:
         return []
     knowledgebase_ids = assistant.get_knowledgebase_ids()
+    log.debug(
+        "search request received for assistant '%s', found kb's: %s",
+        assistant.name,
+        knowledgebase_ids,
+    )
     if not knowledgebase_ids:
         return []
     return search_engine.search(knowledgebase_ids, query, embedding)
@@ -156,7 +161,7 @@ class AssistantChatApi(Resource):
             assistant_name=assistant.name,
         ).inc()
         embedding = self._embed_question(question)
-        search_results = self._get_search_results([assistant.id], question, embedding)
+        search_results = self._get_search_results(assistant.id, question, embedding)
         llm_response, search_metadata = self._call_llm(
             assistant, previous_messages, question, search_results, interaction_id
         )

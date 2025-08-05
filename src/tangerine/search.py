@@ -133,10 +133,10 @@ class FTSPostgresSearchProvider(SearchProvider):
 
         return super()._process_results(search_results)
 
-    def _execute_query(self, assistant_ids, query, _embedding):
+    def _execute_query(self, knowledgebase_ids, query, _embedding):
         fts_query = text(self.sql_query).bindparams(
             bindparam("query", value=query),
-            bindparam("assistant_ids", value=assistant_ids, type_=ARRAY(String)),
+            bindparam("knowledgebase_ids", value=knowledgebase_ids, type_=ARRAY(String)),
         )
         results = db.session.execute(fts_query).fetchall()
         return results
@@ -201,13 +201,13 @@ class HybridSearchProvider(SearchProvider):
         super().__init__()
         self._load_sql_file()
 
-    def _execute_query(self, assistant_ids, query, embedding):
-        if not isinstance(assistant_ids, list):
-            assistant_ids = [assistant_ids]
+    def _execute_query(self, knowledgebase_ids, query, embedding):
+        if not isinstance(knowledgebase_ids, list):
+            knowledgebase_ids = [knowledgebase_ids]
 
         hybrid_search_sql = text(self.sql_query).bindparams(
             bindparam("query", value=query),
-            bindparam("assistant_ids", value=assistant_ids, type_=ARRAY(String)),
+            bindparam("knowledgebase_ids", value=knowledgebase_ids, type_=ARRAY(String)),
             bindparam("embedding", value=embedding, type_=Vector()),
         )
 
