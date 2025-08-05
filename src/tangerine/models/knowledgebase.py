@@ -1,7 +1,8 @@
 import logging
-from typing import Iterable, List, Optional, Self
+from typing import List, Optional, Self
 
 from tangerine.db import db
+from tangerine.utils import get_files_for_knowledgebase
 
 log = logging.getLogger("tangerine.models.knowledgebase")
 
@@ -20,7 +21,6 @@ class KnowledgeBase(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(50), nullable=False, unique=True)
     description = db.Column(db.Text, nullable=False)
-    filenames = db.Column(db.ARRAY(db.String), default=[], nullable=True)
     created_at = db.Column(db.DateTime, default=db.func.now(), nullable=False)
     updated_at = db.Column(
         db.DateTime, default=db.func.now(), onupdate=db.func.now(), nullable=False
@@ -42,6 +42,10 @@ class KnowledgeBase(db.Model):
             if hasattr(value, "isoformat"):
                 value = value.isoformat()
             result[c.name] = value
+
+        # Add filenames from vector database
+        result["filenames"] = get_files_for_knowledgebase(self.id)
+
         return result
 
     def __repr__(self):
@@ -88,46 +92,6 @@ class KnowledgeBase(db.Model):
         db.session.commit()
         db.session.refresh(self)
         log.debug("updated attributes %s of knowledgebase %d", updated_keys, self.id)
-        return self
-
-    def add_files(self, file_display_names: Iterable[str]) -> Self:
-        # Use database locking to ensure thread-safety
-        locked_kb = db.session.get(KnowledgeBase, self.id, with_for_update=True)
-        filenames = locked_kb.filenames.copy() if locked_kb.filenames else []
-        file_display_names = set(file_display_names)
-        for name in file_display_names:
-            if name not in filenames:
-                filenames.append(name)
-        log.debug(
-            "adding %d files to knowledgebase %d, total files now %d",
-            len(file_display_names),
-            locked_kb.id,
-            len(filenames),
-        )
-        locked_kb.filenames = filenames
-        db.session.commit()
-        db.session.refresh(self)
-        return self
-
-    def remove_files(self, file_display_names: Iterable[str]) -> Self:
-        # Use database locking to ensure thread-safety
-        locked_kb = db.session.get(KnowledgeBase, self.id, with_for_update=True)
-        current_filenames = locked_kb.filenames.copy() if locked_kb.filenames else []
-        new_names = [name for name in current_filenames if name not in file_display_names]
-        old_count = len(current_filenames)
-        new_count = len(new_names)
-        diff = old_count - new_count
-        log.debug(
-            "removing %d files from knowledgebase %d, old count %d, new count %d",
-            diff,
-            locked_kb.id,
-            old_count,
-            new_count,
-        )
-        if diff > 0:
-            locked_kb.filenames = new_names
-            db.session.commit()
-            db.session.refresh(self)
         return self
 
     def is_associated_with_assistants(self) -> bool:

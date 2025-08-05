@@ -158,7 +158,6 @@ class KnowledgeBaseDocuments(Resource):
             for file in files:
                 yield json.dumps({"file": file.display_name, "step": "start"}) + "\n"
                 embed_files_for_knowledgebase([file], kb_id)
-                kb.add_files([file.display_name])
                 yield json.dumps({"file": file.display_name, "step": "end"}) + "\n"
 
         return Response(stream_with_context(generate_progress()), mimetype="application/json")
