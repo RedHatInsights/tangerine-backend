@@ -59,7 +59,7 @@ class KnowledgeBaseApi(Resource):
         if not kb:
             return {"error": "KnowledgeBase not found"}, 404
 
-        return {"data": kb.to_dict(get_filenames=True)}
+        return {"data": kb.to_dict(get_files=True)}
 
     def put(self, id):
         """Update a knowledgebase."""
@@ -198,5 +198,24 @@ class KnowledgeBaseDocuments(Resource):
             log.exception(err)
             return {"error": err}, 500
 
-        count = len(deleted)
-        return {"message": f"{count} document(s) deleted", "count": count, "deleted": deleted}, 200
+        # Remove 'id' field from each document metadata and get unique documents
+        unique_docs = []
+        seen_docs = set()
+
+        for doc in deleted:
+            # Create a copy without the 'id' field
+            doc_without_id = {k: v for k, v in doc.items() if k != "id"}
+
+            # Convert to tuple for hashing (to check uniqueness)
+            doc_tuple = tuple(sorted(doc_without_id.items()))
+
+            if doc_tuple not in seen_docs:
+                seen_docs.add(doc_tuple)
+                unique_docs.append(doc_without_id)
+
+        count = len(unique_docs)
+        return {
+            "message": f"{count} document(s) deleted",
+            "count": count,
+            "deleted": unique_docs,
+        }, 200

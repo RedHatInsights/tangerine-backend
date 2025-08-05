@@ -21,15 +21,7 @@ def get_files_for_knowledgebase(knowledgebase_id: int) -> List[str]:
     # Get all unique metadata entries for this knowledgebase
     unique_metadatas = vector_db.get_distinct_cmetadata(search_filter)
 
-    # Extract unique display names from metadata
-    display_names = set()
-    for metadata in unique_metadatas:
-        if "source" in metadata and "full_path" in metadata:
-            # Create display name in same format as File.display_name
-            display_name = f"{metadata['source']}:{metadata['full_path']}"
-            display_names.add(display_name)
-
-    return sorted(list(display_names))
+    return unique_metadatas
 
 
 def remove_files_from_knowledgebase(knowledgebase, metadata: dict) -> List[str]:
@@ -42,9 +34,4 @@ def remove_files_from_knowledgebase(knowledgebase, metadata: dict) -> List[str]:
     # Delete docs from vector store, get metadata back for deleted files
     deleted_doc_metadatas = vector_db.delete_document_chunks(metadata)
 
-    file_display_names = [
-        File(source=doc_metadata["source"], full_path=doc_metadata["full_path"]).display_name
-        for doc_metadata in deleted_doc_metadatas
-    ]
-
-    return file_display_names
+    return deleted_doc_metadatas

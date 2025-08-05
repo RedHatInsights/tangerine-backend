@@ -34,7 +34,7 @@ class KnowledgeBase(db.Model):
         lazy="dynamic",
     )
 
-    def to_dict(self, get_filenames=False):
+    def to_dict(self, get_files=False):
         result = {}
         for c in self.__table__.columns:
             value = getattr(self, c.name)
@@ -43,9 +43,9 @@ class KnowledgeBase(db.Model):
                 value = value.isoformat()
             result[c.name] = value
 
-        if get_filenames:
-            # Add filenames from vector database
-            result["filenames"] = get_files_for_knowledgebase(self.id)
+        if get_files:
+            # Add files from vector database
+            result["files"] = get_files_for_knowledgebase(self.id)
 
         return result
 
