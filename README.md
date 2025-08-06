@@ -573,6 +573,102 @@ curl -X POST http://localhost:8080/api/assistants/chat \
   }'
 ```
 
+You can also provide a custom user prompt template by setting `userPrompt`. This allows you to override the default user prompt template while keeping the system prompt unchanged:
+
+```
+curl -X POST http://localhost:8080/api/assistants/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "assistants": ["support docs"],
+    "query": "How do I deploy my application?",
+    "sessionId": "433e4567-8e9b-22d3-a456-626614174000",
+    "interactionId": "137e6543-2f1b-12d3-b456-526614174999",
+    "client": "curl",
+    "stream": false,
+    "userPrompt": "[INST]\nQuestion: {question}\n\nContext: {context}\n\nPlease provide a brief answer based on the context above.\n[/INST]"
+  }'
+```
+
+The `userPrompt` template supports the same variables as the default template: `{question}` for the user's query and `{context}` for the search results. You can combine `userPrompt` with `prompt`/`system_prompt` to fully customize both parts of the conversation template.
+
+## Prompt Template Variables and Formatting
+
+When customizing prompts in the advanced chat API, it's important to understand how Tangerine formats and interpolates template variables. Both system prompts (`prompt`/`system_prompt`) and user prompts (`userPrompt`) support template variable substitution.
+
+### Available Template Variables
+
+The following variables are available for interpolation in prompt templates:
+
+- **`{question}`**: The user's original query/question
+- **`{context}`**: The formatted search results from the knowledge base
+
+### Context Variable Format
+
+The `{context}` variable contains search results formatted with specific markers that the system uses for parsing:
+
+```
+<<Search result 1, document title: 'Example Document'>>
+
+Content of the first search result goes here...
+This is the actual documentation content that was retrieved.
+
+<<Search result 1 END>>
+
+<<Search result 2>>
+
+Content of the second search result...
+
+<<Search result 2 END>>
+```
+
+### System Prompt Guidelines
+
+System prompts should:
+- Not use template variables (they are static instructions for the AI)
+- Define the AI's role, behavior, and response guidelines
+- Use the `<s>[INST]...[/INST]` format for compatibility with chat models
+- Include instructions on how to handle the search results that will be provided
+
+### User Prompt Guidelines
+
+User prompts should:
+- Always include `{question}` to insert the user's query
+- Always include `{context}` to insert the search results
+- Use the `[INST]...[/INST]` format to mark user instructions
+- Provide clear instructions on how the AI should process the question and context
+
+### Example Custom Templates
+
+**Custom System Prompt:**
+```json
+{
+  "prompt": "<s>[INST] You are a technical documentation assistant. Provide concise, accurate answers based solely on the provided search results. If information is insufficient, ask for clarification. Format responses in markdown. [/INST]"
+}
+```
+
+**Custom User Prompt:**
+```json
+{
+  "userPrompt": "[INST]\nQuestion: {question}\n\nAvailable Documentation:\n{context}\n\nPlease answer the question using only the documentation provided above. If the documentation doesn't contain enough information, say so clearly.\n[/INST]"
+}
+```
+
+**Combined Custom Prompts:**
+```json
+{
+  "prompt": "<s>[INST] You are a helpful deployment assistant specializing in containerized applications. [/INST]",
+  "userPrompt": "[INST]\nDeployment Question: {question}\n\nRelevant Documentation:\n{context}\n\nProvide step-by-step deployment guidance based on the documentation.\n[/INST]"
+}
+```
+
+### Template Variable Processing
+
+Variables are processed using Python's string formatting, so:
+- Use `{variable_name}` syntax for substitution
+- Variables are replaced exactly as provided by the system
+- Missing variables will cause template errors
+- Extra variables in templates are ignored
+
 ## Multiple Model Support
 You can extend Tangerine to support multiple models for use with the advanced chat API. In the future we plan to offer this purely through config, but as of this writing it requires minor modification to the Tangerine code.
 

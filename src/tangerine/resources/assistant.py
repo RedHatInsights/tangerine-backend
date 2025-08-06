@@ -536,6 +536,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         model_name = request.json.get("model")
         user = request.json.get("user", "unknown")
         disable_agentic = request.json.get("disable_agentic", False)
+        user_prompt = request.json.get("userPrompt")
 
         # Extract the current message data to preserve all fields
         current_message = request.json.get("currentMessage", {})
@@ -574,6 +575,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
             prompt=system_prompt,
             model=model_name,
             disable_agentic=disable_agentic,
+            user_prompt=user_prompt,
         )
         # Create combined assistant name for multiple assistants
         combined_assistant_name = ", ".join([assistant.name for assistant in assistants])

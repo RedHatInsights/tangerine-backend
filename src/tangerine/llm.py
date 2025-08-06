@@ -168,6 +168,7 @@ def ask(
     prompt: str | None = None,
     model: str | None = None,
     disable_agentic: bool = False,
+    user_prompt: str | None = None,
 ) -> tuple[Generator[str, None, None], list[dict]]:
     log.debug("llm 'ask' request")
     search_context = ""
@@ -215,7 +216,9 @@ def ask(
                 msg_list.append(("human", f"[INST] {msg['text']} [/INST]"))
             if msg["sender"] == "ai":
                 msg_list.append(("ai", f"{msg['text']}</s>"))
-    msg_list.append(("human", cfg.USER_PROMPT_TEMPLATE))
+    # Use provided user prompt or default template
+    final_user_prompt = user_prompt or cfg.USER_PROMPT_TEMPLATE
+    msg_list.append(("human", final_user_prompt))
 
     # Determine model: use provided model, then first assistant's model
     # TODO: handle the case where assistants are configured with different models
