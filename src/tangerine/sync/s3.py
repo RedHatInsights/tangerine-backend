@@ -510,7 +510,7 @@ def run(resync: bool = False) -> int:
     if kbs_not_found:
         kb_names_joined = ", ".join([name for name in kbs_not_found])
         log.error(
-            f"coud not associate assistants with non-existant knowledgebases: {kb_names_joined}"
+            f"could not associate assistants with non-existent knowledgebases: {kb_names_joined}"
         )
         exit_code = 1
 
