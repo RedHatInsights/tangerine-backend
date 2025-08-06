@@ -167,20 +167,23 @@ def ask(
     interaction_id=None,
     prompt: str | None = None,
     model: str | None = None,
+    disable_agentic: bool = False,
 ) -> tuple[Generator[str, None, None], list[dict]]:
     log.debug("llm 'ask' request")
     search_context = ""
     search_metadata = []
 
-    agent = identify_agent(question)
-    log.debug("identified agent: %s", agent)
-    match agent.strip():
-        case "JiraAgent":
-            if cfg.ENABLE_JIRA_AGENT:
-                return JiraAgent().fetch(question), search_metadata
-        case "WebRCAAgent":
-            if cfg.ENABLE_WEB_RCA_AGENT:
-                return WebRCAAgent().fetch(question), search_metadata
+    # Skip agentic workflow if disabled
+    if not disable_agentic:
+        agent = identify_agent(question)
+        log.debug("identified agent: %s", agent)
+        match agent.strip():
+            case "JiraAgent":
+                if cfg.ENABLE_JIRA_AGENT:
+                    return JiraAgent().fetch(question), search_metadata
+            case "WebRCAAgent":
+                if cfg.ENABLE_WEB_RCA_AGENT:
+                    return WebRCAAgent().fetch(question), search_metadata
 
     if len(search_results) == 0:
         log.debug("given 0 search results")

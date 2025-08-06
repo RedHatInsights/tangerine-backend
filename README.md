@@ -534,7 +534,7 @@ curl -X POST http://localhost:8080/api/assistants/chat \
   }'
 ```
 
-You can also provide your own system prompt to change how Tangerine handles your query:
+You can also provide your own system prompt to change how Tangerine handles your query. Note that both `prompt` and `system_prompt` parameters are supported for backward compatibility:
 
 ```
 curl -X POST http://localhost:8080/api/assistants/chat \
@@ -554,6 +554,22 @@ curl -X POST http://localhost:8080/api/assistants/chat \
       knowledge. As you are answering via a chat application please keep
       your responses short, no more than 3 sentences.
     [/INST]"
+  }'
+```
+
+You can disable the agentic workflow (which routes queries to specialized agents like JiraAgent or WebRCAAgent) by setting `disable_agentic` to `true`. This will bypass intent analysis and route all queries directly to the standard chat agent:
+
+```
+curl -X POST http://localhost:8080/api/assistants/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "assistants": ["support docs"],
+    "query": "What is the recent Jira activity of john_doe?",
+    "sessionId": "433e4567-8e9b-22d3-a456-626614174000",
+    "interactionId": "137e6543-2f1b-12d3-b456-526614174999",
+    "client": "curl",
+    "stream": false,
+    "disable_agentic": true
   }'
 ```
 
