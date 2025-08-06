@@ -295,6 +295,7 @@ class AssistantChatApi(Resource):
             question,
             search_results,
             interaction_id=interaction_id,
+            prompt=None,  # No override for basic API, use assistant config
         )
 
     @staticmethod
@@ -527,7 +528,9 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         if not question:
             return {"message": "query is required"}, 400
         # Support both 'system_prompt' and 'prompt' parameters for backward compatibility
-        system_prompt = request.json.get("system_prompt") or request.json.get("prompt", DEFAULT_SYSTEM_PROMPT)
+        # Priority: API override -> Assistant config -> Default
+        api_system_prompt = request.json.get("system_prompt") or request.json.get("prompt")
+        system_prompt = api_system_prompt  # Will be None if no API override provided
         session_uuid = request.json.get("sessionId", str(uuid.uuid4()))
         stream = request.json.get("stream", "true") == "true"
         previous_messages = request.json.get("prevMsgs")
