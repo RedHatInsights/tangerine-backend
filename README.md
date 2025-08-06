@@ -113,11 +113,13 @@ Our documentation set has initially focused on pages that have been compiled usi
 The **tangerine-backend** service manages:
 
 - Create/update/delete of chat bot "assistants" via REST API.
+- Create/update/delete of "knowledgebases" that store documents via REST API.
+- Associate assistants with one or more knowledgebases.
 - Document ingestion
-  - Upload via the API, or sync via an s3 bucket
+  - Upload via the API to knowledgebases, or sync via an s3 bucket
   - Text cleanup/conversion
   - Chunking and embedding into the vector database.
-- Querying the vector database.
+- Querying the vector database when a question is asked to an assistant.
 - Interfacing with the LLM to prompt it and stream responses
 
 ### Related Frontends
@@ -460,9 +462,17 @@ The API can be used to create/manage/update assistants, upload documents, and to
 | `/api/assistants/<id>`                 | `DELETE` | Delete an assistant            |
 | `/api/assistants/<id>/chat`            | `POST`   | Chat with an assistant         |
 | `/api/assistants/chat`                 | `POST`   | Advanced chat API              |
-| `/api/assistants/<id>/documents`       | `POST`   | Assistant document uploads     |
-| `/api/assistants/<id>/documents`       | `DELETE` | Delete assistant documents     |
+| `/api/assistants/<id>/knowledgebases`  | `GET`    | Get knowledgebases for assistant |
+| `/api/assistants/<id>/knowledgebases`  | `POST`   | Associate knowledgebases with assistant |
+| `/api/assistants/<id>/knowledgebases`  | `DELETE` | Disassociate knowledgebases from assistant |
 | `/api/assistants/<id>/search`          | `POST`    | Perform search results             |
+| `/api/knowledgebases`                  | `GET`    | Get a list of all knowledgebases |
+| `/api/knowledgebases`                  | `POST`   | Create a new knowledgebase     |
+| `/api/knowledgebases/<id>`             | `GET`    | Get a knowledgebase            |
+| `/api/knowledgebases/<id>`             | `PUT`    | Update a knowledgebase         |
+| `/api/knowledgebases/<id>`             | `DELETE` | Delete a knowledgebase         |
+| `/api/knowledgebases/<id>/documents`   | `POST`   | Upload documents to knowledgebase |
+| `/api/knowledgebases/<id>/documents`   | `DELETE` | Delete documents from knowledgebase |
 | `/api/assistantDefaults`               | `GET`    | Get assistant default settings |
 | `/ping`                            | `GET`    | Health check endpoint      |
 

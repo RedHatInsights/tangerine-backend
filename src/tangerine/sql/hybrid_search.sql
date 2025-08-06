@@ -9,7 +9,7 @@ WITH fts_results AS (
     FROM
         langchain_pg_embedding
     WHERE
-        cmetadata->>'assistant_id' = ANY(:assistant_ids)
+        cmetadata->>'knowledgebase_id' = ANY(:knowledgebase_ids)
         AND cmetadata->>'active' = 'True'
         AND fts_vector @@ plainto_tsquery('english', :query)
     ORDER BY
@@ -27,7 +27,7 @@ vector_results AS (
     FROM
         langchain_pg_embedding
     WHERE
-        cmetadata->>'assistant_id' = ANY(:assistant_ids)
+        cmetadata->>'knowledgebase_id' = ANY(:knowledgebase_ids)
         AND cmetadata->>'active' = 'True'
     ORDER BY
         -(embedding <#> :embedding) DESC
