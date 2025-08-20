@@ -472,7 +472,7 @@ def run(resync: bool = False) -> int:
         for kb_name in knowledgebase_names:
             knowledgebase = KnowledgeBase.get_by_name(kb_name)
             if knowledgebase:
-                assistant.associate_knowledgebase(knowledgebase.id)
+                assistant.associate_knowledgebase(knowledgebase)
                 log.info(
                     "associated knowledgebase '%s' with assistant '%s'", kb_name, assistant.name
                 )
