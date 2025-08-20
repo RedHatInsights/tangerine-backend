@@ -1,37 +1,37 @@
 from typing import List
 
 from .file import File, validate_file_path, validate_source
-from .models.assistant import Assistant
 from .vector import vector_db
 
 
-def embed_files(files: List[File], assistant: Assistant) -> None:
+def embed_files_for_knowledgebase(files: List[File], knowledgebase_id: int) -> None:
     for file in files:
         file.validate()
-        vector_db.add_file(file, assistant.id)
+        vector_db.add_file(file, knowledgebase_id)
 
 
-def add_filenames_to_assistant(files: List[File], assistant: Assistant) -> None:
-    assistant.add_files([file.display_name for file in files])
+def get_files_for_knowledgebase(knowledgebase_id: int) -> List[str]:
+    """
+    Get unique list of all file display names for a knowledgebase by querying vector database.
+
+    Returns display names in format 'source:full_path' as determined by File.display_name property.
+    """
+    search_filter = {"knowledgebase_id": str(knowledgebase_id)}
+
+    # Get all unique metadata entries for this knowledgebase
+    unique_metadatas = vector_db.get_distinct_cmetadata(search_filter)
+
+    return unique_metadatas
 
 
-def remove_files(assistant: Assistant, metadata: dict) -> List[str]:
-    metadata["assistant_id"] = assistant.id
+def remove_files_from_knowledgebase(knowledgebase, metadata: dict) -> List[str]:
+    metadata["knowledgebase_id"] = str(knowledgebase.id)
     if "full_path" in metadata:
         validate_file_path(metadata["full_path"])
     if "source" in metadata:
         validate_source(metadata["source"])
 
-    # first delete docs from vector store, get metadata back for deleted files
+    # Delete docs from vector store, get metadata back for deleted files
     deleted_doc_metadatas = vector_db.delete_document_chunks(metadata)
 
-    # delete from assistant DB
-    file_display_names = set(
-        [
-            File(source=metadata["source"], full_path=metadata["full_path"]).display_name
-            for metadata in deleted_doc_metadatas
-        ]
-    )
-    assistant.remove_files(file_display_names)
-
-    return list(file_display_names)
+    return deleted_doc_metadatas

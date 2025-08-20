@@ -25,7 +25,10 @@ from .vector import vector_db
 
 
 def create_app():
-    logging.basicConfig(level=getattr(logging, cfg.LOG_LEVEL_GLOBAL))
+    # Configure logging only if it hasn't been configured yet
+    root_logger = logging.getLogger()
+    if not root_logger.handlers:
+        logging.basicConfig(level=getattr(logging, cfg.LOG_LEVEL_GLOBAL))
     logging.getLogger("tangerine").setLevel(cfg.LOG_LEVEL_APP)
 
     if cfg.DEBUG_VERBOSE:

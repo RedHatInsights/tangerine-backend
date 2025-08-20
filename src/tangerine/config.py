@@ -190,9 +190,7 @@ After ranking the search results, use the **highest-ranked results** to answer t
 [/INST]
 """
 
-DEFAULT_SYSTEM_PROMPT = (
-    os.getenv("DEFAULT_SYSTEM_PROMPT", _chat_system_prompt).replace("\n", " ").strip()
-)
+DEFAULT_SYSTEM_PROMPT = os.getenv("DEFAULT_SYSTEM_PROMPT", _chat_system_prompt).strip()
 
 RERANK_SYSTEM_PROMPT = """
 <s>[INST] You are an AI model specialized in **ranking search results** based on their relevance to a given query. Your task is to evaluate and rank a set of search results from most to least relevant to the user's question.
@@ -275,14 +273,14 @@ If you are unsure about which agent to choose, please select the `ChatAgent` as 
 rather they will be similar in nature. Use your best judgement to determine the most appropriate agent for the query.
 
 [/INST]
-""".replace("\n", " ").strip()
+""".strip()
 
 AGENTIC_ROUTER_USER_PROMPT = """
 [INST]
 User's Question: {query}
 Please route this query to the appropriate agent based on the provided agents list and example queries.
 [/INST]
-""".replace("\n", " ").strip()
+""".strip()
 
 JIRA_SUMMARIZER_SYSTEM_PROMPT = """
 <s>[INST] You are an AI model specialized in summarizing Jira activity for users.
@@ -297,4 +295,4 @@ JIRA_SUMMARIZER_USER_PROMPT = """
 User's Question: {query}
 Please summarize the Jira activity provided in the query.
 [/INST]
-""".replace("\n", " ").strip()
+""".strip()

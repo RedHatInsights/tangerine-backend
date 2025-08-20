@@ -1,5 +1,5 @@
 import logging
-from typing import Iterable, List, Optional, Self
+from typing import List, Optional, Self
 
 import tangerine.config as cfg
 from tangerine.db import db
@@ -12,8 +12,15 @@ class Assistant(db.Model):
     name = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=False)
     system_prompt = db.Column(db.Text, nullable=True)
-    filenames = db.Column(db.ARRAY(db.String), default=[], nullable=True)
     model = db.Column(db.String(50), default=None, nullable=True)
+
+    # Many-to-many relationship with KnowledgeBase
+    knowledgebases = db.relationship(
+        "KnowledgeBase",
+        secondary="assistant_knowledgebase",
+        back_populates="assistants",
+        lazy="dynamic",
+    )
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -66,34 +73,28 @@ class Assistant(db.Model):
         log.debug("updated attributes %s of assistant %d", updated_keys, self.id)
         return self
 
-    def add_files(self, file_display_names: Iterable[str]) -> Self:
-        filenames = self.filenames.copy()
-        file_display_names = set(file_display_names)
-        for name in file_display_names:
-            if name not in filenames:
-                filenames.append(name)
-        log.debug(
-            "adding %d files to assistant %d, total files now %d",
-            len(file_display_names),
-            self.id,
-            len(filenames),
-        )
-        return self.update(filenames=filenames)
+    def get_knowledgebases(self) -> List:
+        """Get list of knowledgebases associated with this assistant."""
+        return self.knowledgebases.all()
 
-    def remove_files(self, file_display_names: Iterable[str]) -> Self:
-        new_names = [name for name in self.filenames.copy() if name not in file_display_names]
-        old_count = len(self.filenames)
-        new_count = len(new_names)
-        diff = old_count - new_count
-        log.debug(
-            "removing %d files from assistant %d, old count %d, new count %d",
-            diff,
-            self.id,
-            old_count,
-            new_count,
-        )
-        if diff > 0:
-            return self.update(filesnames=new_names)
+    def get_knowledgebase_ids(self) -> List[int]:
+        """Get list of knowledgebase IDs associated with this assistant."""
+        return [kb.id for kb in self.knowledgebases.all()]
+
+    def associate_knowledgebase(self, knowledgebase) -> Self:
+        """Associate a knowledgebase with this assistant."""
+        if knowledgebase not in self.knowledgebases:
+            self.knowledgebases.append(knowledgebase)
+            db.session.commit()
+            log.debug("associated knowledgebase %d with assistant %d", knowledgebase.id, self.id)
+        return self
+
+    def disassociate_knowledgebase(self, knowledgebase) -> Self:
+        """Disassociate a knowledgebase from this assistant."""
+        if knowledgebase in self.knowledgebases:
+            self.knowledgebases.remove(knowledgebase)
+            db.session.commit()
+            log.debug("disassociated knowledgebase %d from assistant %d", knowledgebase.id, self.id)
         return self
 
     def delete(self) -> None:
