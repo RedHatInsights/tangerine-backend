@@ -1,0 +1,50 @@
+defaults:
+  extensions:
+    - html
+    - md
+  citation_url_template: 'https://files.test/{{ full_path }}'
+
+knowledgebases:
+  - name: product-docs
+    description: Product Documentation Knowledge Base
+    bucket: mybucket
+    paths:
+      - prefix: product/docs
+        citation_url_template: 'https://docs.example.com/{{ full_path | replace("product/docs/", "") }}'
+
+  - name: support-docs
+    description: Support Documentation Knowledge Base
+    bucket: mybucket
+    paths:
+      - prefix: support/docs
+      - prefix: support/faqs
+
+  - name: api-docs
+    description: API Documentation Knowledge Base
+    bucket: anotherbucket
+    paths:
+      - prefix: api/v1/docs
+        extensions:
+          - md
+          - json
+
+assistants:
+  - name: product-assistant
+    description: Assistant for Product Questions
+    knowledgebases:
+      - product-docs
+      - support-docs
+
+  - name: api-assistant
+    description: Assistant for API Questions
+    model: llama4_scout
+    knowledgebases:
+      - api-docs
+      - support-docs
+
+  - name: general-assistant
+    description: General Purpose Assistant
+    knowledgebases:
+      - product-docs
+      - support-docs
+      - api-docs

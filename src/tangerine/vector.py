@@ -130,7 +130,7 @@ class VectorStoreInterface:
 
         return documents
 
-    def create_document_chunks(self, file: File, assistant_id: int) -> list[Document]:
+    def create_document_chunks(self, file: File, knowledgebase_id: int) -> list[Document]:
         log.debug("creating doc chunks for %s", file)
 
         text = file.extract_text()
@@ -140,7 +140,7 @@ class VectorStoreInterface:
             return []
 
         metadata = {
-            "assistant_id": str(assistant_id),
+            "knowledgebase_id": str(knowledgebase_id),
         }
         metadata.update(file.metadata)
 
@@ -154,10 +154,10 @@ class VectorStoreInterface:
 
         return documents
 
-    def add_file(self, file: File, assistant_id: int):
+    def add_file(self, file: File, knowledgebase_id: int):
         documents = []
         try:
-            documents = self.create_document_chunks(file, assistant_id)
+            documents = self.create_document_chunks(file, knowledgebase_id)
         except Exception:
             log.exception("error creating document chunks")
             return
@@ -171,11 +171,11 @@ class VectorStoreInterface:
                 size += len(doc.page_content)
             current_batch = idx + 1
             log.debug(
-                "adding batch %d/%d for file %s to assistant %s (%d chunks, total size: %d chars)",
+                "adding batch %d/%d for file %s to knowledgebase %s (%d chunks, total size: %d chars)",
                 current_batch,
                 total_batches,
                 file,
-                assistant_id,
+                knowledgebase_id,
                 len(batch),
                 size,
             )
@@ -271,10 +271,10 @@ class VectorStoreInterface:
         metadata = {"active": str(active), "pending_removal": str(pending_removal)}
         self.update_cmetadata(metadata, search_filter)
 
-    def get_search_filter(self, assistant_ids):
-        if not isinstance(assistant_ids, list):
-            assistant_ids = [assistant_ids]
-        return {"assistant_id": {"$in": assistant_ids}, "active": "True"}
+    def get_search_filter(self, knowledgebase_ids):
+        if not isinstance(knowledgebase_ids, list):
+            knowledgebase_ids = [knowledgebase_ids]
+        return {"knowledgebase_id": {"$in": knowledgebase_ids}, "active": "True"}
 
 
 vector_db = VectorStoreInterface()

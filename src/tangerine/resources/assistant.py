@@ -6,6 +6,7 @@ import uuid
 from flask import Response, request, stream_with_context
 from flask_restful import Resource
 from langchain_core.documents import Document
+from sqlalchemy.exc import SQLAlchemyError
 
 import tangerine.llm as llm
 from tangerine import config
@@ -15,11 +16,27 @@ from tangerine.metrics import get_counter
 from tangerine.models.assistant import Assistant
 from tangerine.models.conversation import Conversation
 from tangerine.models.interactions import store_interaction
+from tangerine.models.knowledgebase import KnowledgeBase
 from tangerine.search import SearchResult, search_engine
-from tangerine.utils import File, add_filenames_to_assistant, embed_files, remove_files
-from tangerine.vector import vector_db
 
 log = logging.getLogger("tangerine.resources")
+
+
+def _get_search_results_for_assistant(assistant_id, query, embedding):
+    """Helper function to get search results for an assistant by querying its knowledgebases."""
+    assistant = Assistant.get(assistant_id)
+    if not assistant:
+        return []
+    knowledgebase_ids = assistant.get_knowledgebase_ids()
+    log.debug(
+        "search request received for assistant '%s', found kb's: %s",
+        assistant.name,
+        knowledgebase_ids,
+    )
+    if not knowledgebase_ids:
+        return []
+    return search_engine.search(knowledgebase_ids, query, embedding)
+
 
 # Prometheus metrics
 user_interaction_counter = get_counter(
@@ -91,77 +108,7 @@ class AssistantApi(Resource):
             return {"message": "assistant not found"}, 404
 
         assistant.delete()
-        vector_db.delete_document_chunks({"assistant_id": assistant.id})
         return {"message": "assistant deleted successfully"}, 200
-
-
-class AssistantDocuments(Resource):
-    def post(self, id):
-        assistant = Assistant.get(id)
-        if not assistant:
-            return {"message": "assistant not found"}, 404
-
-        # Check if the post request has the file part
-        if "file" not in request.files:
-            return {"message": "No file part"}, 400
-
-        request_source = request.form.get("source", "default")
-
-        files = []
-        for file in request.files.getlist("file"):
-            content = file.stream.read()
-            if not file.filename:
-                return {"message": "File must have a filename"}, 400
-            new_file = File(
-                source=request_source, full_path=file.filename, content=content.decode("utf-8")
-            )
-            try:
-                new_file.validate()
-            except ValueError as err:
-                return {"message": f"validation failed for {file.filename}: {str(err)}"}, 400
-            files.append(new_file)
-
-        def generate_progress():
-            for file in files:
-                yield json.dumps({"file": file.display_name, "step": "start"}) + "\n"
-                embed_files([file], assistant)
-                add_filenames_to_assistant([file], assistant)
-                yield json.dumps({"file": file.display_name, "step": "end"}) + "\n"
-
-        return Response(stream_with_context(generate_progress()), mimetype="application/json")
-
-    def delete(self, id):
-        assistant = Assistant.get(id)
-        if not assistant:
-            return {"message": "assistant not found"}, 404
-
-        if not request.json:
-            return {"message": "No JSON data provided"}, 400
-
-        source = request.json.get("source")
-        full_path = request.json.get("full_path")
-        delete_all = bool(request.json.get("all", False))
-
-        if not source and not full_path and not delete_all:
-            return {"message": "'source' or 'full_path' required when not using 'all'"}, 400
-
-        metadata = {}
-        if source:
-            metadata["source"] = source
-        if full_path:
-            metadata["full_path"] = full_path
-
-        try:
-            deleted = remove_files(assistant, metadata)
-        except ValueError as err:
-            return {"message": str(err)}, 400
-        except Exception:
-            err = "unexpected error deleting document(s) from DB"
-            log.exception(err)
-            return {"message": err}, 500
-
-        count = len(deleted)
-        return {"message": f"{count} document(s) deleted", "count": count, "deleted": deleted}, 200
 
 
 class AssistantChatApi(Resource):
@@ -214,7 +161,7 @@ class AssistantChatApi(Resource):
             assistant_name=assistant.name,
         ).inc()
         embedding = self._embed_question(question)
-        search_results = self._get_search_results([assistant.id], question, embedding)
+        search_results = self._get_search_results(assistant.id, question, embedding)
         llm_response, search_metadata = self._call_llm(
             assistant, previous_messages, question, search_results, interaction_id
         )
@@ -312,7 +259,7 @@ class AssistantChatApi(Resource):
 
     @staticmethod
     def _get_search_results(assistant_id, query, embedding):
-        return search_engine.search(assistant_id, query, embedding)
+        return _get_search_results_for_assistant(assistant_id, query, embedding)
 
     def _handle_streaming_response(
         self,
@@ -523,7 +470,6 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         except ValueError as err:
             return {"message": str(err)}, 400
 
-        assistant_ids = [assistant.id for assistant in assistants]
         question = request.json.get("query")
         if not question:
             return {"message": "query is required"}, 400
@@ -568,7 +514,19 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         chunks = request.json.get("chunks", None)
         if chunks:
             chunks = self._convert_chunk_array_to_search_results(request.json.get("chunks"))
-        search_results = chunks or search_engine.search(assistant_ids, question, embedding)
+
+        # Get all knowledgebase IDs from all assistants
+        all_knowledgebase_ids = set()
+        for assistant in assistants:
+            all_knowledgebase_ids.update(assistant.get_knowledgebase_ids())
+        knowledgebase_ids = list(all_knowledgebase_ids)
+
+        search_results = chunks or (
+            search_engine.search(knowledgebase_ids, question, embedding)
+            if knowledgebase_ids
+            else []
+        )
+
         llm_response, search_metadata = llm.ask(
             assistants,
             previous_messages,
@@ -652,4 +610,113 @@ class AssistantSearchApi(Resource):
 
     @staticmethod
     def _get_search_results(assistant_id, query, embedding):
-        return search_engine.search(assistant_id, query, embedding)
+        return _get_search_results_for_assistant(assistant_id, query, embedding)
+
+
+class AssistantKnowledgeBasesApi(Resource):
+    @staticmethod
+    def _ensure_kb_ids_exist(knowledgebase_ids):
+        """Validate that all KnowledgeBase IDs exist. Returns (knowledgebases, not_found_ids)."""
+        knowledgebases = []
+        not_found_ids = []
+
+        for kb_id in knowledgebase_ids:
+            kb = KnowledgeBase.get(kb_id)
+            if not kb:
+                not_found_ids.append(kb_id)
+            else:
+                knowledgebases.append(kb)
+
+        return knowledgebases, not_found_ids
+
+    def get(self, id):
+        """Get knowledgebases associated with an assistant."""
+        try:
+            assistant_id = int(id)
+        except ValueError:
+            return {"error": "Invalid assistant ID"}, 400
+
+        assistant = Assistant.get(assistant_id)
+        if not assistant:
+            return {"error": "Assistant not found"}, 404
+
+        knowledgebases = assistant.get_knowledgebases()
+        return {"data": [kb.to_dict() for kb in knowledgebases]}
+
+    def post(self, id):
+        """Associate knowledgebases with an assistant."""
+        try:
+            assistant_id = int(id)
+        except ValueError:
+            return {"error": "Invalid assistant ID"}, 400
+
+        assistant = Assistant.get(assistant_id)
+        if not assistant:
+            return {"error": "Assistant not found"}, 404
+
+        data = request.get_json()
+        if not data or "knowledgebase_ids" not in data:
+            return {"error": "knowledgebase_ids array is required in request body"}, 400
+
+        knowledgebase_ids = data["knowledgebase_ids"]
+        if not isinstance(knowledgebase_ids, list):
+            return {"error": "knowledgebase_ids must be an array"}, 400
+
+        # Step 1: Validate that all KnowledgeBase IDs exist
+        knowledgebases, not_found_ids = self._ensure_kb_ids_exist(knowledgebase_ids)
+        if not_found_ids:
+            return {"error": f"KnowledgeBase IDs not found: {not_found_ids}"}, 404
+
+        # Step 2: Associate all knowledgebases with the assistant
+        associated = []
+        try:
+            for kb in knowledgebases:
+                assistant.associate_knowledgebase(kb)
+                associated.append(kb.to_dict())
+                log.info("associated knowledgebase %d with assistant %d", kb.id, assistant_id)
+        except SQLAlchemyError as e:
+            log.exception(
+                "database error associating knowledgebases with assistant %d", assistant_id
+            )
+            return {"error": f"Database error: {str(e)}"}, 500
+
+        return {"associated_knowledgebases": associated}, 200
+
+    def delete(self, id):
+        """Disassociate knowledgebases from an assistant."""
+        try:
+            assistant_id = int(id)
+        except ValueError:
+            return {"error": "Invalid assistant ID"}, 400
+
+        assistant = Assistant.get(assistant_id)
+        if not assistant:
+            return {"error": "Assistant not found"}, 404
+
+        data = request.get_json()
+        if not data or "knowledgebase_ids" not in data:
+            return {"error": "knowledgebase_ids array is required in request body"}, 400
+
+        knowledgebase_ids = data["knowledgebase_ids"]
+        if not isinstance(knowledgebase_ids, list):
+            return {"error": "knowledgebase_ids must be an array"}, 400
+
+        # Step 1: Validate that all KnowledgeBase IDs exist
+        knowledgebases, not_found_ids = self._ensure_kb_ids_exist(knowledgebase_ids)
+        if not_found_ids:
+            return {"error": f"KnowledgeBase IDs not found: {not_found_ids}"}, 404
+
+        # Step 2: Disassociate all knowledgebases from the assistant
+        disassociated = []
+        try:
+            for kb in knowledgebases:
+                assistant.disassociate_knowledgebase(kb)
+                disassociated.append(kb.to_dict())
+                log.info("disassociated knowledgebase %d from assistant %d", kb.id, assistant_id)
+        except SQLAlchemyError as e:
+            log.exception(
+                "database error disassociating knowledgebases from assistant %d", assistant_id
+            )
+            return {"error": f"Database error: {str(e)}"}, 500
+
+        return {"disassociated_knowledgebases": disassociated}, 200
