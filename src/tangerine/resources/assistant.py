@@ -242,6 +242,7 @@ class AssistantChatApi(Resource):
             question,
             search_results,
             interaction_id=interaction_id,
+            prompt=None,  # No override for basic API, use assistant config
         )
 
     @staticmethod
@@ -472,7 +473,10 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         question = request.json.get("query")
         if not question:
             return {"message": "query is required"}, 400
-        system_prompt = request.json.get("system_prompt", DEFAULT_SYSTEM_PROMPT)
+        # Support both 'system_prompt' and 'prompt' parameters for backward compatibility
+        # Priority: API override -> Assistant config -> Default
+        api_system_prompt = request.json.get("system_prompt") or request.json.get("prompt")
+        system_prompt = api_system_prompt  # Will be None if no API override provided
         session_uuid = request.json.get("sessionId", str(uuid.uuid4()))
         stream = request.json.get("stream", "true") == "true"
         previous_messages = request.json.get("prevMsgs")
@@ -480,6 +484,8 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         client = request.json.get("client", "unknown")
         model_name = request.json.get("model")
         user = request.json.get("user", "unknown")
+        disable_agentic = request.json.get("disable_agentic", False)
+        user_prompt = request.json.get("userPrompt")
 
         # Extract the current message data to preserve all fields
         current_message = request.json.get("currentMessage", {})
@@ -529,6 +535,8 @@ class AssistantAdvancedChatApi(AssistantChatApi):
             interaction_id=interaction_id,
             prompt=system_prompt,
             model=model_name,
+            disable_agentic=disable_agentic,
+            user_prompt=user_prompt,
         )
         # Create combined assistant name for multiple assistants
         combined_assistant_name = ", ".join([assistant.name for assistant in assistants])
