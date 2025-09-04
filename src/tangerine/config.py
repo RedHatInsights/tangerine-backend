@@ -112,19 +112,36 @@ if ENABLE_LLAMA4_SCOUT:
 
 
 def get_model_config(model_name: str | None) -> dict:
+    # AUDIT LOG: get_model_config entry
+    log.info("AUDIT: get_model_config() called with model_name=%s", model_name)
+    
+    original_model_name = model_name
     model_name = model_name or DEFAULT_MODEL
+    
+    # AUDIT LOG: Model name resolution
+    log.info("AUDIT: Model name resolved from %s to %s (DEFAULT_MODEL=%s)", 
+             original_model_name, model_name, DEFAULT_MODEL)
 
     if model_name not in MODELS:
+        log.error("AUDIT: INVALID MODEL in get_model_config - model_name=%s not in MODELS=%s", 
+                  model_name, list(MODELS.keys()))
         raise ValueError(f"invalid model name: {model_name}")
 
     model_config = MODELS[model_name]
+    
+    # AUDIT LOG: Model config found
+    log.info("AUDIT: Found model_config for %s: %s", model_name, model_config)
 
     required_keys = ("model", "openai_api_base", "openai_api_key", "temperature")
     if not all([key in model_config for key in required_keys]):
+        log.error("AUDIT: INVALID MODEL CONFIG - missing keys for %s, config=%s", 
+                  model_name, model_config)
         raise ValueError(
             f"model config for '{model_name}' missing one or more of required keys: {required_keys}"
         )
 
+    # AUDIT LOG: Returning valid config
+    log.info("AUDIT: Returning valid model_config for %s", model_name)
     return MODELS[model_name]
 
 

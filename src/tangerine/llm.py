@@ -105,12 +105,24 @@ def get_response(
     prompt_params: dict,
     model_name: str | None = None,
 ) -> Generator[str, None, None]:
+    # AUDIT LOG: get_response entry
+    log.info("AUDIT: get_response() called with model_name=%s", model_name)
+    
     model_config = cfg.get_model_config(model_name)
+    
+    # AUDIT LOG: Model config retrieved
+    log.info("AUDIT: Retrieved model_config for model_name=%s: %s", model_name, model_config)
 
+    # AUDIT LOG: Creating ChatOpenAI instance
+    log.info("AUDIT: Creating ChatOpenAI with config: %s", model_config)
+    
     chat = ChatOpenAI(
         **model_config,
         stream_usage=True,
     )
+    
+    # AUDIT LOG: ChatOpenAI instance created
+    log.info("AUDIT: ChatOpenAI instance created successfully")
 
     chain = prompt | chat
 
@@ -171,11 +183,17 @@ def ask(
     user_prompt: str | None = None,
 ) -> tuple[Generator[str, None, None], list[dict]]:
     log.debug("llm 'ask' request")
+    
+    # AUDIT LOG: Function entry
+    log.info("AUDIT: llm.ask() called with model=%s, disable_agentic=%s", model, disable_agentic)
+    log.info("AUDIT: Assistant details: %s", [{"name": a.name, "model": a.model} for a in assistants])
     search_context = ""
     search_metadata = []
 
     # Skip agentic workflow if disabled
+    log.debug("disable_agentic=%s, checking if agentic workflow should run", disable_agentic)
     if not disable_agentic:
+        log.debug("Running agentic workflow - calling identify_agent()")
         agent = identify_agent(question)
         log.debug("identified agent: %s", agent)
         match agent.strip():
@@ -185,6 +203,8 @@ def ask(
             case "WebRCAAgent":
                 if cfg.ENABLE_WEB_RCA_AGENT:
                     return WebRCAAgent().fetch(question), search_metadata
+    else:
+        log.debug("Skipping agentic workflow due to disable_agentic=True")
 
     if len(search_results) == 0:
         log.debug("given 0 search results")
@@ -223,8 +243,15 @@ def ask(
     # Determine model: use provided model, then first assistant's model
     # TODO: handle the case where assistants are configured with different models
     selected_model = model or assistants[0].model
+    
+    # AUDIT LOG: Model selection decision
+    log.info("AUDIT: Model selection - API model=%s, assistant[0].model=%s, selected_model=%s", 
+             model, assistants[0].model, selected_model)
 
     prompt_params = {"context": search_context, "question": question}
+    
+    # AUDIT LOG: About to call get_response
+    log.info("AUDIT: Calling get_response() with selected_model=%s", selected_model)
     llm_response = get_response(ChatPromptTemplate(msg_list), prompt_params, selected_model)
 
     return llm_response, search_metadata
