@@ -296,10 +296,12 @@ class SearchEngine:
         """
         Uses the LLM to rank search results based on relevance.
         """
+        log.info("AUDIT: _rerank_results() calling llm.rerank() for query: %s", query[:100])
         response = llm.rerank(query, search_results)
+        log.info("AUDIT: llm.rerank() returned response: %s", response[:200])
         valid_rankings = list(range(0, len(search_results)))
         rankings = [int(num.strip()) - 1 for num in response.split(",")]
-        log.debug("model response rankings: %s, valid rankings: %s", rankings, valid_rankings)
+        log.info("AUDIT: model response rankings: %s, valid rankings: %s", rankings, valid_rankings)
         if not rankings or not all([r in valid_rankings for r in rankings]):
             raise ValueError(
                 f"Invalid model rankings: {rankings}, "
@@ -351,16 +353,24 @@ class SearchEngine:
         sorted_results = []
 
         # Rank the results using LLM if enabled, otherwise by score
+        log.info("AUDIT: Search reranking - ENABLE_RERANKING=%s", cfg.ENABLE_RERANKING)
         if cfg.ENABLE_RERANKING:
+            log.info("AUDIT: Attempting LLM reranking of search results")
             try:
                 # de-dupe first before sending to model
                 deduped_results = self.deduplicate_results(results)
+                log.info("AUDIT: Calling _rerank_results() for %d results", len(deduped_results))
                 sorted_results = self._rerank_results(query, deduped_results)
+                log.info("AUDIT: LLM reranking succeeded, got %d sorted results", len(sorted_results))
             except Exception:
+                log.error("AUDIT: LLM reranking FAILED - falling back to RRF sorting")
                 log.exception("model re-ranking failed")
 
         if not sorted_results:
+            log.info("AUDIT: Using RRF sorting fallback (no LLM reranking results)")
             sorted_results = self._sort_using_rrf(results)
+        else:
+            log.info("AUDIT: Using LLM reranked results")
 
         for r in sorted_results:
             r.document.metadata["relevance_score"] = r.rrf_score

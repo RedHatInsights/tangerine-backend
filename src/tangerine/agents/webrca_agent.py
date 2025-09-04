@@ -18,6 +18,7 @@ class WebRCAAgent:
         query_url = f"{self.url}/incidents?public_id={incidents}"
         token = self._get_token()
         try:
+            log.info("AUDIT: WebRCAAgent making HTTP request to: %s", query_url)
             # Perform the GET request
             response = requests.get(
                 query_url,
@@ -26,7 +27,9 @@ class WebRCAAgent:
             )
             response.raise_for_status()
             data = response.json()
+            log.info("AUDIT: WebRCAAgent HTTP request successful")
         except Exception:
+            log.error("AUDIT: WebRCAAgent HTTP request FAILED - returning error message")
             log.exception("Error fetching incidents from Web RCA")
             return "I tried getting info from Web RCA, but something went wrong."
 

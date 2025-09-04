@@ -21,10 +21,13 @@ class JiraAgent:
         query_url = f"{self.url}/?users={users}"
         # Perform the GET request
         try:
+            log.info("AUDIT: JiraAgent making HTTP request to: %s", query_url)
             response = requests.get(query_url, timeout=120)
             response.raise_for_status()
             summaries = response.json()
+            log.info("AUDIT: JiraAgent HTTP request successful")
         except Exception:
+            log.error("AUDIT: JiraAgent HTTP request FAILED - returning error message")
             log.exception("Error fetching info from Jira")
             return "I tried getting info from Jira, but something went wrong."
 

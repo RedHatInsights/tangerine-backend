@@ -128,12 +128,19 @@ def get_response(
 
     completion_start = 0.0
     processing_start = time.time()
+    
+    # AUDIT LOG: About to execute LLM chain
+    log.info("AUDIT: Executing LLM chain with final model configuration")
 
+    # AUDIT LOG: About to make HTTP request to model endpoint
+    log.info("AUDIT: Starting HTTP stream request to model endpoint")
+    
     with get_openai_callback() as cb:
         for chunk in chain.stream(prompt_params):
             if not completion_start:
                 # this is the first output token received
                 completion_start = time.time()
+                log.info("AUDIT: First token received from model endpoint - connection successful")
             if len(chunk.content):
                 yield chunk.content
 
@@ -141,6 +148,8 @@ def get_response(
             completion_end = time.time()
 
         # end with
+    
+    log.info("AUDIT: HTTP stream request to model endpoint completed successfully")
     _record_metrics(cb, processing_start, completion_start, completion_end)
 
 
