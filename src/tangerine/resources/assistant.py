@@ -140,7 +140,7 @@ class AssistantChatApi(Resource):
         if not assistant:
             return {"message": "assistant not found"}, 404
 
-        log.debug("querying vector DB")
+        log.info("AUDIT: querying vector DB")
         (
             question,
             session_uuid,
@@ -433,7 +433,7 @@ class AssistantChatApi(Resource):
 
             # Upsert the conversation
             Conversation.upsert(conversation_payload)
-            log.debug("Successfully updated conversation history for session %s", session_uuid)
+            log.info("AUDIT: Successfully updated conversation history for session %s", session_uuid)
 
         except Exception as e:
             log.exception(
@@ -605,7 +605,7 @@ class AssistantSearchApi(Resource):
         if not assistant:
             return {"message": "assistant not found"}, 404
 
-        log.debug("querying vector DB")
+        log.info("AUDIT: querying vector DB")
 
         embedding = self._embed_question(query)
         search_results = self._get_search_results(assistant.id, query, embedding)
