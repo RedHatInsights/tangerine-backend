@@ -140,7 +140,7 @@ class AssistantChatApi(Resource):
         if not assistant:
             return {"message": "assistant not found"}, 404
 
-        log.debug("querying vector DB")
+        log.info("AUDIT: querying vector DB")
         (
             question,
             session_uuid,
@@ -433,7 +433,7 @@ class AssistantChatApi(Resource):
 
             # Upsert the conversation
             Conversation.upsert(conversation_payload)
-            log.debug("Successfully updated conversation history for session %s", session_uuid)
+            log.info("AUDIT: Successfully updated conversation history for session %s", session_uuid)
 
         except Exception as e:
             log.exception(
@@ -485,6 +485,9 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         model_name = request.json.get("model")
         user = request.json.get("user", "unknown")
         disable_agentic = request.json.get("disable_agentic", False)
+        
+        # AUDIT LOG: Request model parameter
+        log.info("AUDIT: Advanced Chat API received model parameter: %s", model_name)
         user_prompt = request.json.get("userPrompt")
 
         # Extract the current message data to preserve all fields
@@ -497,8 +500,12 @@ class AssistantAdvancedChatApi(AssistantChatApi):
                 if field in request.json:
                     current_message[field] = request.json[field]
 
+        # AUDIT LOG: Model validation
+        log.info("AUDIT: Validating model_name=%s, available_models=%s", model_name, list(config.MODELS.keys()))
         if model_name and model_name not in config.MODELS:
+            log.error("AUDIT: INVALID MODEL - model_name=%s not in available models %s", model_name, list(config.MODELS.keys()))
             return {"message": f"Invalid model name: {model_name}"}, 400
+        log.info("AUDIT: Model validation passed for model_name=%s", model_name)
 
         # Record user interaction metrics for each assistant
         anonymized_user = self._anonymize_user_id(user)
@@ -527,6 +534,8 @@ class AssistantAdvancedChatApi(AssistantChatApi):
             else []
         )
 
+        # AUDIT LOG: Calling llm.ask with model parameter
+        log.info("AUDIT: Calling llm.ask() with model=%s, disable_agentic=%s", model_name, disable_agentic)
         llm_response, search_metadata = llm.ask(
             assistants,
             previous_messages,
@@ -538,6 +547,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
             disable_agentic=disable_agentic,
             user_prompt=user_prompt,
         )
+        log.info("AUDIT: llm.ask() completed")
         # Create combined assistant name for multiple assistants
         combined_assistant_name = ", ".join([assistant.name for assistant in assistants])
 
@@ -595,7 +605,7 @@ class AssistantSearchApi(Resource):
         if not assistant:
             return {"message": "assistant not found"}, 404
 
-        log.debug("querying vector DB")
+        log.info("AUDIT: querying vector DB")
 
         embedding = self._embed_question(query)
         search_results = self._get_search_results(assistant.id, query, embedding)

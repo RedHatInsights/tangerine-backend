@@ -57,9 +57,9 @@ def _record_metrics(
         log.error("unexpected time diff of 0")
         completion_rate = 0
 
-    log.debug(
+    log.info(
         (
-            "prompt tokens: %s, completion tokens: %s, "
+            "AUDIT: prompt tokens: %s, completion tokens: %s, "
             "processing time: %fsec (%f tokens/sec), completion time: %fsec (%f tokens/sec)"
         ),
         cb.prompt_tokens,
@@ -78,7 +78,7 @@ def _record_metrics(
 def _build_context(search_results: list["SearchResult"], content_char_limit: int = 0):
     search_metadata = []
     context = ""
-    log.debug("given %d search results as context", len(search_results))
+    log.info("AUDIT: given %d search results as context", len(search_results))
     for i, result in enumerate(search_results):
         page_content = result.document.page_content
         metadata = result.document.metadata
@@ -105,12 +105,24 @@ def get_response(
     prompt_params: dict,
     model_name: str | None = None,
 ) -> Generator[str, None, None]:
+    # AUDIT LOG: get_response entry
+    log.info("AUDIT: get_response() called with model_name=%s", model_name)
+    
     model_config = cfg.get_model_config(model_name)
+    
+    # AUDIT LOG: Model config retrieved
+    log.info("AUDIT: Retrieved model_config for model_name=%s: %s", model_name, model_config)
 
+    # AUDIT LOG: Creating ChatOpenAI instance
+    log.info("AUDIT: Creating ChatOpenAI with config: %s", model_config)
+    
     chat = ChatOpenAI(
         **model_config,
         stream_usage=True,
     )
+    
+    # AUDIT LOG: ChatOpenAI instance created
+    log.info("AUDIT: ChatOpenAI instance created successfully")
 
     chain = prompt | chat
 
@@ -133,7 +145,7 @@ def get_response(
 
 
 def rerank(query, search_results: list["SearchResult"]):
-    log.debug("llm 'rerank' request")
+    log.info("AUDIT: llm 'rerank' request")
     if len(search_results) <= 1:
         return search_results  # No need to rank if there's only one result
 
@@ -149,7 +161,7 @@ def rerank(query, search_results: list["SearchResult"]):
 
 
 def identify_agent(query):
-    log.debug("llm 'identify_agent' request")
+    log.info("AUDIT: llm 'identify_agent' request")
     prompt = ChatPromptTemplate(
         [("system", cfg.AGENTIC_ROUTER_PROMPT), ("user", cfg.AGENTIC_ROUTER_USER_PROMPT)]
     )
@@ -170,24 +182,34 @@ def ask(
     disable_agentic: bool = False,
     user_prompt: str | None = None,
 ) -> tuple[Generator[str, None, None], list[dict]]:
-    log.debug("llm 'ask' request")
+    log.info("AUDIT: llm 'ask' request")
+    
+    # AUDIT LOG: Function entry
+    log.info("AUDIT: llm.ask() called with model=%s, disable_agentic=%s", model, disable_agentic)
+    log.info("AUDIT: Assistant details: %s", [{"name": a.name, "model": a.model} for a in assistants])
     search_context = ""
     search_metadata = []
 
     # Skip agentic workflow if disabled
+    log.info("AUDIT: disable_agentic=%s, checking if agentic workflow should run", disable_agentic)
     if not disable_agentic:
+        log.info("AUDIT: Running agentic workflow - calling identify_agent()")
         agent = identify_agent(question)
-        log.debug("identified agent: %s", agent)
+        log.info("AUDIT: identified agent: %s", agent)
         match agent.strip():
             case "JiraAgent":
                 if cfg.ENABLE_JIRA_AGENT:
+                    log.info("AUDIT: Routing to JiraAgent")
                     return JiraAgent().fetch(question), search_metadata
             case "WebRCAAgent":
                 if cfg.ENABLE_WEB_RCA_AGENT:
+                    log.info("AUDIT: Routing to WebRCAAgent")
                     return WebRCAAgent().fetch(question), search_metadata
+    else:
+        log.info("AUDIT: Skipping agentic workflow due to disable_agentic=True")
 
     if len(search_results) == 0:
-        log.debug("given 0 search results")
+        log.info("AUDIT: given 0 search results")
         search_context = "No matching search results found"
         for assistant in assistants:
             # Increment no answer counter for each assistant
@@ -223,8 +245,15 @@ def ask(
     # Determine model: use provided model, then first assistant's model
     # TODO: handle the case where assistants are configured with different models
     selected_model = model or assistants[0].model
+    
+    # AUDIT LOG: Model selection decision
+    log.info("AUDIT: Model selection - API model=%s, assistant[0].model=%s, selected_model=%s", 
+             model, assistants[0].model, selected_model)
 
     prompt_params = {"context": search_context, "question": question}
+    
+    # AUDIT LOG: About to call get_response
+    log.info("AUDIT: Calling get_response() with selected_model=%s", selected_model)
     llm_response = get_response(ChatPromptTemplate(msg_list), prompt_params, selected_model)
 
     return llm_response, search_metadata
@@ -235,7 +264,7 @@ def generate_conversation_title(user_queries: list[str]) -> str:
     Generate a conversation title based on a user query using LLM.
     Expects a list with one query (kept as list for consistency).
     """
-    log.debug("llm 'generate_conversation_title' request")
+    log.info("AUDIT: llm 'generate_conversation_title' request")
 
     # Validate input: ensure at least one non-empty query is provided
     if not user_queries or not user_queries[0].strip():
