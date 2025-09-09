@@ -206,7 +206,11 @@ class AssistantChatApi(Resource):
         question = request.json.get("query")
         session_uuid = request.json.get("sessionId", str(uuid.uuid4()))
         stream = request.json.get("stream", "true") == "true"
-        previous_messages = request.json.get("prevMsgs")
+        
+        # DEPRECATED: prevMsgs parameter is now optional and auto-reconstructed from database
+        # Keeping for backward compatibility but will be phased out in future versions
+        provided_prev_msgs = request.json.get("prevMsgs")
+        
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
         user = request.json.get("user", "unknown")
@@ -221,6 +225,9 @@ class AssistantChatApi(Resource):
                 if field in request.json:
                     current_message[field] = request.json[field]
 
+        # Auto-reconstruct conversation history (with backward compatibility for prevMsgs)
+        previous_messages = self._get_conversation_history(provided_prev_msgs, session_uuid, user)
+
         return (
             question,
             session_uuid,
@@ -234,6 +241,76 @@ class AssistantChatApi(Resource):
 
     def _embed_question(self, question):
         return embed_query(question)
+
+    def _get_conversation_history(self, provided_prev_msgs, session_uuid, user_id):
+        """
+        Get conversation history for LLM context.
+        
+        Args:
+            provided_prev_msgs: prevMsgs from client request (DEPRECATED - will be None for new clients)
+            session_uuid: Session ID to look up conversation history
+            user_id: User ID for ownership verification
+            
+        Returns:
+            List of message objects limited to last 10 Q&A pairs (20 messages max)
+        """
+        # BACKWARD COMPATIBILITY: If client provided prevMsgs, use it as-is
+        # This ensures existing clients continue working without changes
+        if provided_prev_msgs is not None:
+            log.info("AUDIT: Using client-provided prevMsgs (deprecated path)")
+            # Still apply the 10-pair limit to prevent context bloat
+            return self._limit_conversation_history(provided_prev_msgs)
+        
+        # AUTO-RECONSTRUCTION: Look up conversation history from database
+        log.info("AUDIT: Auto-reconstructing conversation history from database for session %s", session_uuid)
+        
+        try:
+            # Look up existing conversation by session ID
+            conversation = Conversation.get_by_session(session_uuid)
+            
+            if not conversation:
+                log.info("AUDIT: No existing conversation found for session %s, starting fresh", session_uuid)
+                return []
+            
+            # Verify ownership for security
+            if not conversation.is_owned_by(user_id):
+                log.warning("AUDIT: Session %s not owned by user %s, starting fresh conversation", session_uuid, user_id)
+                return []
+            
+            # Extract conversation history from stored payload
+            stored_prev_msgs = conversation.payload.get("prevMsgs", [])
+            log.info("AUDIT: Retrieved %d messages from stored conversation", len(stored_prev_msgs))
+            
+            # Apply rolling window to limit LLM context
+            return self._limit_conversation_history(stored_prev_msgs)
+            
+        except Exception as e:
+            log.exception("Failed to reconstruct conversation history for session %s: %s", session_uuid, str(e))
+            # Fail gracefully - return empty history rather than breaking the request
+            return []
+    
+    def _limit_conversation_history(self, messages):
+        """
+        Limit conversation history to last 10 Q&A pairs (20 messages) for LLM context efficiency.
+        
+        Args:
+            messages: List of conversation messages
+            
+        Returns:
+            Limited list of messages (last 20 messages max)
+        """
+        if not messages:
+            return []
+        
+        # Take only the last 20 messages (10 Q&A pairs)
+        # This prevents LLM context window issues while maintaining recent conversation context
+        limited_messages = messages[-20:] if len(messages) > 20 else messages
+        
+        if len(messages) > 20:
+            log.info("AUDIT: Limited conversation history from %d to %d messages for LLM context", 
+                    len(messages), len(limited_messages))
+        
+        return limited_messages
 
     def _call_llm(self, assistant, previous_messages, question, search_results, interaction_id):
         return llm.ask(
@@ -479,7 +556,11 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         system_prompt = api_system_prompt  # Will be None if no API override provided
         session_uuid = request.json.get("sessionId", str(uuid.uuid4()))
         stream = request.json.get("stream", "true") == "true"
-        previous_messages = request.json.get("prevMsgs")
+        
+        # DEPRECATED: prevMsgs parameter is now optional and auto-reconstructed from database
+        # Keeping for backward compatibility but will be phased out in future versions
+        provided_prev_msgs = request.json.get("prevMsgs")
+        
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
         model_name = request.json.get("model")
@@ -499,6 +580,9 @@ class AssistantAdvancedChatApi(AssistantChatApi):
             for field in ["isIntroductionPrompt"]:
                 if field in request.json:
                     current_message[field] = request.json[field]
+
+        # Auto-reconstruct conversation history (with backward compatibility for prevMsgs)
+        previous_messages = self._get_conversation_history(provided_prev_msgs, session_uuid, user)
 
         # AUDIT LOG: Model validation
         log.info("AUDIT: Validating model_name=%s, available_models=%s", model_name, list(config.MODELS.keys()))

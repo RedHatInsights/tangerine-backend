@@ -679,6 +679,35 @@ Variables are processed using Python's string formatting, so:
 - Missing variables will cause template errors
 - Extra variables in templates are ignored
 
+## Conversation History
+
+Tangerine automatically maintains conversation history to provide context for multi-turn conversations. As of version 2.0, conversation history is **automatically reconstructed** from the database, eliminating the need for clients to manually track conversation state.
+
+### Automatic History Management
+
+Both chat APIs (`/api/assistants/<id>/chat` and `/api/assistants/chat`) now automatically:
+- Look up existing conversation history using the `sessionId`
+- Provide the last 10 question-answer pairs as context to the LLM
+- Store the complete conversation history in the database
+
+**No client changes required** - simply provide a `sessionId` and Tangerine handles the rest:
+
+```bash
+curl -X POST http://localhost:8080/api/assistants/123/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "What was my previous question about?",
+    "sessionId": "433e4567-8e9b-22d3-a456-626614174000"
+  }'
+```
+
+### Legacy Support
+
+The `prevMsgs` parameter is still supported for backward compatibility but is **deprecated**:
+- Existing clients continue to work without changes
+- New integrations should omit `prevMsgs` and rely on automatic history reconstruction
+- When provided, `prevMsgs` takes precedence over auto-reconstruction
+
 ## Multiple Model Support
 You can extend Tangerine to support multiple models for use with the advanced chat API. In the future we plan to offer this purely through config, but as of this writing it requires minor modification to the Tangerine code.
 
