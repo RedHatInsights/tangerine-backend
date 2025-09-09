@@ -681,7 +681,7 @@ Variables are processed using Python's string formatting, so:
 
 ## Conversation History
 
-Tangerine automatically maintains conversation history to provide context for multi-turn conversations. As of version 2.0, conversation history is **automatically reconstructed** from the database, eliminating the need for clients to manually track conversation state.
+Tangerine automatically maintains conversation history to provide context for multi-turn conversations. Conversation history is **automatically reconstructed** from the database, eliminating the need for clients to manually track conversation state.
 
 ### Automatic History Management
 
