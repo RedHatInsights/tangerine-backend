@@ -117,6 +117,25 @@ class AssistantChatApi(Resource):
         return bool(stream)
 
     @staticmethod
+    def _to_bool(value):
+        """
+        Robust boolean coercion that handles various input types.
+        
+        Args:
+            value: Input value to convert to boolean
+            
+        Returns:
+            bool: Converted boolean value
+        """
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "t", "yes", "y", "on"}
+        return False
+
+    @staticmethod
     def _anonymize_user_id(user_id):
         """
         Anonymize user ID using SHA256 hash, unless the user ID is 'unknown'.
@@ -205,7 +224,7 @@ class AssistantChatApi(Resource):
             raise ValueError("No JSON data provided")
         question = request.json.get("query")
         session_uuid = request.json.get("sessionId", str(uuid.uuid4()))
-        stream = request.json.get("stream", "true") == "true"
+        stream = self._to_bool(request.json.get("stream", True))
         
         # DEPRECATED: prevMsgs parameter is now optional and auto-reconstructed from database
         # Keeping for backward compatibility but will be phased out in future versions
@@ -242,24 +261,80 @@ class AssistantChatApi(Resource):
     def _embed_question(self, question):
         return embed_query(question)
 
+    def _validate_prev_msgs(self, prev_msgs):
+        """
+        Validate prevMsgs structure and sanitize if needed.
+        
+        Args:
+            prev_msgs: Client-provided prevMsgs to validate
+            
+        Returns:
+            List of valid message objects, or empty list if invalid
+        """
+        if not isinstance(prev_msgs, list):
+            log.warning("AUDIT: Invalid prevMsgs type (%s), expected list", type(prev_msgs).__name__)
+            return []
+        
+        validated_messages = []
+        for i, msg in enumerate(prev_msgs):
+            if not isinstance(msg, dict):
+                log.warning("AUDIT: Invalid message at index %d (not dict), skipping", i)
+                continue
+                
+            sender = msg.get("sender")
+            text = msg.get("text")
+            
+            if sender not in {"human", "ai", "system"}:
+                log.warning("AUDIT: Invalid sender '%s' at index %d, skipping message", sender, i)
+                continue
+                
+            if not isinstance(text, str) or not text.strip():
+                log.warning("AUDIT: Invalid or empty text at index %d, skipping message", i)
+                continue
+                
+            # Create clean message object, preserving additional fields
+            clean_msg = {"sender": sender, "text": text}
+            for key, value in msg.items():
+                if key not in {"sender", "text"} and isinstance(key, str):
+                    clean_msg[key] = value
+                    
+            validated_messages.append(clean_msg)
+        
+        if len(validated_messages) != len(prev_msgs):
+            log.info("AUDIT: Filtered prevMsgs from %d to %d valid messages", 
+                    len(prev_msgs), len(validated_messages))
+        
+        return validated_messages
+
     def _get_conversation_history(self, provided_prev_msgs, session_uuid, user_id):
         """
         Get conversation history for LLM context.
         
         Args:
-            provided_prev_msgs: prevMsgs from client request (DEPRECATED - will be None for new clients)
+            provided_prev_msgs: prevMsgs from client request (DEPRECATED - None or list)
             session_uuid: Session ID to look up conversation history
-            user_id: User ID for ownership verification
+            user_id: User ID for ownership verification (NOTE: should come from auth, not request body)
             
         Returns:
-            List of message objects limited to last 10 Q&A pairs (20 messages max)
+            List of message objects limited to last 10 Q&A pairs
         """
-        # BACKWARD COMPATIBILITY: If client provided prevMsgs, use it as-is
-        # This ensures existing clients continue working without changes
+        # BACKWARD COMPATIBILITY: If client provided prevMsgs (and it's not empty), validate and use it
+        # Note: We distinguish between None (not provided) and [] (explicitly empty)
         if provided_prev_msgs is not None:
-            log.info("AUDIT: Using client-provided prevMsgs (deprecated path)")
-            # Still apply the 10-pair limit to prevent context bloat
-            return self._limit_conversation_history(provided_prev_msgs)
+            log.info("AUDIT: Client provided prevMsgs (deprecated path), validating...")
+            validated_msgs = self._validate_prev_msgs(provided_prev_msgs)
+            
+            # If client explicitly sent empty list, respect that choice (don't fall back to DB)
+            if len(provided_prev_msgs) == 0:
+                log.info("AUDIT: Client explicitly provided empty prevMsgs, using empty history")
+                return []
+            
+            # If validation resulted in empty list from non-empty input, fall back to DB
+            if len(validated_msgs) == 0 and len(provided_prev_msgs) > 0:
+                log.warning("AUDIT: All provided prevMsgs were invalid, falling back to DB reconstruction")
+            else:
+                # Use validated client-provided messages
+                return self._limit_conversation_to_pairs(validated_msgs)
         
         # AUTO-RECONSTRUCTION: Look up conversation history from database
         log.info("AUDIT: Auto-reconstructing conversation history from database for session %s", session_uuid)
@@ -272,43 +347,90 @@ class AssistantChatApi(Resource):
                 log.info("AUDIT: No existing conversation found for session %s, starting fresh", session_uuid)
                 return []
             
-            # Verify ownership for security
+            # SECURITY NOTE: In production, user_id should come from authenticated session/JWT, 
+            # not from request body to prevent spoofing
             if not conversation.is_owned_by(user_id):
                 log.warning("AUDIT: Session %s not owned by user %s, starting fresh conversation", session_uuid, user_id)
                 return []
             
-            # Extract conversation history from stored payload
-            stored_prev_msgs = conversation.payload.get("prevMsgs", [])
+            # Guard against None payload
+            payload = conversation.payload or {}
+            stored_prev_msgs = payload.get("prevMsgs", [])
             log.info("AUDIT: Retrieved %d messages from stored conversation", len(stored_prev_msgs))
             
+            # Validate stored messages (defensive programming)
+            validated_stored = self._validate_prev_msgs(stored_prev_msgs)
+            
             # Apply rolling window to limit LLM context
-            return self._limit_conversation_history(stored_prev_msgs)
+            return self._limit_conversation_to_pairs(validated_stored)
             
         except Exception as e:
             log.exception("Failed to reconstruct conversation history for session %s: %s", session_uuid, str(e))
             # Fail gracefully - return empty history rather than breaking the request
             return []
     
-    def _limit_conversation_history(self, messages):
+    def _limit_conversation_to_pairs(self, messages):
         """
-        Limit conversation history to last 10 Q&A pairs (20 messages) for LLM context efficiency.
+        Limit conversation history to last 10 human↔assistant Q&A pairs for LLM context efficiency.
+        
+        This method:
+        1. Filters for human/assistant messages only (excludes system messages)
+        2. Ensures proper pairing (human question → assistant answer)
+        3. Takes the last 10 complete pairs
+        4. Preserves chronological order
         
         Args:
             messages: List of conversation messages
             
         Returns:
-            Limited list of messages (last 20 messages max)
+            Limited list of messages (last 10 Q&A pairs max)
         """
         if not messages:
             return []
         
-        # Take only the last 20 messages (10 Q&A pairs)
-        # This prevents LLM context window issues while maintaining recent conversation context
-        limited_messages = messages[-20:] if len(messages) > 20 else messages
+        # Filter to only human and assistant messages, preserve order
+        conversation_messages = [
+            msg for msg in messages 
+            if msg.get("sender") in {"human", "ai"}
+        ]
         
-        if len(messages) > 20:
-            log.info("AUDIT: Limited conversation history from %d to %d messages for LLM context", 
-                    len(messages), len(limited_messages))
+        if not conversation_messages:
+            return []
+        
+        # Extract complete Q&A pairs (human → ai)
+        pairs = []
+        i = 0
+        while i < len(conversation_messages):
+            msg = conversation_messages[i]
+            
+            # Look for human message
+            if msg.get("sender") == "human":
+                # Look for corresponding AI response
+                ai_response = None
+                for j in range(i + 1, len(conversation_messages)):
+                    if conversation_messages[j].get("sender") == "ai":
+                        ai_response = conversation_messages[j]
+                        i = j  # Move past this AI response
+                        break
+                
+                if ai_response:
+                    pairs.append((msg, ai_response))
+                else:
+                    # Incomplete pair - just the human message at the end
+                    pairs.append((msg,))
+            
+            i += 1
+        
+        # Take the last 10 pairs maximum
+        if len(pairs) > 10:
+            pairs = pairs[-10:]
+            log.info("AUDIT: Limited conversation history from %d to %d Q&A pairs for LLM context", 
+                    len(conversation_messages) // 2, len(pairs))
+        
+        # Flatten pairs back to message list
+        limited_messages = []
+        for pair in pairs:
+            limited_messages.extend(pair)
         
         return limited_messages
 
@@ -555,7 +677,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         api_system_prompt = request.json.get("system_prompt") or request.json.get("prompt")
         system_prompt = api_system_prompt  # Will be None if no API override provided
         session_uuid = request.json.get("sessionId", str(uuid.uuid4()))
-        stream = request.json.get("stream", "true") == "true"
+        stream = self._to_bool(request.json.get("stream", True))
         
         # DEPRECATED: prevMsgs parameter is now optional and auto-reconstructed from database
         # Keeping for backward compatibility but will be phased out in future versions

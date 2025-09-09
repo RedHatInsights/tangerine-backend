@@ -706,7 +706,18 @@ curl -X POST http://localhost:8080/api/assistants/123/chat \
 The `prevMsgs` parameter is still supported for backward compatibility but is **deprecated**:
 - Existing clients continue to work without changes
 - New integrations should omit `prevMsgs` and rely on automatic history reconstruction
-- When provided, `prevMsgs` takes precedence over auto-reconstruction
+- When provided (and non-empty), `prevMsgs` takes precedence over auto-reconstruction
+- Empty `prevMsgs` array (`[]`) is respected and will not fall back to database history
+
+### Security Considerations
+
+**Important**: The current implementation uses the `user` field from the request body for session ownership verification. In production environments, this should be replaced with authenticated user identity from:
+- JWT tokens
+- Session-based authentication
+- OAuth/OIDC claims
+- API key-based user identification
+
+Using request body `user` field allows potential session hijacking if not properly validated against authenticated identity.
 
 ## Multiple Model Support
 You can extend Tangerine to support multiple models for use with the advanced chat API. In the future we plan to offer this purely through config, but as of this writing it requires minor modification to the Tangerine code.
