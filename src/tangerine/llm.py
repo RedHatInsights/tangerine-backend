@@ -107,20 +107,20 @@ def get_response(
 ) -> Generator[str, None, None]:
     # AUDIT LOG: get_response entry
     log.info("AUDIT: get_response() called with model_name=%s", model_name)
-    
+
     model_config = cfg.get_model_config(model_name)
-    
+
     # AUDIT LOG: Model config retrieved
     log.info("AUDIT: Retrieved model_config for model_name=%s: %s", model_name, model_config)
 
     # AUDIT LOG: Creating ChatOpenAI instance
     log.info("AUDIT: Creating ChatOpenAI with config: %s", model_config)
-    
+
     chat = ChatOpenAI(
         **model_config,
         stream_usage=True,
     )
-    
+
     # AUDIT LOG: ChatOpenAI instance created
     log.info("AUDIT: ChatOpenAI instance created successfully")
 
@@ -128,13 +128,13 @@ def get_response(
 
     completion_start = 0.0
     processing_start = time.time()
-    
+
     # AUDIT LOG: About to execute LLM chain
     log.info("AUDIT: Executing LLM chain with final model configuration")
 
     # AUDIT LOG: About to make HTTP request to model endpoint
     log.info("AUDIT: Starting HTTP stream request to model endpoint")
-    
+
     with get_openai_callback() as cb:
         for chunk in chain.stream(prompt_params):
             if not completion_start:
@@ -148,7 +148,7 @@ def get_response(
             completion_end = time.time()
 
         # end with
-    
+
     log.info("AUDIT: HTTP stream request to model endpoint completed successfully")
     _record_metrics(cb, processing_start, completion_start, completion_end)
 
@@ -192,10 +192,12 @@ def ask(
     user_prompt: str | None = None,
 ) -> tuple[Generator[str, None, None], list[dict]]:
     log.info("AUDIT: llm 'ask' request")
-    
+
     # AUDIT LOG: Function entry
     log.info("AUDIT: llm.ask() called with model=%s, disable_agentic=%s", model, disable_agentic)
-    log.info("AUDIT: Assistant details: %s", [{"name": a.name, "model": a.model} for a in assistants])
+    log.info(
+        "AUDIT: Assistant details: %s", [{"name": a.name, "model": a.model} for a in assistants]
+    )
     search_context = ""
     search_metadata = []
 
@@ -254,13 +256,17 @@ def ask(
     # Determine model: use provided model, then first assistant's model
     # TODO: handle the case where assistants are configured with different models
     selected_model = model or assistants[0].model
-    
+
     # AUDIT LOG: Model selection decision
-    log.info("AUDIT: Model selection - API model=%s, assistant[0].model=%s, selected_model=%s", 
-             model, assistants[0].model, selected_model)
+    log.info(
+        "AUDIT: Model selection - API model=%s, assistant[0].model=%s, selected_model=%s",
+        model,
+        assistants[0].model,
+        selected_model,
+    )
 
     prompt_params = {"context": search_context, "question": question}
-    
+
     # AUDIT LOG: About to call get_response
     log.info("AUDIT: Calling get_response() with selected_model=%s", selected_model)
     llm_response = get_response(ChatPromptTemplate(msg_list), prompt_params, selected_model)

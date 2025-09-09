@@ -120,10 +120,10 @@ class AssistantChatApi(Resource):
     def _to_bool(value):
         """
         Robust boolean coercion that handles various input types.
-        
+
         Args:
             value: Input value to convert to boolean
-            
+
         Returns:
             bool: Converted boolean value
         """
@@ -225,11 +225,11 @@ class AssistantChatApi(Resource):
         question = request.json.get("query")
         session_uuid = request.json.get("sessionId", str(uuid.uuid4()))
         stream = self._to_bool(request.json.get("stream", True))
-        
+
         # DEPRECATED: prevMsgs parameter is now optional and auto-reconstructed from database
         # Keeping for backward compatibility but will be phased out in future versions
         provided_prev_msgs = request.json.get("prevMsgs")
-        
+
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
         user = request.json.get("user", "unknown")
@@ -264,57 +264,62 @@ class AssistantChatApi(Resource):
     def _validate_prev_msgs(self, prev_msgs):
         """
         Validate prevMsgs structure and sanitize if needed.
-        
+
         Args:
             prev_msgs: Client-provided prevMsgs to validate
-            
+
         Returns:
             List of valid message objects, or empty list if invalid
         """
         if not isinstance(prev_msgs, list):
-            log.warning("AUDIT: Invalid prevMsgs type (%s), expected list", type(prev_msgs).__name__)
+            log.warning(
+                "AUDIT: Invalid prevMsgs type (%s), expected list", type(prev_msgs).__name__
+            )
             return []
-        
+
         validated_messages = []
         for i, msg in enumerate(prev_msgs):
             if not isinstance(msg, dict):
                 log.warning("AUDIT: Invalid message at index %d (not dict), skipping", i)
                 continue
-                
+
             sender = msg.get("sender")
             text = msg.get("text")
-            
+
             if sender not in {"human", "ai", "system"}:
                 log.warning("AUDIT: Invalid sender '%s' at index %d, skipping message", sender, i)
                 continue
-                
+
             if not isinstance(text, str) or not text.strip():
                 log.warning("AUDIT: Invalid or empty text at index %d, skipping message", i)
                 continue
-                
+
             # Create clean message object, preserving additional fields
             clean_msg = {"sender": sender, "text": text}
             for key, value in msg.items():
                 if key not in {"sender", "text"} and isinstance(key, str):
                     clean_msg[key] = value
-                    
+
             validated_messages.append(clean_msg)
-        
+
         if len(validated_messages) != len(prev_msgs):
-            log.info("AUDIT: Filtered prevMsgs from %d to %d valid messages", 
-                    len(prev_msgs), len(validated_messages))
-        
+            log.info(
+                "AUDIT: Filtered prevMsgs from %d to %d valid messages",
+                len(prev_msgs),
+                len(validated_messages),
+            )
+
         return validated_messages
 
     def _get_conversation_history(self, provided_prev_msgs, session_uuid, user_id):
         """
         Get conversation history for LLM context.
-        
+
         Args:
             provided_prev_msgs: prevMsgs from client request (DEPRECATED - None or list)
             session_uuid: Session ID to look up conversation history
             user_id: User ID for ownership verification (NOTE: should come from auth, not request body)
-            
+
         Returns:
             List of message objects limited to last 10 Q&A pairs
         """
@@ -323,86 +328,99 @@ class AssistantChatApi(Resource):
         if provided_prev_msgs is not None:
             log.info("AUDIT: Client provided prevMsgs (deprecated path), validating...")
             validated_msgs = self._validate_prev_msgs(provided_prev_msgs)
-            
+
             # If client explicitly sent empty list, respect that choice (don't fall back to DB)
             if len(provided_prev_msgs) == 0:
                 log.info("AUDIT: Client explicitly provided empty prevMsgs, using empty history")
                 return []
-            
+
             # If validation resulted in empty list from non-empty input, fall back to DB
             if len(validated_msgs) == 0 and len(provided_prev_msgs) > 0:
-                log.warning("AUDIT: All provided prevMsgs were invalid, falling back to DB reconstruction")
+                log.warning(
+                    "AUDIT: All provided prevMsgs were invalid, falling back to DB reconstruction"
+                )
             else:
                 # Use validated client-provided messages
                 return self._limit_conversation_to_pairs(validated_msgs)
-        
+
         # AUTO-RECONSTRUCTION: Look up conversation history from database
-        log.info("AUDIT: Auto-reconstructing conversation history from database for session %s", session_uuid)
-        
+        log.info(
+            "AUDIT: Auto-reconstructing conversation history from database for session %s",
+            session_uuid,
+        )
+
         try:
             # Look up existing conversation by session ID
             conversation = Conversation.get_by_session(session_uuid)
-            
+
             if not conversation:
-                log.info("AUDIT: No existing conversation found for session %s, starting fresh", session_uuid)
+                log.info(
+                    "AUDIT: No existing conversation found for session %s, starting fresh",
+                    session_uuid,
+                )
                 return []
-            
-            # SECURITY NOTE: In production, user_id should come from authenticated session/JWT, 
+
+            # SECURITY NOTE: In production, user_id should come from authenticated session/JWT,
             # not from request body to prevent spoofing
             if not conversation.is_owned_by(user_id):
-                log.warning("AUDIT: Session %s not owned by user %s, starting fresh conversation", session_uuid, user_id)
+                log.warning(
+                    "AUDIT: Session %s not owned by user %s, starting fresh conversation",
+                    session_uuid,
+                    user_id,
+                )
                 return []
-            
+
             # Guard against None payload
             payload = conversation.payload or {}
             stored_prev_msgs = payload.get("prevMsgs", [])
             log.info("AUDIT: Retrieved %d messages from stored conversation", len(stored_prev_msgs))
-            
+
             # Validate stored messages (defensive programming)
             validated_stored = self._validate_prev_msgs(stored_prev_msgs)
-            
+
             # Apply rolling window to limit LLM context
             return self._limit_conversation_to_pairs(validated_stored)
-            
+
         except Exception as e:
-            log.exception("Failed to reconstruct conversation history for session %s: %s", session_uuid, str(e))
+            log.exception(
+                "Failed to reconstruct conversation history for session %s: %s",
+                session_uuid,
+                str(e),
+            )
             # Fail gracefully - return empty history rather than breaking the request
             return []
-    
+
     def _limit_conversation_to_pairs(self, messages):
         """
         Limit conversation history to last 10 human↔assistant Q&A pairs for LLM context efficiency.
-        
+
         This method:
         1. Filters for human/assistant messages only (excludes system messages)
         2. Ensures proper pairing (human question → assistant answer)
         3. Takes the last 10 complete pairs
         4. Preserves chronological order
-        
+
         Args:
             messages: List of conversation messages
-            
+
         Returns:
             Limited list of messages (last 10 Q&A pairs max)
         """
         if not messages:
             return []
-        
+
         # Filter to only human and assistant messages, preserve order
-        conversation_messages = [
-            msg for msg in messages 
-            if msg.get("sender") in {"human", "ai"}
-        ]
-        
+        conversation_messages = [msg for msg in messages if msg.get("sender") in {"human", "ai"}]
+
         if not conversation_messages:
             return []
-        
+
         # Extract complete Q&A pairs (human → ai)
         pairs = []
         i = 0
         while i < len(conversation_messages):
             msg = conversation_messages[i]
-            
+
             # Look for human message
             if msg.get("sender") == "human":
                 # Look for corresponding AI response
@@ -412,26 +430,29 @@ class AssistantChatApi(Resource):
                         ai_response = conversation_messages[j]
                         i = j  # Move past this AI response
                         break
-                
+
                 if ai_response:
                     pairs.append((msg, ai_response))
                 else:
                     # Incomplete pair - just the human message at the end
                     pairs.append((msg,))
-            
+
             i += 1
-        
+
         # Take the last 10 pairs maximum
         if len(pairs) > 10:
             pairs = pairs[-10:]
-            log.info("AUDIT: Limited conversation history from %d to %d Q&A pairs for LLM context", 
-                    len(conversation_messages) // 2, len(pairs))
-        
+            log.info(
+                "AUDIT: Limited conversation history from %d to %d Q&A pairs for LLM context",
+                len(conversation_messages) // 2,
+                len(pairs),
+            )
+
         # Flatten pairs back to message list
         limited_messages = []
         for pair in pairs:
             limited_messages.extend(pair)
-        
+
         return limited_messages
 
     def _call_llm(self, assistant, previous_messages, question, search_results, interaction_id):
@@ -632,7 +653,9 @@ class AssistantChatApi(Resource):
 
             # Upsert the conversation
             Conversation.upsert(conversation_payload)
-            log.info("AUDIT: Successfully updated conversation history for session %s", session_uuid)
+            log.info(
+                "AUDIT: Successfully updated conversation history for session %s", session_uuid
+            )
 
         except Exception as e:
             log.exception(
@@ -678,17 +701,17 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         system_prompt = api_system_prompt  # Will be None if no API override provided
         session_uuid = request.json.get("sessionId", str(uuid.uuid4()))
         stream = self._to_bool(request.json.get("stream", True))
-        
+
         # DEPRECATED: prevMsgs parameter is now optional and auto-reconstructed from database
         # Keeping for backward compatibility but will be phased out in future versions
         provided_prev_msgs = request.json.get("prevMsgs")
-        
+
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
         model_name = request.json.get("model")
         user = request.json.get("user", "unknown")
         disable_agentic = request.json.get("disable_agentic", False)
-        
+
         # AUDIT LOG: Request model parameter
         log.info("AUDIT: Advanced Chat API received model parameter: %s", model_name)
         user_prompt = request.json.get("userPrompt")
@@ -707,9 +730,17 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         previous_messages = self._get_conversation_history(provided_prev_msgs, session_uuid, user)
 
         # AUDIT LOG: Model validation
-        log.info("AUDIT: Validating model_name=%s, available_models=%s", model_name, list(config.MODELS.keys()))
+        log.info(
+            "AUDIT: Validating model_name=%s, available_models=%s",
+            model_name,
+            list(config.MODELS.keys()),
+        )
         if model_name and model_name not in config.MODELS:
-            log.error("AUDIT: INVALID MODEL - model_name=%s not in available models %s", model_name, list(config.MODELS.keys()))
+            log.error(
+                "AUDIT: INVALID MODEL - model_name=%s not in available models %s",
+                model_name,
+                list(config.MODELS.keys()),
+            )
             return {"message": f"Invalid model name: {model_name}"}, 400
         log.info("AUDIT: Model validation passed for model_name=%s", model_name)
 
@@ -741,7 +772,11 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         )
 
         # AUDIT LOG: Calling llm.ask with model parameter
-        log.info("AUDIT: Calling llm.ask() with model=%s, disable_agentic=%s", model_name, disable_agentic)
+        log.info(
+            "AUDIT: Calling llm.ask() with model=%s, disable_agentic=%s",
+            model_name,
+            disable_agentic,
+        )
         llm_response, search_metadata = llm.ask(
             assistants,
             previous_messages,
