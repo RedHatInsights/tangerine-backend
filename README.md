@@ -701,15 +701,17 @@ curl -X POST http://localhost:8080/api/assistants/123/chat \
   }'
 ```
 
-### Legacy Support
+### Simplified Implementation
 
-The `prevMsgs` parameter is still supported for backward compatibility but is **deprecated**:
-- Existing clients continue to work without changes
-- New integrations should omit `prevMsgs` and rely on automatic history reconstruction
-- When provided (and non-empty), `prevMsgs` takes precedence over auto-reconstruction
-- Empty `prevMsgs` array (`[]`) is respected and will not fall back to database history
+The `prevMsgs` parameter is **ignored** if provided - conversation history is always auto-reconstructed from the database:
+- **One code path**: All clients use the same reliable database-based history reconstruction
+- **No client complexity**: Clients never need to track or send conversation history
+- **Consistent behavior**: Same experience whether `prevMsgs` is provided or not
+- **Anonymous sessions**: Works with or without user identification
 
 ### Security Considerations
+
+**Session Ownership**: When a `user` is provided, the system verifies session ownership to prevent unauthorized access to conversation history. Anonymous sessions (no `user` provided) can access any session by `sessionId`.
 
 **Important**: The current implementation uses the `user` field from the request body for session ownership verification. In production environments, this should be replaced with authenticated user identity from:
 - JWT tokens

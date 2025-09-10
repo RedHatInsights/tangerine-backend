@@ -226,13 +226,13 @@ class AssistantChatApi(Resource):
         session_uuid = request.json.get("sessionId", str(uuid.uuid4()))
         stream = self._to_bool(request.json.get("stream", True))
 
-        # DEPRECATED: prevMsgs parameter is now optional and auto-reconstructed from database
-        # Keeping for backward compatibility but will be phased out in future versions
-        provided_prev_msgs = request.json.get("prevMsgs")
+        # NOTE: prevMsgs parameter is ignored - conversation history is auto-reconstructed from database
+        # This simplifies client implementation and ensures consistent behavior
+        _ = request.json.get("prevMsgs")  # Explicitly ignore if provided
 
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
-        user = request.json.get("user", "unknown")
+        user = request.json.get("user")  # Can be None for anonymous sessions
 
         # Extract the current message data to preserve all fields
         current_message = request.json.get("currentMessage", {})
@@ -244,8 +244,8 @@ class AssistantChatApi(Resource):
                 if field in request.json:
                     current_message[field] = request.json[field]
 
-        # Auto-reconstruct conversation history (with backward compatibility for prevMsgs)
-        previous_messages = self._get_conversation_history(provided_prev_msgs, session_uuid, user)
+        # Auto-reconstruct conversation history from database
+        previous_messages = self._get_conversation_history(session_uuid, user)
 
         return (
             question,
@@ -311,39 +311,17 @@ class AssistantChatApi(Resource):
 
         return validated_messages
 
-    def _get_conversation_history(self, provided_prev_msgs, session_uuid, user_id):
+    def _get_conversation_history(self, session_uuid, user_id):
         """
-        Get conversation history for LLM context.
+        Get conversation history for LLM context by reconstructing from database.
 
         Args:
-            provided_prev_msgs: prevMsgs from client request (DEPRECATED - None or list)
             session_uuid: Session ID to look up conversation history
-            user_id: User ID for ownership verification (NOTE: should come from auth, not request body)
+            user_id: User ID for ownership verification (can be None for anonymous sessions)
 
         Returns:
             List of message objects limited to last 10 Q&A pairs
         """
-        # BACKWARD COMPATIBILITY: If client provided prevMsgs (and it's not empty), validate and use it
-        # Note: We distinguish between None (not provided) and [] (explicitly empty)
-        if provided_prev_msgs is not None:
-            log.info("AUDIT: Client provided prevMsgs (deprecated path), validating...")
-            validated_msgs = self._validate_prev_msgs(provided_prev_msgs)
-
-            # If client explicitly sent empty list, respect that choice (don't fall back to DB)
-            if len(provided_prev_msgs) == 0:
-                log.info("AUDIT: Client explicitly provided empty prevMsgs, using empty history")
-                return []
-
-            # If validation resulted in empty list from non-empty input, fall back to DB
-            if len(validated_msgs) == 0 and len(provided_prev_msgs) > 0:
-                log.warning(
-                    "AUDIT: All provided prevMsgs were invalid, falling back to DB reconstruction"
-                )
-            else:
-                # Use validated client-provided messages
-                return self._limit_conversation_to_pairs(validated_msgs)
-
-        # AUTO-RECONSTRUCTION: Look up conversation history from database
         log.info(
             "AUDIT: Auto-reconstructing conversation history from database for session %s",
             session_uuid,
@@ -360,9 +338,8 @@ class AssistantChatApi(Resource):
                 )
                 return []
 
-            # SECURITY NOTE: In production, user_id should come from authenticated session/JWT,
-            # not from request body to prevent spoofing
-            if not conversation.is_owned_by(user_id):
+            # Ownership verification: skip if user is None/anonymous, otherwise verify ownership
+            if user_id and not conversation.is_owned_by(user_id):
                 log.warning(
                     "AUDIT: Session %s not owned by user %s, starting fresh conversation",
                     session_uuid,
@@ -702,14 +679,14 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         session_uuid = request.json.get("sessionId", str(uuid.uuid4()))
         stream = self._to_bool(request.json.get("stream", True))
 
-        # DEPRECATED: prevMsgs parameter is now optional and auto-reconstructed from database
-        # Keeping for backward compatibility but will be phased out in future versions
-        provided_prev_msgs = request.json.get("prevMsgs")
+        # NOTE: prevMsgs parameter is ignored - conversation history is auto-reconstructed from database
+        # This simplifies client implementation and ensures consistent behavior
+        _ = request.json.get("prevMsgs")  # Explicitly ignore if provided
 
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
         model_name = request.json.get("model")
-        user = request.json.get("user", "unknown")
+        user = request.json.get("user")  # Can be None for anonymous sessions
         disable_agentic = request.json.get("disable_agentic", False)
 
         # AUDIT LOG: Request model parameter
@@ -726,8 +703,8 @@ class AssistantAdvancedChatApi(AssistantChatApi):
                 if field in request.json:
                     current_message[field] = request.json[field]
 
-        # Auto-reconstruct conversation history (with backward compatibility for prevMsgs)
-        previous_messages = self._get_conversation_history(provided_prev_msgs, session_uuid, user)
+        # Auto-reconstruct conversation history from database
+        previous_messages = self._get_conversation_history(session_uuid, user)
 
         # AUDIT LOG: Model validation
         log.info(
