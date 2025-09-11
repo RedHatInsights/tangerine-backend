@@ -683,6 +683,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
 
         # NOTE: prevMsgs parameter is ignored - conversation history is auto-reconstructed from database
         # This simplifies client implementation and ensures consistent behavior
+        # TODO: remove this after confirming no clients are still using 'prevMsgs'
         _ = request.json.get("prevMsgs")  # Explicitly ignore if provided
 
         interaction_id = request.json.get("interactionId", None)
