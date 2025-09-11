@@ -361,7 +361,9 @@ class SearchEngine:
                 deduped_results = self.deduplicate_results(results)
                 log.info("AUDIT: Calling _rerank_results() for %d results", len(deduped_results))
                 sorted_results = self._rerank_results(query, deduped_results)
-                log.info("AUDIT: LLM reranking succeeded, got %d sorted results", len(sorted_results))
+                log.info(
+                    "AUDIT: LLM reranking succeeded, got %d sorted results", len(sorted_results)
+                )
             except Exception:
                 log.error("AUDIT: LLM reranking FAILED - falling back to RRF sorting")
                 log.exception("model re-ranking failed")

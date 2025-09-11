@@ -679,6 +679,48 @@ Variables are processed using Python's string formatting, so:
 - Missing variables will cause template errors
 - Extra variables in templates are ignored
 
+## Conversation History
+
+Tangerine automatically maintains conversation history to provide context for multi-turn conversations. Conversation history is **automatically reconstructed** from the database, eliminating the need for clients to manually track conversation state.
+
+### Automatic History Management
+
+Both chat APIs (`/api/assistants/<id>/chat` and `/api/assistants/chat`) now automatically:
+- Look up existing conversation history using the `sessionId`
+- Provide the last 10 question-answer pairs as context to the LLM
+- Store the complete conversation history in the database
+
+**No client changes required** - simply provide a `sessionId` and Tangerine handles the rest:
+
+```bash
+curl -X POST http://localhost:8080/api/assistants/123/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "What was my previous question about?",
+    "sessionId": "433e4567-8e9b-22d3-a456-626614174000"
+  }'
+```
+
+### Simplified Implementation
+
+The `prevMsgs` parameter is **ignored** if provided - conversation history is always auto-reconstructed from the database:
+- **One code path**: All clients use the same reliable database-based history reconstruction
+- **No client complexity**: Clients never need to track or send conversation history
+- **Consistent behavior**: Same experience whether `prevMsgs` is provided or not
+- **Anonymous sessions**: Works with or without user identification
+
+### Security Considerations
+
+**Session Ownership**: When a `user` is provided, the system verifies session ownership to prevent unauthorized access to conversation history. Anonymous sessions (no `user` provided) can access any session by `sessionId`.
+
+**Important**: The current implementation uses the `user` field from the request body for session ownership verification. In production environments, this should be replaced with authenticated user identity from:
+- JWT tokens
+- Session-based authentication
+- OAuth/OIDC claims
+- API key-based user identification
+
+Using request body `user` field allows potential session hijacking if not properly validated against authenticated identity.
+
 ## Multiple Model Support
 You can extend Tangerine to support multiple models for use with the advanced chat API. In the future we plan to offer this purely through config, but as of this writing it requires minor modification to the Tangerine code.
 
