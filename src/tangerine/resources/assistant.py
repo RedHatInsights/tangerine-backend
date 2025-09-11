@@ -267,7 +267,7 @@ class AssistantChatApi(Resource):
         Validate prevMsgs structure and sanitize if needed.
 
         Args:
-            prev_msgs: Client-provided prevMsgs to validate
+            prev_msgs: List of previous conversation messages to validate
 
         Returns:
             List of valid message objects, or empty list if invalid
