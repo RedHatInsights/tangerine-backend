@@ -138,19 +138,21 @@ class AssistantChatApi(Resource):
     @staticmethod
     def _anonymize_user_id(user_id):
         """
-        Anonymize user ID using SHA256 hash, unless the user ID is 'unknown'.
+        Anonymize user ID using SHA256 hash, with special handling for anonymous users.
 
         Args:
-            user_id (str): The user ID to anonymize
+            user_id (str or None): The user ID to anonymize
 
         Returns:
-            str: The anonymized user ID or 'unknown' if the input was 'unknown'
+            str: The anonymized user ID or 'anonymous' for None/unknown users
         """
-        if user_id == "unknown":
-            return user_id
+        # Handle None and various "anonymous" indicators
+        if user_id is None or user_id in ("unknown", "anonymous", ""):
+            return "anonymous"
 
-        # Create a hash of the user ID for anonymization
-        return hashlib.sha256(user_id.encode("utf-8")).hexdigest()[
+        # Ensure user_id is string and create hash
+        user_str = str(user_id)
+        return hashlib.sha256(user_str.encode("utf-8")).hexdigest()[
             :16
         ]  # Use first 16 chars of hash
 
@@ -233,7 +235,8 @@ class AssistantChatApi(Resource):
 
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
-        user = request.json.get("user")  # Can be None for anonymous sessions
+        # Normalize user early to prevent None from causing crashes downstream
+        user = request.json.get("user") or "anonymous"
 
         # Extract the current message data to preserve all fields
         current_message = request.json.get("currentMessage", {})
@@ -339,8 +342,8 @@ class AssistantChatApi(Resource):
                 )
                 return []
 
-            # Ownership verification: skip if user is None/anonymous, otherwise verify ownership
-            if user_id and not conversation.is_owned_by(user_id):
+            # Ownership verification: skip if user is anonymous, otherwise verify ownership
+            if user_id != "anonymous" and not conversation.is_owned_by(user_id):
                 log.warning(
                     "AUDIT: Session %s not owned by user %s, starting fresh conversation",
                     session_uuid,
@@ -692,7 +695,8 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         interaction_id = request.json.get("interactionId", None)
         client = request.json.get("client", "unknown")
         model_name = request.json.get("model")
-        user = request.json.get("user")  # Can be None for anonymous sessions
+        # Normalize user early to prevent None from causing crashes downstream
+        user = request.json.get("user") or "anonymous"
         disable_agentic = request.json.get("disable_agentic", False)
 
         # AUDIT LOG: Request model parameter
