@@ -50,30 +50,45 @@ class Conversation(db.Model):
 
         conversation = cls.query.filter_by(session_id=session_id).first()
 
-        if conversation and conversation.is_owned_by(user_id):
-            # Update existing conversation
-            conversation.updated_at = db.func.current_timestamp()
-            conversation.payload = conversation_json
-            # Update assistant_name if provided
-            if assistant_name:
-                conversation.assistant_name = assistant_name
-            # Only generate title if we don't already have one
-            if not conversation.title:
-                new_title = cls.generate_title(conversation_json)
-                conversation.title = new_title
+        if conversation:
+            # Handle ownership verification based on user_id
+            can_update = False
+
+            if user_id is None:
+                # Anonymous users can update any conversation by session_id
+                # This allows for seamless transition between authenticated and anonymous sessions
+                can_update = True
             else:
-                # Check if we should update the title because we now have non-introduction content
-                cls._update_title_if_needed(conversation, conversation_json)
-        elif conversation and not conversation.is_owned_by(user_id):
-            # If the conversation exists but is owned by a different user, create a new one
-            # that is owned by the user and has a new session ID
-            conversation = cls()
-            conversation.user_id = user_id
-            conversation.session_id = uuid.uuid4()
-            conversation.assistant_name = assistant_name
-            conversation.payload = conversation_json
-            conversation.title = cls.generate_title(conversation_json)
-            db.session.add(conversation)
+                # Authenticated users can only update conversations they own
+                can_update = conversation.is_owned_by(user_id)
+
+            if can_update:
+                # Update existing conversation
+                conversation.updated_at = db.func.current_timestamp()
+                conversation.payload = conversation_json
+                # Update user_id if provided (allows anonymous → authenticated transition)
+                if user_id is not None:
+                    conversation.user_id = user_id
+                # Update assistant_name if provided
+                if assistant_name:
+                    conversation.assistant_name = assistant_name
+                # Only generate title if we don't already have one
+                if not conversation.title:
+                    new_title = cls.generate_title(conversation_json)
+                    conversation.title = new_title
+                else:
+                    # Check if we should update the title because we now have non-introduction content
+                    cls._update_title_if_needed(conversation, conversation_json)
+            else:
+                # Authenticated user trying to access conversation owned by different user
+                # Create a new conversation with a new session ID for security
+                conversation = cls()
+                conversation.user_id = user_id
+                conversation.session_id = uuid.uuid4()
+                conversation.assistant_name = assistant_name
+                conversation.payload = conversation_json
+                conversation.title = cls.generate_title(conversation_json)
+                db.session.add(conversation)
         else:
             # Create a new conversation
             conversation = cls()
