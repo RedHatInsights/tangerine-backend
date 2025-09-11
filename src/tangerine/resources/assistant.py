@@ -392,6 +392,7 @@ class AssistantChatApi(Resource):
         conversation_messages = [msg for msg in messages if msg.get("sender") in {"human", "ai"}]
 
         if not conversation_messages:
+            log.debug("AUDIT: No human/ai messages found after filtering, returning empty history")
             return []
 
         # Extract complete Q&A pairs (human → ai)
@@ -418,12 +419,14 @@ class AssistantChatApi(Resource):
 
             i += 1
 
-        # Take the last 10 pairs maximum
-        if len(pairs) > 10:
-            pairs = pairs[-10:]
+        # Take the last 10 pairs maximum (slice works even with fewer pairs)
+        original_pair_count = len(pairs)
+        pairs = pairs[-10:]
+
+        if original_pair_count > 10:
             log.info(
                 "AUDIT: Limited conversation history from %d to %d Q&A pairs for LLM context",
-                len(conversation_messages) // 2,
+                original_pair_count,
                 len(pairs),
             )
 
