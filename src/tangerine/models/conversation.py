@@ -37,6 +37,9 @@ class Conversation(db.Model):
     @classmethod
     def upsert(cls, conversation_json):
         user_id = conversation_json.get("user")
+        # Normalize "anonymous" to None early to prevent inconsistencies
+        if user_id == "anonymous":
+            user_id = None
         session_id = conversation_json.get("sessionId")
         assistant_name = conversation_json.get("assistantName")
 
