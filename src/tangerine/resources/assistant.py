@@ -357,6 +357,7 @@ class AssistantChatApi(Resource):
             validated_stored = self._validate_prev_msgs(stored_prev_msgs)
 
             # Apply rolling window to limit LLM context
+            # TODO: look up context size for selected model, count tokens to determine max history
             return self._limit_conversation_to_pairs(validated_stored)
 
         except Exception as e:
