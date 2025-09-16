@@ -528,6 +528,27 @@ curl -X POST http://localhost:8080/api/assistants/chat \
   }'
 ```
 
+For security compliance, you can prevent chunks from being stored in the database while still using them for LLM generation by setting `no_persist_chunks` to `true`. This is useful when providing sensitive or proprietary information:
+
+```
+curl -X POST http://localhost:8080/api/assistants/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "How do I deploy my app?",
+    "sessionId": "433e4567-8e9b-22d3-a456-626614174000",
+    "interactionId": "137e6543-2f1b-12d3-b456-526614174999",
+    "client": "curl",
+    "stream": false,
+    "chunks": [
+      "CONFIDENTIAL: Internal deployment process requires...",
+      "Sensitive configuration details for production..."
+    ],
+    "no_persist_chunks": true
+  }'
+```
+
+**Note:** When `no_persist_chunks` is set to `true`, the provided chunks will be used for LLM processing but will not be stored in the interaction logs. If no chunks are provided, this option is ignored. All other interaction data (query, response, metadata) continues to be logged normally.
+
 If you've extended Tangerine to support multiple models you can specify your model of choice at query time:
 
 ```
