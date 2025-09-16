@@ -480,6 +480,7 @@ class AssistantChatApi(Resource):
         previous_messages=None,
         assistant_name=None,
         current_message=None,
+        no_persist_chunks=False,
     ):
         source_doc_info = self._parse_search_results(search_results)
 
@@ -505,6 +506,7 @@ class AssistantChatApi(Resource):
                 interaction_id,
                 client,
                 user,
+                no_persist_chunks,
             )
 
             # Update conversation history with both user query and assistant response
@@ -534,6 +536,7 @@ class AssistantChatApi(Resource):
         previous_messages=None,
         assistant_name=None,
         current_message=None,
+        no_persist_chunks=False,
     ):
         source_doc_info = self._parse_search_results(search_results)
 
@@ -548,6 +551,7 @@ class AssistantChatApi(Resource):
             interaction_id,
             client,
             user,
+            no_persist_chunks,
         )
 
         # Update conversation history with both user query and assistant response
@@ -577,14 +581,22 @@ class AssistantChatApi(Resource):
         interaction_id,
         client,
         user,
+        no_persist_chunks=False,
     ):
         if self._interaction_storage_enabled() is False:
             return
+
+        # Conditionally exclude chunks from storage if requested
+        # Only applies when chunks were provided AND no_persist_chunks is True
+        chunks_to_store = source_doc_info
+        if no_persist_chunks and source_doc_info:
+            chunks_to_store = []
+
         try:
             store_interaction(
                 question=question,
                 llm_response=response_text,
-                source_doc_chunks=source_doc_info,
+                source_doc_chunks=chunks_to_store,
                 question_embedding=embedding,
                 session_uuid=session_uuid,
                 interaction_id=interaction_id,
@@ -743,6 +755,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
 
         embedding = embed_query(question)
         chunks = request.json.get("chunks", None)
+        no_persist_chunks = self._to_bool(request.json.get("no_persist_chunks", False))
         if chunks:
             chunks = self._convert_chunk_array_to_search_results(request.json.get("chunks"))
 
@@ -793,6 +806,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
                 previous_messages,
                 combined_assistant_name,
                 current_message,
+                no_persist_chunks,
             )
 
         return self._handle_standard_response(
@@ -808,6 +822,7 @@ class AssistantAdvancedChatApi(AssistantChatApi):
             previous_messages,
             combined_assistant_name,
             current_message,
+            no_persist_chunks,
         )
 
     def _get_assistants(self, assistant_names):
