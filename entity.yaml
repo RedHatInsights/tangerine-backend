@@ -5,9 +5,9 @@ metadata:
   namespace: ai
   title: Tangerine Backend
   description: A slim and light-weight RAG chat bot system
-  tags: [ai, genai, tool, mcp-server, python, nodejs]
+  tags: [ai, genai, python, rag]
   labels:
-    ai.redhat.com/category: tool
+    ai.redhat.com/category: genai
     ai.redhat.com/usecase: "Developer Productivity"
     ai.redhat.com/stack: "Python, Langchain"
     ai.redhat.com/org: "hcm-engineering-productivity"
