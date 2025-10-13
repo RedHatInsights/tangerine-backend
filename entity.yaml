@@ -17,6 +17,6 @@ metadata:
     ai.redhat.com/doc-url: "https://github.com/RedHatInsights/tangerine-backend/blob/main/README.md"
     ai.redhat.com/demo-url: "https://github.com/RedHatInsights/tangerine-backend/blob/main/docs/demo.gif"
 spec:
-  owner: group:default/redhat-ai
+  owner: group:ai/redhat-ai
   lifecycle: production
   type: tool
