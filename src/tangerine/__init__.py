@@ -5,7 +5,7 @@ import sys
 import time
 
 import click
-import langchain
+import langchain_classic as langchain
 from flask import Flask, current_app
 from flask.cli import with_appcontext
 from flask_cors import CORS

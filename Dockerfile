@@ -15,8 +15,8 @@ WORKDIR $APP_ROOT
 # install postgresql from centos if not building on RHEL host
 RUN ON_RHEL=$(microdnf repolist --enabled | grep rhel-9) ; \
     if [ -z "$ON_RHEL" ] ; then \
-        rpm -Uvh http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/centos-stream-repos-9.0-26.el9.noarch.rpm \
-                 http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/centos-gpg-keys-9.0-26.el9.noarch.rpm && \
+        rpm -Uvh http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/centos-stream-repos-9.0-35.el9.noarch.rpm \
+                 http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/centos-gpg-keys-9.0-35.el9.noarch.rpm && \
         sed -i 's/^\(enabled.*\)/\1\npriority=200/;' /etc/yum.repos.d/centos*.repo ; \
     fi
 
