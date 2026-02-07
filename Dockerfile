@@ -32,8 +32,6 @@ RUN python3 -m venv .venv && \
     python3 -m pip install --upgrade pip setuptools wheel pipenv && \
     pipenv install --system --deploy --verbose
 
-ENV PATH="$APP_ROOT/.venv/bin:$PATH"
-
 FROM registry.access.redhat.com/ubi10/ubi-minimal:latest
 
 ENV APP_ROOT=/opt/app-root/src
@@ -41,12 +39,14 @@ ENV LC_ALL=C.utf8
 ENV LANG=C.utf8
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONIOENCODING=UTF-8
-ENV PATH="$APP_ROOT/.venv/bin:$PATH"
 
 USER root
 
 RUN microdnf -y upgrade && \
-    microdnf install -y --setopt=install_weak_deps=0 --setopt=tsflags=nodocs python3 libpq && \
+    microdnf install -y --setopt=install_weak_deps=0 --setopt=tsflags=nodocs \
+        python3 \
+        python3-pip \
+        libpq && \
     microdnf clean all && \
     rm -rf /var/cache/dnf/*
 
@@ -56,7 +56,8 @@ COPY pyproject.toml .
 COPY src ./src
 COPY migrations ./migrations
 COPY .flaskenv .
-RUN pip install .
+RUN source .venv/bin/activate && python3 -m pip install .
+ENV PATH="$APP_ROOT/.venv/bin:$PATH"
 
 RUN mkdir /nltk_data && chown -R 1001:0 /nltk_data && chmod -R g=u /nltk_data
 ENV NLTK_DATA_DIR=/nltk_data
