@@ -27,6 +27,8 @@ spec:
     value: 5d
   - name: dockerfile
     value: Dockerfile
+  - name: build-args-file
+    value: ci-build-args.txt
   pipelineSpec:
     description: |
       This pipeline is ideal for building container images from a Containerfile while reducing network traffic.
