@@ -1,1 +1,1 @@
-BASE_IMAGE=registry.redhat.io/rhel9/postgresql-16:9.7-1770309211
+BASE_IMAGE=registry.redhat.io/rhel10/postgresql-16:latest

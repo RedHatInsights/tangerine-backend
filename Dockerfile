@@ -1,6 +1,6 @@
 # Use ARG to allow switching between development and production base images
 # Default: quay.io/sclorg/postgresql-16-c10s:latest (for local development)
-# Production: registry.redhat.io/rhel9/postgresql-16 (see ci-build-args.txt)
+# Production: registry.redhat.io/rhel10/postgresql-16:latest (see ci-build-args.txt)
 ARG BASE_IMAGE=quay.io/sclorg/postgresql-16-c10s:latest
 FROM ${BASE_IMAGE} AS builder
 
@@ -45,7 +45,6 @@ USER root
 RUN microdnf -y upgrade && \
     microdnf install -y --setopt=install_weak_deps=0 --setopt=tsflags=nodocs \
         python3 \
-        python3-pip \
         libpq && \
     microdnf clean all && \
     rm -rf /var/cache/dnf/*
