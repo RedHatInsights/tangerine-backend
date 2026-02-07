@@ -1,0 +1,1 @@
+BASE_IMAGE=registry.redhat.io/rhel10/postgresql-16:latest
