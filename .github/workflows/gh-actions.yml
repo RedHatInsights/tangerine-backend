@@ -8,38 +8,49 @@ on:
     branches:
       - main
 
+permissions: {}
+
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        show-progress: false
 
     - name: Setup python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
       with:
-        python-version: '3.12'
+        python-version-file: 'Pipfile' # Read python version from a file Pipfile
+        cache: 'pipenv'
 
     - name: Run pre-commit
-      uses: pre-commit/action@v3.0.1
+      uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
 
   unit-tests:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        show-progress: false
 
     - name: Setup python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
       with:
-        python-version: '3.12'
+        python-version-file: 'Pipfile' # Read python version from a file Pipfile
         cache: 'pipenv'
 
     - name: Install pipenv
       run: curl https://raw.githubusercontent.com/pypa/pipenv/master/get-pipenv.py | python
 
     - name: Install dependencies and dev packages
-      run: pipenv install --system --deploy --dev
+      run: pipenv sync --dev
 
     - name: Run pytest
       run: pipenv run pytest -v -s
