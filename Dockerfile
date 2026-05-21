@@ -1,65 +1,44 @@
-# Use ARG to allow switching between development and production base images
-# Default: quay.io/sclorg/postgresql-16-c10s:latest (for local development)
-# Production: registry.redhat.io/rhel10/postgresql-16:latest (see ci-build-args.txt)
-ARG BASE_IMAGE=quay.io/sclorg/postgresql-16-c10s:latest
-FROM ${BASE_IMAGE} AS builder
-
-# builder runs 'pipenv install' using postgres image to properly compile psycopg2
-
-ENV PIP_NO_CACHE_DIR=1
-ENV APP_ROOT=/opt/app-root/src
+FROM registry.access.redhat.com/ubi9/python-312:9.8-1777569983 AS builder
 
 USER root
 
-WORKDIR $APP_ROOT
-
-RUN dnf -y upgrade && \
-    dnf -y install --setopt=install_weak_deps=0 --setopt=tsflags=nodocs \
-        gcc \
-        make \
-        python3-devel \
-        python3-pip \
-        which \
-        libpq-devel && \
-    dnf clean all && \
-    rm -rf /var/cache/dnf/*
+ENV PIPENV_VERBOSITY=-1
 
 COPY Pipfile .
 COPY Pipfile.lock .
+COPY pyproject.toml .
 
-RUN python3 -m venv .venv && \
-    source .venv/bin/activate && \
-    python3 -m pip install --upgrade pip setuptools wheel pipenv && \
-    pipenv install --system --deploy --verbose
+RUN pip install pipenv
+RUN python3 -m venv .venv
+RUN source .venv/bin/activate
+RUN pipenv sync
 
-FROM registry.access.redhat.com/ubi10/ubi-minimal:latest
+COPY migrations .
+COPY src .
+COPY .flaskenv .
+
+FROM registry.access.redhat.com/ubi10/ubi-minimal:10.2-1777462752
 
 ENV APP_ROOT=/opt/app-root/src
 ENV LC_ALL=C.utf8
 ENV LANG=C.utf8
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONIOENCODING=UTF-8
+ENV NLTK_DATA_DIR=/nltk_data
+ENV PATH="/opt/app-root/src/.venv/bin:$PATH"
 
 USER root
 
-RUN microdnf -y upgrade && \
-    microdnf install -y --setopt=install_weak_deps=0 --setopt=tsflags=nodocs \
-        python3 \
-        libpq && \
-    microdnf clean all && \
-    rm -rf /var/cache/dnf/*
+RUN microdnf install -y --setopt=install_weak_deps=0 --setopt=tsflags=nodocs python3 && \
+  microdnf clean all && \
+  rm -rf /var/cache/dnf/* && \
+  mkdir /nltk_data && \
+  chown -R 1001:0 /nltk_data && \
+  chmod -R g=u /nltk_data
 
 WORKDIR $APP_ROOT
-COPY --from=builder $APP_ROOT/.venv .venv
-COPY pyproject.toml .
-COPY src ./src
-COPY migrations ./migrations
-COPY .flaskenv .
-RUN source .venv/bin/activate && python3 -m pip install .
-ENV PATH="$APP_ROOT/.venv/bin:$PATH"
 
-RUN mkdir /nltk_data && chown -R 1001:0 /nltk_data && chmod -R g=u /nltk_data
-ENV NLTK_DATA_DIR=/nltk_data
+COPY --from=builder $APP_ROOT .
 
 USER 1001
 
