@@ -3,7 +3,8 @@
   "extends": [
     ":disableMajorUpdates",
     "github>konflux-ci/mintmaker-presets:cve-automerge-all",
-    "github>konflux-ci/mintmaker-presets:group-python-requirements"
+    "github>konflux-ci/mintmaker-presets:group-python-requirements",
+    "helpers:pinGitHubActionDigestsToSemver"
   ],
   "dockerfile": {
     "managerFilePatterns": [
