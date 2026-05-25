@@ -17,7 +17,7 @@ COPY migrations .
 COPY src .
 COPY .flaskenv .
 
-FROM registry.access.redhat.com/ubi10/ubi-minimal:10.2-1777462752
+FROM registry.access.redhat.com/ubi10/ubi-minimal:10.2-1779722607
 
 ENV APP_ROOT=/opt/app-root/src
 ENV LC_ALL=C.utf8
