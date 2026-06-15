@@ -1,390 +1,408 @@
+# tangerine-backend
 
-# 🍊 tangerine (backend) <!-- omit from toc -->
+A slim, lightweight RAG (Retrieval Augmented Generation) system for creating and managing chatbot
+assistants. Each assistant answers questions from a curated set of documents known as a knowledge
+base.
 
-tangerine is a slim and light-weight RAG (Retieval Augmented Generated) system used to create and manage chat bot assistants.
+![Demo video][demo-gif]
 
-Each assistant is intended to answer questions related to a set of documents known as a knowledge base (KB).
+Maintained by [Red Hat Insights][rhi]. Licensed under [Apache 2.0][license].
 
-![Demo video](docs/demo.gif)
+## Table of Contents
 
 - [Overview](#overview)
-  - [Architecture](#architecture)
-    - [Data Preparation](#data-preparation)
-    - [Retrieval Augmented Generation (RAG)](#retrieval-augmented-generation-rag)
-    - [Document Processing](#document-processing)
-    - [Document Processing Logic](#document-processing-logic)
-  - [Purpose of Backend Service](#purpose-of-backend-service)
-  - [Related Frontends](#related-frontends)
+  - [How It Works](#how-it-works)
+  - [Document Processing](#document-processing)
+  - [Related Projects](#related-projects)
   - [Use of Hosted AI Services](#use-of-hosted-ai-services)
-- [Local Envionment Setup](#local-envionment-setup)
+- [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Local Environment Setup](#local-environment-setup)
   - [With Docker Compose](#with-docker-compose)
-    - [Using huggingface text-embeddings-inference server to host embedding model (deprecated)](#using-huggingface-text-embeddings-inference-server-to-host-embedding-model-deprecated)
   - [Without Docker Compose](#without-docker-compose)
-- [Developer Guide](#developer-guide)
-  - [Install development packages](#install-development-packages)
-  - [Using pre-commit](#using-pre-commit)
+- [Development](#development)
+  - [Installing Development Packages](#installing-development-packages)
+  - [Linting and Formatting](#linting-and-formatting)
+  - [Using Pre-commit](#using-pre-commit)
+  - [Running Tests](#running-tests)
   - [Database Migrations](#database-migrations)
   - [Debugging in VSCode](#debugging-in-vscode)
-- [Mac Development Tips](#mac-development-tips)
+  - [Mac Development Tips](#mac-development-tips)
 - [Synchronizing Documents from S3](#synchronizing-documents-from-s3)
-  - [Continuous synchronization](#continuous-synchronization)
+  - [Continuous Synchronization](#continuous-synchronization)
 - [Deploying to OpenShift](#deploying-to-openshift)
-- [Run Tangerine Frontend Locally](#run-tangerine-frontend-locally)
-- [Available API Paths](#available-api-paths)
-- [Advanced Chat API](#advanced-chat-api)
+- [Running the Frontend](#running-the-frontend)
+- [API Reference](#api-reference)
+  - [Available Endpoints](#available-endpoints)
+  - [Advanced Chat API](#advanced-chat-api)
+  - [Prompt Template Variables](#prompt-template-variables)
+  - [Conversation History](#conversation-history)
 - [Multiple Model Support](#multiple-model-support)
+- [License](#license)
 
 ## Overview
 
-tangerine implements a basic RAG architecture which relies on 4 key components:
+tangerine implements a basic RAG architecture that relies on four key components:
 
-- A vector database
-  - (PostgresQL with the pgvector extension)
-- A large language model (LLM)
-  - This can be hosted by any OpenAI-compatible API service. Locally, you can use ollama
-- An embedding model
-  - This can be hosted on any OpenAI-compatible API service. Locally, you can use ollama
-- (optional) An S3 bucket that you wish to sync documentation from.
+- **Vector database** -- PostgreSQL with the [pgvector][pgvector] extension
+- **Large language model (LLM)** -- any [OpenAI-compatible API][openai-api] service; locally, you
+  can use [Ollama][ollama]
+- **Embedding model** -- any OpenAI-compatible API service; locally, you can use Ollama
+- **Document source** -- files uploaded via the API, or (optionally) synced from an S3 bucket
 
-This project is currently used by Red Hat's Hybrid Cloud Management Engineering Productivity Team.
-It was born out of a hack-a-thon and is still a work in progress. You will find some areas of code well developed while others are in need of attention and some tweaks to make it production-ready are needed (with that said, the project *is* currently in good enough shape to provide a working chat bot system).
+This project is maintained by Red Hat's Hybrid Cloud Management Engineering Productivity Team. It
+was born out of a hackathon and is still a work in progress. Some areas of the code are well
+developed while others need attention to become fully production-ready. That said, tangerine is
+currently in good enough shape to provide a working chatbot system.
 
-### Architecture
+### How It Works
 
-![diagram](docs/diagram.png)
+**Data preparation:**
 
-#### Data Preparation
+1. Documents are uploaded to the backend service (or synced from an S3 bucket).
+2. Documents are processed, converted, and cleaned up (see
+   [Document Processing](#document-processing) below).
+3. Documents are split into text chunks of approximately 2000 characters.
+4. Embeddings are created for each chunk and inserted into the vector database.
 
-- **A:** Documents are uploaded to the backend service
-  - (alternatively, they can be sync'd from an AWS S3 bucket)
-- **B:** The documents are processed/converted/cleaned up, see [Document Processing](#document-processing) below
-- **C:** The documents are split into separate text chunks
-- **D:** Embeddings are created for each text chunk and inserted into the vector database
+**Retrieval Augmented Generation:**
 
-#### Retrieval Augmented Generation (RAG)
+1. A user asks a question through the chat interface.
+2. Embeddings are created for the query using the embedding model.
+3. A similarity search and a max marginal relevance search are performed against the vector
+   database to find the most relevant document chunks (scoped to the assistant's knowledge bases).
+4. The LLM is prompted to answer the question using only the retrieved context.
+5. The response is streamed back to the user along with citation metadata.
 
-- **1:** A user presents a question to an assistant in the chat interface
-- **2:** Embeddings are created for the query using the embedding model
-- **3:** A similarity search and a max marginal relevance search are performed against the vector DB to find the top N most relevant document chunks
-  - The document set searched is scoped only to that specific assistant
-- **4:** The LLM is prompted to answer the question using only the context found within the relevant document chunks
-- **5:** The LLM response is streamed by the backend service to the user. Metadata containing the document chunks are also returned to be used as citations.
+### Document Processing
 
-#### Document Processing
+Document processing is arguably the most important part of a good RAG solution. The quality of data
+stored in each text chunk is key to yielding accurate search results for the LLM.
 
-Document processing is arguably the most important part of a good RAG solution. The quality of the data stored within each text chunk is key to yielding accurate search results that will be passed to the LLM to "help it" answer a user's question.
+The documentation set has initially focused on pages compiled with [MkDocs][mkdocs] or
+[Antora][antora]. Supported formats:
 
-Our documentation set has initially focused on pages that have been compiled using `mkdocs` or `antora`. Therefore, our processing logic has been highly focused on improving the data from those sources.
+| Format | Status |
+| ------ | ------ |
+| `.md`  | Well supported |
+| `.html` (MkDocs / Antora) | Well supported |
+| `.pdf`, `.txt`, `.rst` | Supported but not fully optimized |
+| `.adoc` | Work in progress (via [Docling][docling]) |
 
-- Currently the well supported document formats include .md and .html pages compiled with 'mkdocs' or 'antora'.
-- Support for .pdf, .txt, and .rst exists but the parsing is not yet well-optimized. Results may vary.
-- Support for .adoc is a work-in-progress and relies on the ability of [docling](https://ds4sd.github.io/docling/) to parse the content
+**Processing logic for Markdown:**
 
-#### Document Processing Logic
+1. Replace very large code blocks with a placeholder directing the reader to the original
+   documentation (large code blocks tend to fill chunks with unhelpful content).
+2. Convert tables into plain text with `header: value` rows to preserve context across chunks.
+3. Rewrite relative links as absolute URLs so citation snippets remain navigable.
+4. Remove extra whitespace, non-printable characters, and other formatting noise.
 
-- For markdown content, we:
-  1. Replace very large code blocks with text that says "This is a large code block, go read the documentation for more information"
+**Processing logic for HTML:**
 
-     - Large code blocks have a tedency to fill text chunks with "useless information" that do not help with answering a user's question
+1. Detect whether the page was created with MkDocs or Antora. If so, extract only the content body
+   (strip header, footer, navigation, etc.).
+2. Convert the page to Markdown with `html2text`, then process it as described above.
 
-  2. Convert tables into plain text with with each row having "header: value" statements
+**Chunking strategy:**
 
-     - This is intended to preserve the context of a large table across text chunks
+Documents are split into chunks of about 2000 characters with no overlap. Very small chunks are
+"rolled" into the next chunk so that each chunk carries as much useful content as possible.
 
-  3. Fix relative links by replacing them with absolute URLs
+### Related Projects
 
-     - This allows links within documentation to work when users review citation snippets
-
-  4. Make some formatting optimizations such as removing extra whitespace, removing non-printable characters, etc.
-
-- If we detect a .html page, we:
-
-  1. Check if it was created with mkdocs or antora, and if so extract only the 'content' from the page body (remove header/footer/nav/etc.)
-
-  2. Convert the page into markdown using `html2text`, then process it as a markdown document as described above
-
-- When creating text chunks, we split documents into chunks of about 2000 characters with no overlap.
-  - Sometimes the text splitter will create a very small chunk
-    - In this case, we will "roll" the text from the small chunk into the next one
-      - The goal is to fit as much "quality content" into a chunk as possible
-
-### Purpose of Backend Service
-
-The **tangerine-backend** service manages:
-
-- Create/update/delete of chat bot "assistants" via REST API.
-- Create/update/delete of "knowledgebases" that store documents via REST API.
-- Associate assistants with one or more knowledgebases.
-- Document ingestion
-  - Upload via the API to knowledgebases, or sync via an s3 bucket
-  - Text cleanup/conversion
-  - Chunking and embedding into the vector database.
-- Querying the vector database when a question is asked to an assistant.
-- Interfacing with the LLM to prompt it and stream responses
-
-### Related Frontends
-
-The accompanying frontend service is [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend) and a related plugin for [Red Hat Developer Hub](https://developers.redhat.com/rhdh/overview) can be found [here](https://github.com/RedHatInsights/backstage-plugin-ai-search-frontend)
+- [tangerine-frontend][tangerine-frontend] -- the accompanying web UI
+- [backstage-plugin-ai-search-frontend][backstage-plugin] -- a related plugin for
+  [Red Hat Developer Hub][rhdh]
 
 ### Use of Hosted AI Services
 
-tangerine can be configured to use any OpenAI-compliant API service that is hosting a large language model or embedding model. In addition, the model you wish to use and the prompts to instruct them are fully customizable.
-
-For example, to utilize a third party model hosting service, change the embedding model used, and adjust instruction prefix sent to the embedding model, the following environment variables could be set:
+tangerine can be configured to use any OpenAI-compatible API service hosting an LLM or embedding
+model. The model names and instruction prompts are fully customizable via environment variables:
 
 ```sh
-  LLM_BASE_URL=https://3rd-party-ai-service:443/v1
-  LLM_MODEL_NAME=mistral-7b-instruct
-  LLM_API_KEY=your-secret-key
-  DEFAULT_SYSTEM_PROMPT="Your LLM system prompt here"
-  EMBED_BASE_URL=https://3rd-party-ai-service:443/v1
-  EMBED_MODEL_NAME=snowflake-arctic-embed-m-v1.5
-  EMBED_API_KEY=your-secret-key
-  EMBED_QUERY_PREFIX="Represent this sentence for searching relevant passages"
-  EMBED_DOCUMENT_PREFIX=""
+LLM_BASE_URL=https://3rd-party-ai-service:443/v1
+LLM_MODEL_NAME=mistral-7b-instruct
+LLM_API_KEY=your-secret-key
+DEFAULT_SYSTEM_PROMPT="Your LLM system prompt here"
+EMBED_BASE_URL=https://3rd-party-ai-service:443/v1
+EMBED_MODEL_NAME=snowflake-arctic-embed-m-v1.5
+EMBED_API_KEY=your-secret-key
+EMBED_QUERY_PREFIX="Represent this sentence for searching relevant passages"
+EMBED_DOCUMENT_PREFIX=""
 ```
 
-## Local Envionment Setup
+## Architecture
 
-A development/test environment can be set up with or without docker compose. In both cases, Ollama may be able to make use of your NVIDIA or AMD GPU (see more information about GPU support [here](https://github.com/ollama/ollama/blob/main/docs/gpu.md). On a Mac, Ollama must be run as a standalone application outside of Docker containers since Docker Desktop does not support GPUs.
+The backend manages assistants, knowledge bases, document ingestion, vector search, and LLM
+interaction through a Flask REST API backed by PostgreSQL with pgvector.
+
+See [Architecture][architecture] for internal design details.
+
+## Prerequisites
+
+- Python 3.12
+- [pipenv][pipenv]
+- [Docker][docker] (or Podman for standalone database setup)
+- [Ollama][ollama] (for local LLM and embedding model hosting)
+- (on Mac) [Homebrew][homebrew]
+
+## Local Environment Setup
+
+A development environment can be set up with or without Docker Compose. In both cases, Ollama can
+make use of your NVIDIA or AMD GPU (see the [Ollama GPU guide][ollama-gpu] for details). On macOS,
+Ollama must run as a standalone application outside Docker since Docker Desktop does not support GPU
+passthrough.
 
 ### With Docker Compose
 
-The docker compose file offers an easy way to spin up all components. [ollama](https://ollama.com) is used to host the LLM and embedding model. For utilization of your GPU, refer to the comments in the compose file to see which configurations to uncomment on the 'ollama' container. Postgres persists the data, and pgadmin allows you to query the database.
+The Compose file spins up all components. Ollama hosts the LLM and embedding model, PostgreSQL
+persists data, and pgAdmin lets you query the database.
 
-1. First, install Docker: [Follow the official guide for your OS](https://docs.docker.com/engine/install/)
+1. Install Docker by following the [official guide][docker-install].
 
-     - NOTE: Currently, the compose file does not work with `podman`.
+   > **Note:** The Compose file does not currently work with Podman.
 
-2. On Linux, be sure to run through the [postinstall steps](https://docs.docker.com/engine/install/linux-postinstall/)
+2. On Linux, complete the [post-install steps][docker-postinstall].
 
-3. Create the directory which will house the local environment data:
-
-    ```text
-    mkdir data
-    ```
-
-4. Invoke docker compose (postgres data will persist in `data/postgres`):
-
-    ```text
-    docker compose up --build
-    ```
-
-5. Pull the mistral LLM and nomic embedding model (data will persist in `data/ollama`):
-
-    ```text
-    docker exec tangerine-ollama ollama pull mistral
-    docker exec tangerine-ollama ollama pull nomic-embed-text
-    ```
-
-6. Access the API on port `8000`
+3. Create a data directory for local persistence:
 
    ```sh
-   curl -XGET 127.0.0.1:8000/api/assistants
-   {
-       "data": []
-   }
+   mkdir data
    ```
 
-7. (optional) Follow these steps to start the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend#with-docker-compose)
+4. Start the stack (PostgreSQL data persists in `data/postgres`):
 
-Note: You can access pgadmin at localhost:5050.
+   ```sh
+   docker compose up --build
+   ```
 
-#### Using huggingface text-embeddings-inference server to host embedding model (deprecated)
+5. Pull the default models (data persists in `data/ollama`):
 
-ollama previously did not have an OpenAI compatible API path for interacting with an embedding models (i.e. `/v1/embeddings`). We previously used huggingface's [text-embeddings-inference](https://github.com/huggingface/text-embeddings-inference) server to host the embedding model. If you wish
-to use this to test different embedding models that are not supported by ollama, follow these steps:
+   ```sh
+   docker exec tangerine-ollama ollama pull mistral
+   docker exec tangerine-ollama ollama pull nomic-embed-text
+   ```
 
-1. Make sure [git-lfs](https://git-lfs.com/) is installed:
+6. Verify the API is running on port 8000:
 
-    - Fedora: `sudo dnf install git-lfs`
-    - MacOS: `brew install git-lfs`
+   ```sh
+   curl -s http://127.0.0.1:8000/api/assistants
+   ```
 
-    Then, activate it globally with:
+7. (Optional) Start the [frontend with Docker Compose][frontend-docker].
 
-    ```text
-    git lfs install
-    ```
+pgAdmin is available at `http://localhost:5050`.
 
-2. Create a directory in the 'data' folder to house the embedding model and download the model, for example to use `nomic-embed-text-v1.5`:
+#### Using HuggingFace text-embeddings-inference (deprecated)
 
-    ```text
-    mkdir data/embeddings
-    git clone https://huggingface.co/nomic-ai/nomic-embed-text-v1.5 \
-      data/embeddings/nomic-embed-text
-    ```
+Ollama previously lacked an OpenAI-compatible `/v1/embeddings` endpoint. If you need to test
+embedding models not supported by Ollama, you can use the HuggingFace
+[text-embeddings-inference][tei] server instead:
 
-3. Search for `uncomment to use huggingface text-embeddings-inference` in [./docker-compose.yml](docker-compose.yml) and uncomment all relevant lines
+1. Install [Git LFS][git-lfs]:
+
+   - Fedora: `sudo dnf install git-lfs`
+   - macOS: `brew install git-lfs`
+
+   Then activate it:
+
+   ```sh
+   git lfs install
+   ```
+
+2. Download the embedding model:
+
+   ```sh
+   mkdir data/embeddings
+   git clone https://huggingface.co/nomic-ai/nomic-embed-text-v1.5 \
+     data/embeddings/nomic-embed-text
+   ```
+
+3. Search for `uncomment to use huggingface text-embeddings-inference` in
+   [docker-compose.yml][compose-file] and uncomment the relevant lines.
 
 ### Without Docker Compose
 
-1. You'll need to have the following installed and working before proceeding:
+1. Ensure the following are installed and working:
 
    - `pipenv`
    - `pyenv`
    - `docker` or `podman`
    - (on Mac) `brew`
 
-1. Install ollama
+2. Install Ollama from the [download page][ollama-download] (or via Homebrew on Mac):
 
-    - visit the [ollama download page](https://ollama.com/download)
+   ```sh
+   brew install ollama
+   ```
 
-    - (on Mac) you can use brew:
+3. Start Ollama:
 
-        ```text
-        brew install ollama
-        ```
+   ```sh
+   ollama serve
+   ```
 
-1. Start ollama
+4. Pull the language and embedding models:
 
-    ```text
-    ollama serve
-    ```
+   ```sh
+   ollama pull mistral
+   ollama pull nomic-embed-text
+   ```
 
-1. Pull the language and embedding models
+5. (on Mac) Install the PostgreSQL C library:
 
-    ```text
-    ollama pull mistral
-    ollama pull nomic-embed-text
-    ```
+   ```sh
+   brew install libpq
+   ```
 
-1. (on Mac) install the C API for Postgres (libpq)
+   For Apple Silicon, export these environment variables to avoid C library errors:
 
-    ```sh
-    brew install libpq
-    ```
+   ```sh
+   export PATH="/opt/homebrew/opt/libpq/bin:$PATH"
+   export LDFLAGS="-L/opt/homebrew/opt/libpq/lib"
+   export CPPFLAGS="-I/opt/homebrew/opt/libpq/include"
+   ```
 
-    For Apple Silicon Macs, you'll need to export the following environment variables to avoid C library errors:
+6. Create the data directory:
 
-    ```text
-    export PATH="/opt/homebrew/opt/libpq/bin:$PATH"
-    export LDFLAGS="-L/opt/homebrew/opt/libpq/lib"
-    export CPPFLAGS="-I/opt/homebrew/opt/libpq/include"
-    ```
+   ```sh
+   mkdir data
+   ```
 
-1. Create the directory to store postgresql data:
+7. Start the vector database:
 
-    ```text
-    mkdir data
-    ```
+   ```sh
+   docker run -d \
+       -e POSTGRES_PASSWORD="citrus" \
+       -e POSTGRES_USER="citrus" \
+       -e POSTGRES_DB="citrus" \
+       -e POSTGRES_HOST_AUTH_METHOD=trust \
+       -v data/postgres:/var/lib/postgresql/data \
+       -p 5432:5432 \
+       pgvector/pgvector:pg16
+   ```
 
-1. Start the vector database
-
-    ```text
-    docker run -d \
-        -e POSTGRES_PASSWORD="citrus" \
-        -e POSTGRES_USER="citrus" \
-        -e POSTGRES_DB="citrus" \
-        -e POSTGRES_HOST_AUTH_METHOD=trust \
-        -v data/postgres:/var/lib/postgresql/data \
-        -p 5432:5432 \
-        pgvector/pgvector:pg16
-    ```
-
-1. Prepare your python virtual environment:
+8. Set up the Python virtual environment:
 
    ```sh
    pipenv install --dev
    pipenv shell
    ```
 
-1. Start Tangerine Backend
+9. Start the backend:
+
+   ```sh
+   flask db upgrade && flask run
+   ```
+
+10. Verify the API is running on port 8000:
 
     ```sh
-    flask db upgrade && flask run
+    curl -s http://127.0.0.1:8000/api/assistants
     ```
 
-1. Access the API on port `8000`
+11. (Optional) Start the [frontend without Docker Compose][frontend-standalone].
 
-    ```sh
-    curl -XGET 127.0.0.1:8000/api/assistants
-    {
-       "data": []
-    }
-    ```
+## Development
 
-1. (optional) Follow these steps to start the [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend#without-docker-compose)
+### Installing Development Packages
 
-## Developer Guide
-
-### Install development packages
-
-If desiring to make contributions, be sure to install the development packages:
+Install development dependencies before contributing:
 
 ```sh
 pipenv install --dev
 ```
 
-### Using pre-commit
+### Linting and Formatting
 
-This project uses pre-commit to handle formatting and linting.
+This project uses [ruff][ruff] for linting, formatting, and import sorting. Configuration lives in
+`pyproject.toml`:
 
-- Before pushing a commit, you can run:
+- Line length: 100 characters
+- Target: Python 3.12
 
-  ```sh
-  pre-commit run --all
-  ```
+Ruff is the authoritative linter and formatter for this project and is enforced through pre-commit
+hooks and CI.
 
-  and if it fails, check for changes the tool has made to your files.
+### Using Pre-commit
 
-- Alternatively, you can add pre-commit as a git hook with:
+This project uses [pre-commit][pre-commit] to run formatting and linting checks automatically.
 
-  ```sh
-  pre-commit install
-  ```
+Run all checks manually:
 
-  and pre-commit will automatically be invoked every time you create a commit.
+```sh
+pre-commit run --all
+```
+
+Or install as a Git hook so checks run on every commit:
+
+```sh
+pre-commit install
+```
+
+### Running Tests
+
+Tests live in the `tests/` directory and are run with [pytest][pytest]:
+
+```sh
+pipenv run pytest -v -s
+```
+
+This is the same command used in CI.
 
 ### Database Migrations
-Tangerine uses [Flask Migrate](https://flask-migrate.readthedocs.io/en/latest/) to manage database migrations. After making changes to any of the models, update migrations with::
 
-```bash
+tangerine uses [Flask-Migrate][flask-migrate] to manage database schema changes. After modifying any
+SQLAlchemy model, generate a new migration:
+
+```sh
 flask db migrate -m "Your migration message"
 ```
 
-Then, to apply migrations to your local DB:
+To apply migrations locally:
 
-  1. Start the database. If using docker-compose, ensure that you start the DB but do not start the backend itself. Run:
+1. Start the database (if using Docker Compose, start only PostgreSQL):
 
-      ```bash
-      docker-compose start postgres
-      ```
+   ```sh
+   docker compose start postgres
+   ```
 
-  1. Run the migrations:
+2. Run migrations:
 
-      ```bash
-      flask db upgrade
-      ```
+   ```sh
+   flask db upgrade
+   ```
 
-  1. After migrations are applied, you can invoke `docker compose up --build` as usual.
+3. After migrations are applied, start the full stack with `docker compose up --build` as usual.
 
-When deploying to OpenShift, the backend deploy template has an init container that runs `flask db upgrade` on start before the backend pod comes up.
+When deploying to OpenShift, the backend deploy template runs `flask db upgrade` in an init
+container before the application pod starts.
 
 ### Debugging in VSCode
 
-Run postgres and ollama either locally or in containers. Don't run the backend container. Click on "Run & Debug" in the left menu and then run the "Debug Tangerine Backend" debug target. You can now set breakpoints and inspect runtime state.
+Run PostgreSQL and Ollama (locally or in containers) but do not start the backend container. In
+VSCode, open **Run & Debug** and launch the "Debug Tangerine Backend" target. You can set
+breakpoints and inspect runtime state. A second debug target is available for unit tests.
 
-There's a second debug target for the unit tests if you want to run those in a debugger.
+### Mac Development Tips
 
-## Mac Development Tips
+Ollama running inside Docker on Apple Silicon cannot use hardware acceleration, making LLM responses
+very slow. Running Ollama natively on macOS does use acceleration and is significantly faster.
 
-Ollama running in Docker on Apple Silicon cannot make use of hardware acceleration. That means the LLM will be very slow to respond running in Docker, even on a very capable machine.
+Recommended Mac development setup:
 
-However, running the ollama outside of Docker does make use of acceleration and is quite fast. If you are working on a Mac the best setup is to run the model through ollama locally and continue to run the other components (like the database) in Docker. The way the compose file is set up, the networking should allow this to work without issue.
+- Run tangerine-backend in the VSCode debugger
+- Run Ollama directly on the host
+- Run PostgreSQL and pgAdmin in Docker
 
-Comment out `ollama` from the compose file, or stop the ollama container. Invoke `ollama serve` on your shell. For an optimal developer experience:
-
-- run tangerine-backend in a debugger in VSCode
-- run ollama directly on your host
-- run postgres/pgadmin in Docker.
+Comment out or stop the `ollama` container in the Compose file and run `ollama serve` in your shell
+instead.
 
 ## Synchronizing Documents from S3
 
-You can configure a set of assistants and continually sync their knowledge base via documents stored in an S3 bucket.
+You can configure assistants to sync their knowledge base from an S3 bucket.
 
-To do so you'll need to do the following:
-
-1. Export environment variables that contain your S3 bucket auth info:
+1. Export your S3 credentials:
 
    ```sh
    export AWS_ACCESS_KEY_ID="MYKEYID"
@@ -394,7 +412,7 @@ To do so you'll need to do the following:
    export BUCKET="mybucket"
    ```
 
-   If using docker compose, store these environment variables in `.env`:
+   If using Docker Compose, store these in a `.env` file:
 
    ```sh
    echo 'AWS_ACCESS_KEY_ID=MYKEYID' >> .env
@@ -404,85 +422,96 @@ To do so you'll need to do the following:
    echo 'BUCKET=mybucket' >> .env
    ```
 
-1. Create an `s3.yaml` file that describes your assistants and the documents they should ingest. See [s3-example.yaml](s3-example.yaml) for an example.
+2. Create an `s3.yaml` file describing your assistants and their documents. See
+   [s3-example.yaml][s3-example] for reference.
 
-   If using docker compose, copy this config into your container:
+   If using Docker Compose, copy the config into the container:
 
-   ```text
+   ```sh
    docker cp s3.yaml tangerine-backend:/opt/app-root/src/s3.yaml
    ```
 
-1. Run the S3 sync job:
+3. Run the sync job:
 
-    - With docker compose:
+   With Docker Compose:
 
-    ```text
-    docker exec -ti tangerine-backend flask s3sync
-    ```
+   ```sh
+   docker exec -ti tangerine-backend flask s3sync
+   ```
 
-    - Without:
+   Without Docker Compose:
 
-    ```sh
-    flask s3sync
-    ```
+   ```sh
+   flask s3sync
+   ```
 
-The sync creates assistants and ingests the configured documents for each assistant. After initial creation, when the task is run it checks the S3 bucket for updates and will only re-ingest files into the vector DB when it detects file changes.
+The sync creates assistants and ingests the configured documents. On subsequent runs it checks the
+S3 bucket for updates and only re-ingests files whose content has changed.
 
-The OpenShift templates contain a CronJob configuration that is used to run this document sync repeatedly.
+### Continuous Synchronization
 
-### Continuous synchronization
+The S3 sync can run on a schedule for continuous updates. The sync logic works as follows:
 
-The s3 sync can be configured on a schedule to continually update your document knowledge bases. The sync logic works like this:
+1. When documents are ingested, the S3 ETag is stored as metadata on the document chunks.
+2. On each sync run, bucket objects are checked for ETag changes.
+3. If an object has a new ETag, its chunks are replaced using an active/standby strategy:
+   1. Existing chunks are marked `active: true` (used for RAG lookups).
+   2. New chunks are inserted with `active: false`.
+   3. Once all new chunks are ready, metadata is flipped so new chunks become `active: true` and
+      old chunks become `active: false`.
+   4. Chunks with `active: false` are removed from the vector database.
 
-1. When documents are ingested, the s3 ETag is stored as metadata on the document chynks.
-2. Whenever s3 sync runs, the bucket objects are checked for ETag changes.
-3. If an object in s3 gets a new Etag, its document chunks are replaced in the vector DB.
-4. The replacement takes an "active/standby" approach whereby:
-   1. the document chunk initially has 'active: true' set on it (meaning it is used for RAG lookups)
-   2. the newly inserted chunks are loaded with 'active: false'.
-   3. once the entire document set has been ingested and is ready to use, the metadata is flipped so that the new chunks have 'active: true', and the old chunks have 'active: false'
-   4. finally, chunks with 'active: false' are removed from the vector DB
+The [OpenShift templates][openshift-templates] include a CronJob configuration for running the sync
+on a schedule.
 
 ## Deploying to OpenShift
 
-This repository provides [OpenShift templates](openshift/) for all infrastructure components (except for the LLM hosting server). You may not need the templates for postgres or text-embeddings-inference server if you intend to provide those via other infrastructure or 3rd party services.
+This repository provides [OpenShift templates][openshift-templates] for all infrastructure
+components (except the LLM hosting server). You may not need the PostgreSQL or
+text-embeddings-inference templates if you provide those services through other infrastructure.
 
-## Run Tangerine Frontend Locally
+## Running the Frontend
 
-The API can be used to create/manage/update assistants, upload documents, and to chat with each assistant. However, the frontend provides a simpler interface to manage the service with. To run the UI in a development environment, see [tangerine-frontend](https://github.com/RedHatInsights/tangerine-frontend)
+The API can be used directly to create, manage, and chat with assistants. For a graphical interface,
+see [tangerine-frontend][tangerine-frontend].
 
-## Available API Paths
+## API Reference
 
-| Path                               | Method   | Description                |
-| ---------------------------------- | -------- | -------------------------- |
-| `/api/assistants`                      | `GET`    | Get a list of all assistants   |
-| `/api/assistants`                      | `POST`   | Create a new assistant         |
-| `/api/assistants/<id>`                 | `GET`    | Get an assistant               |
-| `/api/assistants/<id>`                 | `PUT`    | Update an assistant            |
-| `/api/assistants/<id>`                 | `DELETE` | Delete an assistant            |
-| `/api/assistants/<id>/chat`            | `POST`   | Chat with an assistant         |
-| `/api/assistants/chat`                 | `POST`   | Advanced chat API              |
-| `/api/assistants/<id>/knowledgebases`  | `GET`    | Get knowledgebases for assistant |
-| `/api/assistants/<id>/knowledgebases`  | `POST`   | Associate knowledgebases with assistant |
-| `/api/assistants/<id>/knowledgebases`  | `DELETE` | Disassociate knowledgebases from assistant |
-| `/api/assistants/<id>/search`          | `POST`    | Perform search results             |
-| `/api/knowledgebases`                  | `GET`    | Get a list of all knowledgebases |
-| `/api/knowledgebases`                  | `POST`   | Create a new knowledgebase     |
-| `/api/knowledgebases/<id>`             | `GET`    | Get a knowledgebase            |
-| `/api/knowledgebases/<id>`             | `PUT`    | Update a knowledgebase         |
-| `/api/knowledgebases/<id>`             | `DELETE` | Delete a knowledgebase         |
-| `/api/knowledgebases/<id>/documents`   | `POST`   | Upload documents to knowledgebase |
-| `/api/knowledgebases/<id>/documents`   | `DELETE` | Delete documents from knowledgebase |
-| `/api/assistantDefaults`               | `GET`    | Get assistant default settings |
-| `/ping`                            | `GET`    | Health check endpoint      |
+### Available Endpoints
 
-## Advanced Chat API
-The default assistant chat API is optimized for simple chat experiences, such as GUI based chatbots with validated defaults. However, you may want to use Tangerine to power other kinds of experiences. For these workloads we have an advaced chat API that allows you to make more complex requests and tweak more of Tangerine's bevaior at run time.
+| Path | Method | Description |
+| ---- | ------ | ----------- |
+| `/api/assistants` | `GET` | List all assistants |
+| `/api/assistants` | `POST` | Create a new assistant |
+| `/api/assistants/<id>` | `GET` | Get an assistant |
+| `/api/assistants/<id>` | `PUT` | Update an assistant |
+| `/api/assistants/<id>` | `DELETE` | Delete an assistant |
+| `/api/assistants/<id>/chat` | `POST` | Chat with an assistant |
+| `/api/assistants/chat` | `POST` | Advanced chat API |
+| `/api/assistants/<id>/knowledgebases` | `GET` | Get knowledge bases for an assistant |
+| `/api/assistants/<id>/knowledgebases` | `POST` | Associate knowledge bases with an assistant |
+| `/api/assistants/<id>/knowledgebases` | `DELETE` | Disassociate knowledge bases from an assistant |
+| `/api/assistants/<id>/search` | `POST` | Search an assistant's knowledge base |
+| `/api/knowledgebases` | `GET` | List all knowledge bases |
+| `/api/knowledgebases` | `POST` | Create a new knowledge base |
+| `/api/knowledgebases/<id>` | `GET` | Get a knowledge base |
+| `/api/knowledgebases/<id>` | `PUT` | Update a knowledge base |
+| `/api/knowledgebases/<id>` | `DELETE` | Delete a knowledge base |
+| `/api/knowledgebases/<id>/documents` | `POST` | Upload documents to a knowledge base |
+| `/api/knowledgebases/<id>/documents` | `DELETE` | Delete documents from a knowledge base |
+| `/api/assistantDefaults` | `GET` | Get assistant default settings |
+| `/ping` | `GET` | Health check |
 
-Here is a basic example of how to use the new API that acts like the standard chat API:
+### Advanced Chat API
 
-```
-curl -X POST http://localhost:8080/api/assistants/chat \
+The default assistant chat API (`/api/assistants/<id>/chat`) is optimized for simple chat
+experiences such as GUI-based chatbots. The advanced chat API (`/api/assistants/chat`) supports more
+complex workflows.
+
+**Basic usage** (equivalent to the standard chat API):
+
+```sh
+curl -X POST http://localhost:8000/api/assistants/chat \
   -H "Content-Type: application/json" \
   -d '{
     "assistants": ["support docs"],
@@ -490,14 +519,14 @@ curl -X POST http://localhost:8080/api/assistants/chat \
     "sessionId": "433e4567-8e9b-22d3-a456-626614174000",
     "interactionId": "137e6543-2f1b-12d3-b456-526614174999",
     "client": "curl",
-    "stream": false,
+    "stream": false
   }'
 ```
 
-You can use data from multiple assistants with a single query by adding more assistants to the `assistants` array:
+**Multi-assistant queries** -- combine results from multiple assistants:
 
-```
-curl -X POST http://localhost:8080/api/assistants/chat \
+```sh
+curl -X POST http://localhost:8000/api/assistants/chat \
   -H "Content-Type: application/json" \
   -d '{
     "assistants": ["support docs", "knowledge base"],
@@ -505,14 +534,14 @@ curl -X POST http://localhost:8080/api/assistants/chat \
     "sessionId": "433e4567-8e9b-22d3-a456-626614174000",
     "interactionId": "137e6543-2f1b-12d3-b456-526614174999",
     "client": "curl",
-    "stream": false,
+    "stream": false
   }'
 ```
 
-You can bring your own chunks which will prevent a search and answer the question based on the chunks provided alone:
+**Bring your own chunks** -- skip the search and answer from provided content:
 
-```
-curl -X POST http://localhost:8080/api/assistants/chat \
+```sh
+curl -X POST http://localhost:8000/api/assistants/chat \
   -H "Content-Type: application/json" \
   -d '{
     "query": "How do I deploy my app?",
@@ -528,10 +557,10 @@ curl -X POST http://localhost:8080/api/assistants/chat \
   }'
 ```
 
-For security compliance, you can prevent chunks from being stored in the database while still using them for LLM generation by setting `no_persist_chunks` to `true`. This is useful when providing sensitive or proprietary information:
+**Non-persisted chunks** -- use sensitive content without storing it in the database:
 
-```
-curl -X POST http://localhost:8080/api/assistants/chat \
+```sh
+curl -X POST http://localhost:8000/api/assistants/chat \
   -H "Content-Type: application/json" \
   -d '{
     "query": "How do I deploy my app?",
@@ -539,20 +568,19 @@ curl -X POST http://localhost:8080/api/assistants/chat \
     "interactionId": "137e6543-2f1b-12d3-b456-526614174999",
     "client": "curl",
     "stream": false,
-    "chunks": [
-      "CONFIDENTIAL: Internal deployment process requires...",
-      "Sensitive configuration details for production..."
-    ],
+    "chunks": ["CONFIDENTIAL: Internal deployment process requires..."],
     "no_persist_chunks": true
   }'
 ```
 
-**Note:** When `no_persist_chunks` is set to `true`, the provided chunks will be used for LLM processing but will not be stored in the interaction logs. If no chunks are provided, this option is ignored. All other interaction data (query, response, metadata) continues to be logged normally.
+When `no_persist_chunks` is `true`, chunks are used for LLM processing but are not stored in
+interaction logs. All other interaction data (query, response, metadata) continues to be logged
+normally.
 
-If you've extended Tangerine to support multiple models you can specify your model of choice at query time:
+**Model selection** -- specify a model at query time (requires [multiple model support](#multiple-model-support)):
 
-```
-curl -X POST http://localhost:8080/api/assistants/chat \
+```sh
+curl -X POST http://localhost:8000/api/assistants/chat \
   -H "Content-Type: application/json" \
   -d '{
     "assistants": ["support docs"],
@@ -561,41 +589,56 @@ curl -X POST http://localhost:8080/api/assistants/chat \
     "interactionId": "137e6543-2f1b-12d3-b456-526614174999",
     "client": "curl",
     "stream": false,
-    "model": "chatgpt-01"
+    "model": "granite"
   }'
 ```
 
-You can also provide your own system prompt to change how Tangerine handles your query. Note that both `prompt` and `system_prompt` parameters are supported for backward compatibility:
+**Custom system prompt** -- override the default system prompt (both `prompt` and `system_prompt`
+parameters are supported for backward compatibility):
 
-```
-curl -X POST http://localhost:8080/api/assistants/chat \
+```sh
+curl -X POST http://localhost:8000/api/assistants/chat \
   -H "Content-Type: application/json" \
   -d '{
-    "assistants": ["support docs", "knowledge base"],
+    "assistants": ["support docs"],
     "query": "How do I deploy my app?",
     "sessionId": "433e4567-8e9b-22d3-a456-626614174000",
     "interactionId": "137e6543-2f1b-12d3-b456-526614174999",
     "client": "curl",
     "stream": false,
-    "prompt": "<s>[INST]
-      You are a helpful chat bot that is integrated into a team wide
-      chat application. You will recieve user queries as well as
-      documentation excerpts. Please answer the user's question based on the
-      documentation excertps, and don't resort to any other external
-      knowledge. As you are answering via a chat application please keep
-      your responses short, no more than 3 sentences.
-    [/INST]"
+    "prompt": "<s>[INST] You are a helpful assistant. Keep responses under 3 sentences. [/INST]"
   }'
 ```
 
-You can disable the agentic workflow (which routes queries to specialized agents like JiraAgent or WebRCAAgent) by setting `disable_agentic` to `true`. This will bypass intent analysis and route all queries directly to the standard chat agent:
+**Custom user prompt template** -- override the default user prompt while keeping the system prompt
+unchanged. The template supports `{question}` and `{context}` variables:
 
-```
-curl -X POST http://localhost:8080/api/assistants/chat \
+```sh
+curl -X POST http://localhost:8000/api/assistants/chat \
   -H "Content-Type: application/json" \
   -d '{
     "assistants": ["support docs"],
-    "query": "What is the recent Jira activity of john_doe?",
+    "query": "How do I deploy my app?",
+    "sessionId": "433e4567-8e9b-22d3-a456-626614174000",
+    "interactionId": "137e6543-2f1b-12d3-b456-526614174999",
+    "client": "curl",
+    "stream": false,
+    "userPrompt": "[INST]\nQuestion: {question}\n\nContext: {context}\n\nProvide a brief answer.\n[/INST]"
+  }'
+```
+
+You can combine `userPrompt` with `prompt`/`system_prompt` to fully customize both parts of the
+conversation template.
+
+**Disable agentic workflow** -- bypass intent analysis and route all queries directly to the
+standard chat agent:
+
+```sh
+curl -X POST http://localhost:8000/api/assistants/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "assistants": ["support docs"],
+    "query": "What is the recent Jira activity?",
     "sessionId": "433e4567-8e9b-22d3-a456-626614174000",
     "interactionId": "137e6543-2f1b-12d3-b456-526614174999",
     "client": "curl",
@@ -604,117 +647,46 @@ curl -X POST http://localhost:8080/api/assistants/chat \
   }'
 ```
 
-You can also provide a custom user prompt template by setting `userPrompt`. This allows you to override the default user prompt template while keeping the system prompt unchanged:
+### Prompt Template Variables
 
-```
-curl -X POST http://localhost:8080/api/assistants/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "assistants": ["support docs"],
-    "query": "How do I deploy my application?",
-    "sessionId": "433e4567-8e9b-22d3-a456-626614174000",
-    "interactionId": "137e6543-2f1b-12d3-b456-526614174999",
-    "client": "curl",
-    "stream": false,
-    "userPrompt": "[INST]\nQuestion: {question}\n\nContext: {context}\n\nPlease provide a brief answer based on the context above.\n[/INST]"
-  }'
-```
+When customizing prompts, the following variables are available for interpolation using Python's
+`{variable_name}` syntax:
 
-The `userPrompt` template supports the same variables as the default template: `{question}` for the user's query and `{context}` for the search results. You can combine `userPrompt` with `prompt`/`system_prompt` to fully customize both parts of the conversation template.
+| Variable | Description |
+| -------- | ----------- |
+| `{question}` | The user's original query |
+| `{context}` | Formatted search results from the knowledge base |
 
-## Prompt Template Variables and Formatting
-
-When customizing prompts in the advanced chat API, it's important to understand how Tangerine formats and interpolates template variables. Both system prompts (`prompt`/`system_prompt`) and user prompts (`userPrompt`) support template variable substitution.
-
-### Available Template Variables
-
-The following variables are available for interpolation in prompt templates:
-
-- **`{question}`**: The user's original query/question
-- **`{context}`**: The formatted search results from the knowledge base
-
-### Context Variable Format
-
-The `{context}` variable contains search results formatted with specific markers that the system uses for parsing:
+The `{context}` variable contains search results formatted with markers:
 
 ```
 <<Search result 1, document title: 'Example Document'>>
-
-Content of the first search result goes here...
-This is the actual documentation content that was retrieved.
-
+Content of the first search result...
 <<Search result 1 END>>
-
-<<Search result 2>>
-
-Content of the second search result...
-
-<<Search result 2 END>>
 ```
 
-### System Prompt Guidelines
+**Guidelines:**
 
-System prompts should:
-- Not use template variables (they are static instructions for the AI)
-- Define the AI's role, behavior, and response guidelines
-- Use the `<s>[INST]...[/INST]` format for compatibility with chat models
-- Include instructions on how to handle the search results that will be provided
+- **System prompts** define the AI's role and behavior. They should not use template variables.
+- **User prompts** should include both `{question}` and `{context}` and provide instructions on how
+  to process them.
+- Use the `<s>[INST]...[/INST]` format for compatibility with chat models.
 
-### User Prompt Guidelines
+### Conversation History
 
-User prompts should:
-- Always include `{question}` to insert the user's query
-- Always include `{context}` to insert the search results
-- Use the `[INST]...[/INST]` format to mark user instructions
-- Provide clear instructions on how the AI should process the question and context
+tangerine automatically maintains conversation history for multi-turn conversations. History is
+reconstructed from the database -- clients do not need to track conversation state.
 
-### Example Custom Templates
+Both chat APIs automatically:
 
-**Custom System Prompt:**
-```json
-{
-  "prompt": "<s>[INST] You are a technical documentation assistant. Provide concise, accurate answers based solely on the provided search results. If information is insufficient, ask for clarification. Format responses in markdown. [/INST]"
-}
-```
-
-**Custom User Prompt:**
-```json
-{
-  "userPrompt": "[INST]\nQuestion: {question}\n\nAvailable Documentation:\n{context}\n\nPlease answer the question using only the documentation provided above. If the documentation doesn't contain enough information, say so clearly.\n[/INST]"
-}
-```
-
-**Combined Custom Prompts:**
-```json
-{
-  "prompt": "<s>[INST] You are a helpful deployment assistant specializing in containerized applications. [/INST]",
-  "userPrompt": "[INST]\nDeployment Question: {question}\n\nRelevant Documentation:\n{context}\n\nProvide step-by-step deployment guidance based on the documentation.\n[/INST]"
-}
-```
-
-### Template Variable Processing
-
-Variables are processed using Python's string formatting, so:
-- Use `{variable_name}` syntax for substitution
-- Variables are replaced exactly as provided by the system
-- Missing variables will cause template errors
-- Extra variables in templates are ignored
-
-## Conversation History
-
-Tangerine automatically maintains conversation history to provide context for multi-turn conversations. Conversation history is **automatically reconstructed** from the database, eliminating the need for clients to manually track conversation state.
-
-### Automatic History Management
-
-Both chat APIs (`/api/assistants/<id>/chat` and `/api/assistants/chat`) now automatically:
 - Look up existing conversation history using the `sessionId`
 - Provide the last 10 question-answer pairs as context to the LLM
 - Store the complete conversation history in the database
 
-**No client changes required** - simply provide a `sessionId` and Tangerine handles the rest:
+Simply provide a `sessionId` and tangerine handles the rest:
 
-```bash
-curl -X POST http://localhost:8080/api/assistants/123/chat \
+```sh
+curl -X POST http://localhost:8000/api/assistants/123/chat \
   -H "Content-Type: application/json" \
   -d '{
     "query": "What was my previous question about?",
@@ -722,45 +694,23 @@ curl -X POST http://localhost:8080/api/assistants/123/chat \
   }'
 ```
 
-### Simplified Implementation
+The `prevMsgs` parameter is ignored if provided. Conversation history is always auto-reconstructed
+from the database for consistency across all clients.
 
-The `prevMsgs` parameter is **ignored** if provided - conversation history is always auto-reconstructed from the database:
-- **One code path**: All clients use the same reliable database-based history reconstruction
-- **No client complexity**: Clients never need to track or send conversation history
-- **Consistent behavior**: Same experience whether `prevMsgs` is provided or not
-- **Anonymous sessions**: Works with or without user identification
+**Session ownership:** When a `user` is provided, the system verifies session ownership to prevent
+unauthorized access to conversation history. Anonymous sessions (no `user` provided) can access any
+session by `sessionId`.
 
-### Security Considerations
-
-**Session Ownership**: When a `user` is provided, the system verifies session ownership to prevent unauthorized access to conversation history. Anonymous sessions (no `user` provided) can access any session by `sessionId`.
-
-**Important**: The current implementation uses the `user` field from the request body for session ownership verification. In production environments, this should be replaced with authenticated user identity from:
-- JWT tokens
-- Session-based authentication
-- OAuth/OIDC claims
-- API key-based user identification
-
-Using request body `user` field allows potential session hijacking if not properly validated against authenticated identity.
+> **Security note:** The current implementation uses the `user` field from the request body for
+> session ownership verification. In production, this should be replaced with authenticated user
+> identity (JWT, OAuth/OIDC, API key, etc.) to prevent session hijacking.
 
 ## Multiple Model Support
-You can extend Tangerine to support multiple models for use with the advanced chat API. In the future we plan to offer this purely through config, but as of this writing it requires minor modification to the Tangerine code.
 
-In the file `src/tangerine/config.py` you will find this `dict`:
+tangerine can be extended to support multiple LLM models for use with the advanced chat API. In the
+`MODELS` dictionary in `src/tangerine/config.py`, add entries for each model:
 
-```
-MODELS = {
-    "default": {
-        "base_url": config.LLM_BASE_URL,
-        "name": config.LLM_MODEL_NAME,
-        "api_key": config.LLM_API_KEY,
-        "temperature": config.LLM_TEMPERATURE,
-    }
-}
-```
-
-To add a new model you would specify the config options there. For example you may add something like:
-
-```
+```python
 MODELS = {
     "default": {
         "base_url": config.LLM_BASE_URL,
@@ -773,22 +723,48 @@ MODELS = {
         "name": config.GRANITE_MODEL_NAME,
         "api_key": config.GRANITE_API_KEY,
         "temperature": config.GRANITE_TEMPERATURE,
-    }
+    },
 }
 ```
 
-And then add the requisite env vars to `src/tangerine/config.py` and your deployment / run time environment. After adding the above you could then query your new model with the advanced chat API:
+Add the corresponding environment variables to `config.py` and your deployment environment. Then
+specify the model at query time using the `model` parameter in the
+[advanced chat API](#advanced-chat-api).
 
-```
-curl -X POST http://localhost:8080/api/assistants/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "assistants": ["support docs"],
-    "query": "How do I deploy my app?",
-    "sessionId": "433e4567-8e9b-22d3-a456-626614174000",
-    "interactionId": "137e6543-2f1b-12d3-b456-526614174999",
-    "client": "curl",
-    "stream": false,
-    "model": "granite"
-  }'
-```
+## License
+
+This project is licensed under the [Apache License 2.0][license].
+
+<!-- Reference-style links -->
+
+[demo-gif]: docs/demo.gif
+[rhi]: https://github.com/RedHatInsights
+[license]: LICENSE
+[pgvector]: https://github.com/pgvector/pgvector
+[openai-api]: https://platform.openai.com/docs/api-reference
+[ollama]: https://ollama.com
+[mkdocs]: https://www.mkdocs.org
+[antora]: https://antora.org
+[docling]: https://ds4sd.github.io/docling/
+[tangerine-frontend]: https://github.com/RedHatInsights/tangerine-frontend
+[backstage-plugin]: https://github.com/RedHatInsights/backstage-plugin-ai-search-frontend
+[rhdh]: https://developers.redhat.com/rhdh/overview
+[architecture]: ARCHITECTURE.md
+[pipenv]: https://pipenv.pypa.io
+[docker]: https://docs.docker.com/engine/install/
+[homebrew]: https://brew.sh
+[ollama-gpu]: https://github.com/ollama/ollama/blob/main/docs/gpu.md
+[docker-install]: https://docs.docker.com/engine/install/
+[docker-postinstall]: https://docs.docker.com/engine/install/linux-postinstall/
+[frontend-docker]: https://github.com/RedHatInsights/tangerine-frontend#with-docker-compose
+[frontend-standalone]: https://github.com/RedHatInsights/tangerine-frontend#without-docker-compose
+[tei]: https://github.com/huggingface/text-embeddings-inference
+[git-lfs]: https://git-lfs.com/
+[compose-file]: docker-compose.yml
+[s3-example]: s3-example.yaml
+[openshift-templates]: openshift/
+[ollama-download]: https://ollama.com/download
+[ruff]: https://docs.astral.sh/ruff/
+[pre-commit]: https://pre-commit.com
+[pytest]: https://docs.pytest.org
+[flask-migrate]: https://flask-migrate.readthedocs.io
