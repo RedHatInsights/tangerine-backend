@@ -1,162 +1,116 @@
-# AGENTS.md
+# Tangerine
 
-## Common Development Commands
+## Project Overview
 
-### Environment Setup
+Tangerine is a slim, lightweight RAG (Retrieval Augmented Generation) system for creating and
+managing chatbot assistants. Each assistant answers questions from a curated set of documents known
+as a knowledge base. The system is built on Flask and Flask-RESTful, uses PostgreSQL with pgvector
+for vector storage, and integrates with OpenAI-compatible LLM providers. It is maintained by
+[Red Hat Insights][rhi] and licensed under [Apache 2.0][license]. The project is deployed as a
+containerized Flask service on OpenShift.
+
+## Dependencies
+
+**Runtime:** Python 3.12, Flask, Flask-RESTful, SQLAlchemy, Flask-Migrate, PostgreSQL with pgvector,
+LangChain, pipenv for dependency management.
+
+**Dev/Test:** pytest, ruff (lint + format), pre-commit, pipenv dev packages.
+
+## Development Commands
+
+See [Development][readme-dev] in the README for the full local environment setup, Docker Compose
+configuration, and database migration workflow.
+
+Commands relevant to agent-driven workflows:
 
 ```bash
-# Install dependencies
+# Install all dependencies (including dev)
 pipenv install --dev
-pipenv shell
 
-# Database setup (with Docker)
-docker compose up --build
-docker exec tangerine-ollama ollama pull mistral
-docker exec tangerine-ollama ollama pull nomic-embed-text
+# Run tests (matches CI)
+pipenv run pytest -v -s
 
-# Database setup (standalone)
-flask db upgrade && flask run
-```
-
-### Development Workflow
-
-```bash
-# Run the application
-flask run
-
-# Database migrations (start database first if using Docker)
-docker compose start postgres
-flask db migrate -m "Your migration message"
-flask db upgrade
-
-# S3 document sync
-flask s3sync
-
-# Pre-commit hooks (formatting/linting)
+# Lint and format (matches CI)
 pre-commit run --all
-# Or install as git hook:
-pre-commit install
 
-# Run tests
-pipenv run pytest
+# Run the application
+pipenv run flask run
+
+# Database migrations
+pipenv run flask db migrate -m "migration message"
+pipenv run flask db upgrade
 ```
 
-### Linting and Formatting
+**Python environment:** This project uses pipenv for dependency management. Always prefix Python
+commands with `pipenv run` (e.g., `pipenv run pytest`, `pipenv run flask`). Alternatively, activate
+the virtualenv first with `pipenv shell`.
 
-- Use `ruff` for linting and formatting (configured in pyproject.toml)
-- Use `flake8` for additional linting
-- Line length: 100 characters
-- Target Python version: 3.12
+## Architecture
 
-### Python Environment
+All source code lives under `src/tangerine/`. The application factory is in `__init__.py`, and
+configuration is centralized in `config.py` (environment variables, model registry, prompt
+templates). API endpoints are defined as Flask-RESTful resources in `resources/`, database models
+live in `models/`, and the RAG pipeline spans `embeddings.py`, `vector.py`, `search.py`, and
+`llm.py`. An agent routing layer in `agents/` delegates specialized queries to external systems.
 
-**IMPORTANT**: This project uses `pipenv` for dependency management. Always run Python commands through pipenv:
+For module-level detail, data flow diagrams, database schema, and configuration reference, see
+[ARCHITECTURE.md][architecture].
 
-- Use `pipenv run python` instead of `python`
-- Use `pipenv run pytest` instead of `pytest`
-- Use `pipenv run flask [command]` instead of `flask [command]`
-- If you need to run multiple commands, use `pipenv shell` first
+## Code Style
 
-### Exception Handling Best Practices
+- **Linter/Formatter:** [ruff][ruff], configured in `pyproject.toml`. Runs in CI via pre-commit
+  (lint, import sorting, and format as separate hooks). A legacy `[tool.flake8]` section exists in
+  `pyproject.toml` but is **not used** in CI or pre-commit — ignore it.
+- **Line length:** 100 characters.
+- **Indent width:** 4 spaces.
+- **Target Python version:** 3.12.
+- **Import sorting:** Handled by ruff with the `I` rule set.
+- **Excluded paths:** `data/*` (ruff), `migrations/` (pre-commit).
 
-- Keep `try` blocks as small as possible - only include the specific operation that might fail
-- Use specific exception types in `except` clauses rather than broad `Exception` catches
-- When multiple operations could fail differently, use separate try/except blocks for each
-- Import specific exception types (e.g., `SQLAlchemyError`) at the top of the file for cleaner code
-- Validate all inputs before performing operations to fail fast with clear error messages
+## Testing
 
-## Project Architecture
+- **Framework:** pytest.
+- **Command:** `pipenv run pytest -v -s` (matches the CI `unit-tests` job).
+- **Test location:** `tests/` directory. Test files follow the `test_*.py` naming convention.
+- **pytest config:** `pyproject.toml` sets `addopts = ["--ignore=data/"]`.
+- **CI:** [GitHub Actions][gh-actions-workflow] runs two jobs on every push and PR to `main`:
+  `pre-commit` (lint/format) and `unit-tests` (pytest).
 
-### Core Components
+## Deployment
 
-**RAG System**: The application implements a Retrieval Augmented Generation (RAG) architecture with these key components:
+Tangerine is deployed as a container on OpenShift. The Dockerfile uses a multi-stage build
+(UBI9 build stage, UBI10 runtime stage) and exposes port 8000. Tekton pipelines handle OpenShift
+builds. See [Deploying to OpenShift][readme-deploy] in the README.
 
-- PostgreSQL with pgvector extension for vector storage
-- LLM integration (default: mistral via ollama)
-- Embedding model (default: nomic-embed-text via ollama)
-- Optional S3 document synchronization
+## Common Mistakes
 
-**Application Structure**:
+1. **Running commands outside pipenv.** Running `pytest`, `flask`, or `python` directly instead of
+   `pipenv run pytest` will use the system Python and miss project dependencies. Always use
+   `pipenv run` or activate the shell with `pipenv shell` first.
 
-- `src/tangerine/` - Main application package
-- `src/tangerine/models/` - SQLAlchemy database models (Assistant, Conversation, Interactions)
-- `src/tangerine/resources/` - Flask-RESTful API endpoints
-- `src/tangerine/agents/` - Specialized agents (Jira, WebRCA)
-- `migrations/` - Database migration files
+2. **Using flake8 instead of ruff.** A `[tool.flake8]` section exists in `pyproject.toml`, but
+   flake8 is not in pre-commit or CI. Ruff is the sole linter and formatter. Configuring or running
+   flake8 is wasted effort.
 
-### Key Modules
+3. **Broad exception handling.** Keep `try` blocks minimal — wrap only the specific operation that
+   might fail. Use specific exception types (e.g., `SQLAlchemyError`) rather than bare `Exception`.
+   When multiple operations can fail independently, use separate `try`/`except` blocks.
 
-**Database & Models** (`db.py`, `models/`):
+4. **Forgetting the migrations exclusion.** Pre-commit excludes the `migrations/` directory
+   (`exclude: ^migrations/`). Auto-generated migration files should not be reformatted or linted.
+   Do not remove this exclusion or manually lint migration files.
 
-- Uses Flask-SQLAlchemy with Flask-Migrate
-- Main models: Assistant, Conversation, Interactions
-- Vector database operations handled by `vector.py`
+5. **Wrong test command flags.** CI runs `pipenv run pytest -v -s`, not plain `pipenv run pytest`.
+   Omitting `-v -s` can mask test output and make failures harder to diagnose.
 
-**Document Processing** (`file.py`, `embeddings.py`):
+6. **Editing config.py without understanding the model registry.** LLM and embedding model
+   configuration is centralized in `config.py` through the `MODELS` dict and environment variables.
+   Adding new model support requires changes there, not in individual resource files.
 
-- Supports .md, .html, .pdf, .txt, .rst, .adoc formats
-- Special processing for mkdocs/antora-generated content
-- Text chunking (~2000 characters) with embedding generation
-
-**Search & Retrieval** (`search.py`, `vector.py`):
-
-- Hybrid search combining similarity and full-text search
-- Max marginal relevance (MMR) search
-- Configurable search strategies via environment variables
-
-**LLM Integration** (`llm.py`, `config.py`):
-
-- OpenAI-compatible API support
-- Multiple model configuration in `MODELS` dict
-- Configurable prompts and temperature settings
-
-**Agents** (`agents/`):
-
-- JiraAgent: Handles Jira-related queries
-- WebRCAAgent: Handles incident management queries
-- Routing system determines which agent to use
-
-### Configuration
-
-**Environment Variables** (see `config.py`):
-
-- Database: `DB_*` variables
-- LLM: `LLM_BASE_URL`, `LLM_MODEL_NAME`, `LLM_API_KEY`
-- Embeddings: `EMBED_BASE_URL`, `EMBED_MODEL_NAME`, `EMBED_API_KEY`
-- Features: `ENABLE_*` flags for various capabilities
-- S3 sync: `AWS_*` and `S3_SYNC_*` variables
-
-**Multiple Model Support**:
-
-- Configure additional models in `config.py` `MODELS` dict
-- Use advanced chat API (`/api/assistants/chat`) to specify model at query time
-
-### API Structure
-
-**Core Endpoints**:
-
-- `/api/assistants` - Assistant CRUD operations
-- `/api/assistants/<id>/chat` - Simple chat interface
-- `/api/assistants/chat` - Advanced chat API (multi-assistant, custom prompts)
-- `/api/assistants/<id>/documents` - Document upload/management
-- `/api/assistants/<id>/search` - Search functionality
-
-**Advanced Chat API**: Supports multiple assistants, custom chunks, model selection, and custom prompts in a single request.
-
-### Document Processing Pipeline
-
-1. **Upload/Sync**: Documents uploaded via API or synced from S3
-2. **Processing**: Format-specific parsing and cleanup (see README for details)
-3. **Chunking**: Split into ~2000 character chunks with overlap handling
-4. **Embedding**: Generate embeddings and store in vector database
-5. **Search**: Similarity + optional hybrid/MMR search during queries
-6. **Generation**: LLM generates response using retrieved context
-
-### Development Tips
-
-- **Docker Compose**: Preferred for local development (includes postgres, pgadmin, ollama)
-- **Mac Development**: Run ollama natively (not in Docker) for GPU acceleration
-- **Testing**: Uses pytest, test files in `tests/` directory
-- **Pre-commit**: Automatically formats code with ruff and runs linting
-- **Database**: pgadmin available at localhost:5050 in Docker setup
-- **Metrics**: Prometheus metrics available via flask-prometheus-exporter
+[rhi]: https://github.com/RedHatInsights
+[license]: https://github.com/RedHatInsights/tangerine-backend/blob/main/LICENSE
+[readme-dev]: README.md#development
+[readme-deploy]: README.md#deploying-to-openshift
+[architecture]: ARCHITECTURE.md
+[ruff]: https://docs.astral.sh/ruff/
+[gh-actions-workflow]: .github/workflows/gh-actions.yml
