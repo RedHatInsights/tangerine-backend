@@ -111,6 +111,14 @@ if ENABLE_LLAMA4_SCOUT:
     }
 
 
+_REDACT_KEYS = ("openai_api_key",)
+
+
+def redact_model_config(model_config: dict) -> dict:
+    """Return a copy of model_config with secret fields masked for safe logging."""
+    return {k: ("***" if k in _REDACT_KEYS else v) for k, v in model_config.items()}
+
+
 def get_model_config(model_name: str | None) -> dict:
     # AUDIT LOG: get_model_config entry
     log.info("AUDIT: get_model_config() called with model_name=%s", model_name)
@@ -137,12 +145,14 @@ def get_model_config(model_name: str | None) -> dict:
     model_config = MODELS[model_name]
 
     # AUDIT LOG: Model config found
-    log.info("AUDIT: Found model_config for %s: %s", model_name, model_config)
+    log.info("AUDIT: Found model_config for %s: %s", model_name, redact_model_config(model_config))
 
     required_keys = ("model", "openai_api_base", "openai_api_key", "temperature")
     if not all([key in model_config for key in required_keys]):
         log.error(
-            "AUDIT: INVALID MODEL CONFIG - missing keys for %s, config=%s", model_name, model_config
+            "AUDIT: INVALID MODEL CONFIG - missing keys for %s, config=%s",
+            model_name,
+            redact_model_config(model_config),
         )
         raise ValueError(
             f"model config for '{model_name}' missing one or more of required keys: {required_keys}"
