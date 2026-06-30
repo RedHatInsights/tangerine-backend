@@ -108,9 +108,18 @@ class VectorStoreInterface:
 
             markdown_documents = md_splitter.split_text(text)
             chunks = text_splitter.split_documents(markdown_documents)
-            # convert back to list[str] so we can filter and combine them
-            # TODO: figure out how to combine but also retain md header metadata?
-            chunks = [chunk.page_content for chunk in chunks]
+            # Prepend header breadcrumb to chunks that don't already open with a header,
+            # so mid-section chunks retain their section context after splitting.
+            header_keys = ("H1", "H2", "H3", "H4", "H5", "H6")
+            result = []
+            for chunk in chunks:
+                headers = [chunk.metadata[k] for k in header_keys if chunk.metadata.get(k)]
+                if headers and not chunk.page_content.lstrip().startswith("#"):
+                    breadcrumb = " > ".join(headers)
+                    result.append(f"{breadcrumb}\n\n{chunk.page_content}")
+                else:
+                    result.append(chunk.page_content)
+            chunks = result
         else:
             chunks = text_splitter.split_text(text)
 
