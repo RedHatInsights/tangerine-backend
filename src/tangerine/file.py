@@ -3,7 +3,6 @@ import json
 import logging
 import os
 import re
-import string
 from io import StringIO
 from typing import Optional
 
@@ -374,8 +373,8 @@ def _html_to_md(content: str) -> str:
     in_code_block = False
 
     for line in html2text_output.split("\n"):
-        # remove non printable chars (like paragraph markers)
-        line = "".join(filter(lambda char: char in string.printable, line))
+        # remove non-printable chars (like paragraph markers), preserving valid unicode
+        line = "".join(char for char in line if char.isprintable() or char == "\t")
 
         # remove trailing "#" from header lines
         if re.match(r"#+ \S+", line):
