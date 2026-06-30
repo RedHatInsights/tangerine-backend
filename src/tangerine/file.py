@@ -176,12 +176,81 @@ def validate_source(source: str) -> None:
 
 def validate_file_type(full_path: str) -> None:
     if not any(
-        [
-            full_path.endswith(filetype)
-            for filetype in [".txt", ".pdf", ".md", ".rst", ".html", ".adoc"]
-        ]
+        full_path.endswith(ft)
+        for ft in [".txt", ".pdf", ".md", ".rst", ".html", ".adoc", ".yaml", ".yml", ".json"]
     ):
         raise ValueError("unsupported file type")
+
+
+def _flatten(obj, prefix="", depth=0, max_depth=15):
+    """Recursively flatten a nested dict/list into dotted path: value lines."""
+    if depth > max_depth:
+        return [f"{prefix}: <truncated>"]
+    lines = []
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            path = f"{prefix}.{key}" if prefix else key
+            lines.extend(_flatten(value, path, depth + 1, max_depth))
+    elif isinstance(obj, list):
+        for i, item in enumerate(obj):
+            lines.extend(_flatten(item, f"{prefix}[{i}]", depth + 1, max_depth))
+    else:
+        lines.append(f"{prefix}: {obj if obj is not None else 'null'}")
+    return lines
+
+
+def _detect_config_type(doc):
+    """Detect a human-readable config type from the document structure."""
+    if not isinstance(doc, dict):
+        return "generic"
+    if "apiVersion" in doc and "kind" in doc:
+        return f"kubernetes/{doc['kind']}"
+    if "resourceTemplate" in doc:
+        return "app-interface/saas"
+    schema = doc.get("$schema") or doc.get("schema", "")
+    if schema:
+        return f"app-interface/{schema.rstrip('/').split('/')[-1]}"
+    return "generic"
+
+
+def _structured_to_text(content, extension):
+    """
+    Convert YAML or JSON into a flat key: value text representation
+    suitable for chunking and embedding.
+
+    Handles multi-document YAML (--- separator).
+    """
+    import json as json_mod
+
+    import yaml
+
+    try:
+        if extension == ".json":
+            docs = [json_mod.loads(content)]
+        else:
+            docs = [d for d in yaml.safe_load_all(content) if d is not None]
+    except Exception:
+        log.exception("failed to parse structured file, falling back to raw content")
+        return content
+
+    sections = []
+    for doc in docs:
+        config_type = _detect_config_type(doc)
+        header = [f"config_type: {config_type}"]
+
+        # for k8s resources, surface name/namespace at the top so it
+        # appears in every chunk split from this document
+        if isinstance(doc, dict) and "kind" in doc:
+            meta = doc.get("metadata") or {}
+            if name := meta.get("name"):
+                header.append(f"name: {name}")
+            if namespace := meta.get("namespace"):
+                header.append(f"namespace: {namespace}")
+
+        flat_lines = _flatten(doc)
+        sections.append("\n".join(header) + "\n\n" + "\n".join(flat_lines))
+
+    return "\n\n---\n\n".join(sections)
 
 
 def _remove_large_md_code_blocks(text):
@@ -467,6 +536,10 @@ class File:
 
         if self.full_path.endswith(".txt") or self.full_path.endswith(".rst"):
             return self.content
+
+        if self.full_path.endswith((".yaml", ".yml", ".json")):
+            ext = ".json" if self.full_path.endswith(".json") else ".yaml"
+            return _structured_to_text(self.content, ext)
 
         log.error("cannot extract text for unsupported file type: %s", self.full_path)
         return ""
