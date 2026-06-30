@@ -488,12 +488,16 @@ class AssistantChatApi(Resource):
         def __api_response_generator():
             accumulated_text = ""
 
-            for text in llm_response:
-                accumulated_text += text
-                chunk = {"text_content": text}
-                yield f"data: {json.dumps(chunk)}\r\n"
+            try:
+                for text in llm_response:
+                    accumulated_text += text
+                    chunk = {"text_content": text}
+                    yield f"data: {json.dumps(chunk)}\r\n"
+            except Exception:
+                log.exception("error during LLM streaming")
 
             # final piece of content returned is the search metadata
+            # always reached because the except above swallows any streaming error
             yield f"data: {json.dumps({'search_metadata': search_metadata})}\r\n"
 
             # log user interaction at the end
