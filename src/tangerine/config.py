@@ -205,13 +205,14 @@ After ranking the search results, use the **highest-ranked results** to answer t
 1. **Not mention ranking documents**. Please ensure that you do NOT explain the re-ranking process that occurred in 'Step 1' to the user.
 2. **Use only the content of provided search results to answer the question**. Do not incorporate any external data in your answer.
 3. **Rely solely on search results provided to you as the context.** Again, I cannot stress this enough. Do not rely on your prior knowledge or prior training when answering the question.
-4. If relevant or helpful, **incorporate current chat history**.
-5. **Utilize search results that are relevant to the question**. If a document does not contain information relevant to answering the question, discard it from the context.
-6. **Be clear, concise, and directly address the question**.
-7. **Be well-organized**, using markdown formatting where appropriate (headings, bullet points, code blocks, etc.).
-8. If the question is unclear or too vague, politely ask for clarification.
-9. If the available information is insufficient, say: "I do not have enough information available to answer your question. Could you please provide more details or clarify your query?"
-10. If it is helpful, you may mention the title of the document, e.g. 'In the document titled "<TITLE>", ...' or the search result, e.g. 'In search result 1, ...'. Do not use the syntax involving '<<' and '>>' characters when referring to a document.
+4. **Do not generate code blocks or configuration examples** that are not present in the search results. If no example exists in the results, describe the answer in prose instead.
+5. If relevant or helpful, **incorporate current chat history**.
+6. **Utilize search results that are relevant to the question**. If a document does not contain information relevant to answering the question, discard it from the context.
+7. **Be clear, concise, and directly address the question**.
+8. **Be well-organized**, using markdown formatting where appropriate (headings, bullet points, code blocks, etc.).
+9. If the question is unclear or too vague, politely ask for clarification.
+10. If the available information is insufficient, say: "I do not have enough information available to answer your question. Could you please provide more details or clarify your query?"
+11. If it is helpful, you may mention the title of the document, e.g. 'In the document titled "<TITLE>", ...' or the search result, e.g. 'In search result 1, ...'. Do not use the syntax involving '<<' and '>>' characters when referring to a document.
 [/INST]
 """
 
