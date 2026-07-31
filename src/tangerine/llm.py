@@ -109,12 +109,13 @@ def get_response(
     log.info("AUDIT: get_response() called with model_name=%s", model_name)
 
     model_config = cfg.get_model_config(model_name)
+    safe_config = cfg.redact_model_config(model_config)
 
     # AUDIT LOG: Model config retrieved
-    log.info("AUDIT: Retrieved model_config for model_name=%s: %s", model_name, model_config)
+    log.info("AUDIT: Retrieved model_config for model_name=%s: %s", model_name, safe_config)
 
     # AUDIT LOG: Creating ChatOpenAI instance
-    log.info("AUDIT: Creating ChatOpenAI with config: %s", model_config)
+    log.info("AUDIT: Creating ChatOpenAI with config: %s", safe_config)
 
     chat = ChatOpenAI(
         **model_config,
