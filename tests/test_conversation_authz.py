@@ -31,8 +31,9 @@ def test_list_ignores_body_user_id_and_uses_header():
         headers={cfg.USER_IDENTITY_HEADER: "alice"},
         json_body={"user_id": "victim-bob"},
     )
-    with patch.object(conv, "request", req), patch.object(
-        conv.Conversation, "get_by_user", staticmethod(fake_get_by_user)
+    with (
+        patch.object(conv, "request", req),
+        patch.object(conv.Conversation, "get_by_user", staticmethod(fake_get_by_user)),
     ):
         body, status = conv.ConversationListApi().post()
     assert status == 200
@@ -56,8 +57,9 @@ def test_retrieval_enforces_ownership():
         headers={cfg.USER_IDENTITY_HEADER: "alice"},
         json_body={"sessionId": "11111111-1111-1111-1111-111111111111"},
     )
-    with patch.object(conv, "request", req), patch.object(
-        conv.Conversation, "get_by_session", staticmethod(lambda sid: other)
+    with (
+        patch.object(conv, "request", req),
+        patch.object(conv.Conversation, "get_by_session", staticmethod(lambda sid: other)),
     ):
         body, status = conv.ConversationRetrievalApi().post()
     assert status == 403
@@ -74,8 +76,9 @@ def test_upsert_overrides_body_user_with_header_principal():
         headers={cfg.USER_IDENTITY_HEADER: "alice"},
         json_body={"user": "anonymous", "sessionId": "s", "prevMsgs": []},
     )
-    with patch.object(conv, "request", req), patch.object(
-        conv.Conversation, "upsert", staticmethod(fake_upsert)
+    with (
+        patch.object(conv, "request", req),
+        patch.object(conv.Conversation, "upsert", staticmethod(fake_upsert)),
     ):
         body, status = conv.ConversationUpsertApi().post()
     assert status == 200
@@ -93,8 +96,9 @@ def test_delete_uses_header_principal_not_body():
         headers={cfg.USER_IDENTITY_HEADER: "alice"},
         json_body={"sessionId": "s", "user_id": "victim-bob"},
     )
-    with patch.object(conv, "request", req), patch.object(
-        conv.Conversation, "delete_by_session", staticmethod(fake_delete)
+    with (
+        patch.object(conv, "request", req),
+        patch.object(conv.Conversation, "delete_by_session", staticmethod(fake_delete)),
     ):
         body, status = conv.ConversationDeleteApi().post()
     assert status == 200
