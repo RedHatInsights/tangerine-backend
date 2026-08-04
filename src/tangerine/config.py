@@ -75,6 +75,11 @@ WEB_RCA_AGENT_CLIENT_ID = os.getenv("WEB_RCA_AGENT_CLIENT_ID", "EMPTY")
 WEB_RCA_AGENT_CLIENT_SECRET = os.getenv("WEB_RCA_AGENT_CLIENT_SECRET", "EMPTY")
 SSO_URL = os.getenv("SSO_URL", "https://sso.foo.com")
 
+# Header injected by the fronting auth proxy that carries the authenticated principal.
+# Identity for object-level authorization is derived from this header, never from the
+# request body (see README "Security Considerations").
+USER_IDENTITY_HEADER = os.getenv("USER_IDENTITY_HEADER", "X-Forwarded-User")
+
 # for nomic: 'search_query'
 # for snowflake-arctic-embed-m-long: 'Represent this sentence for searching relevant passages'
 EMBED_QUERY_PREFIX = os.getenv("EMBED_QUERY_PREFIX", "search_query")
