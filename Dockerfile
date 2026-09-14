@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi9/python-312:9.8-1779719690 AS builder
+FROM registry.access.redhat.com/ubi9/python-312:9.8-1788412553 AS builder
 
 USER root
 
@@ -17,7 +17,7 @@ COPY migrations .
 COPY src .
 COPY .flaskenv .
 
-FROM registry.access.redhat.com/ubi10/ubi-minimal:10.2-1779722607
+FROM registry.access.redhat.com/ubi10/ubi-minimal:10.2-1788137716
 
 ENV APP_ROOT=/opt/app-root/src
 ENV LC_ALL=C.utf8
