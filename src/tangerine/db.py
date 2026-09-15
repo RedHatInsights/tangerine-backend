@@ -15,10 +15,9 @@ db = SQLAlchemy(
 def include_object(obj, name, db_type, _reflected, _compare_to):
     ignore_tables = ["langchain_pg_collection", "langchain_pg_embedding"]
 
-    if db_type == "table" and (name in ignore_tables or obj.info.get("skip_autogenerate", False)):
-        return False
-
-    return True
+    return not (
+        db_type == "table" and (name in ignore_tables or obj.info.get("skip_autogenerate", False))
+    )
 
 
 migrate = Migrate(include_object=include_object)

@@ -1,6 +1,7 @@
 import logging
 import time
-from typing import TYPE_CHECKING, Generator
+from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 from langchain_community.callbacks.manager import get_openai_callback
 from langchain_community.callbacks.openai_info import OpenAICallbackHandler
@@ -54,7 +55,7 @@ def _record_metrics(
         processing_rate = cb.prompt_tokens / processing_time
         completion_rate = cb.completion_tokens / completion_time
     except ZeroDivisionError:
-        log.error("unexpected time diff of 0")
+        log.exception("unexpected time diff of 0")
         completion_rate = 0
 
     log.info(
@@ -284,7 +285,8 @@ def generate_conversation_title(user_queries: list[str]) -> str:
 
     # Validate input: ensure at least one non-empty query is provided
     if not user_queries or not user_queries[0].strip():
-        raise ValueError("The 'user_queries' list must contain at least one non-empty query.")
+        msg = "The 'user_queries' list must contain at least one non-empty query."
+        raise ValueError(msg)
 
     # Take the first (and typically only) query
     query = user_queries[0]
