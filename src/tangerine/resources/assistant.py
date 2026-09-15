@@ -129,7 +129,7 @@ class AssistantChatApi(Resource):
         """
         if isinstance(value, bool):
             return value
-        if isinstance(value, (int, float)):
+        if isinstance(value, int | float):
             return value != 0
         if isinstance(value, str):
             return value.strip().lower() in {"1", "true", "t", "yes", "y", "on"}
@@ -223,7 +223,8 @@ class AssistantChatApi(Resource):
 
     def _extract_request_data(self):
         if not request.json:
-            raise ValueError("No JSON data provided")
+            msg = "No JSON data provided"
+            raise ValueError(msg)
         question = request.json.get("query")
         session_uuid = request.json.get("sessionId", str(uuid.uuid4()))
         stream = self._to_bool(request.json.get("stream", True))
@@ -833,7 +834,8 @@ class AssistantAdvancedChatApi(AssistantChatApi):
         for name in assistant_names:
             assistant = Assistant.get_by_name(name)
             if not assistant:
-                raise ValueError(f"Assistant '{name}' not found")
+                msg = f"Assistant '{name}' not found"
+                raise ValueError(msg)
             assistants.append(assistant)
         return assistants
 

@@ -140,7 +140,8 @@ def get_model_config(model_name: str | None) -> dict:
             model_name,
             list(MODELS.keys()),
         )
-        raise ValueError(f"invalid model name: {model_name}")
+        msg = f"invalid model name: {model_name}"
+        raise ValueError(msg)
 
     model_config = MODELS[model_name]
 
@@ -154,8 +155,9 @@ def get_model_config(model_name: str | None) -> dict:
             model_name,
             redact_model_config(model_config),
         )
+        msg = f"model config for '{model_name}' missing one or more of required keys: {required_keys}"
         raise ValueError(
-            f"model config for '{model_name}' missing one or more of required keys: {required_keys}"
+            msg
         )
 
     # AUDIT LOG: Returning valid config

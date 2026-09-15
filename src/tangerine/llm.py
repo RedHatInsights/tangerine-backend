@@ -1,6 +1,7 @@
 import logging
 import time
-from typing import TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING
+from collections.abc import Generator
 
 from langchain_community.callbacks.manager import get_openai_callback
 from langchain_community.callbacks.openai_info import OpenAICallbackHandler
@@ -284,7 +285,8 @@ def generate_conversation_title(user_queries: list[str]) -> str:
 
     # Validate input: ensure at least one non-empty query is provided
     if not user_queries or not user_queries[0].strip():
-        raise ValueError("The 'user_queries' list must contain at least one non-empty query.")
+        msg = "The 'user_queries' list must contain at least one non-empty query."
+        raise ValueError(msg)
 
     # Take the first (and typically only) query
     query = user_queries[0]

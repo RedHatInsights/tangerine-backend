@@ -1,8 +1,9 @@
 import logging
-from typing import List, Optional, Self
+from typing import Self
 
 import tangerine.config as cfg
 from tangerine.db import db
+import builtins
 
 log = logging.getLogger("tangerine.models.assistant")
 
@@ -44,17 +45,17 @@ class Assistant(db.Model):
         return new_assistant
 
     @classmethod
-    def list(cls) -> List[Self]:
+    def list(cls) -> list[Self]:
         return db.session.scalars(db.select(cls)).all()
 
     @classmethod
-    def get(cls, id: int) -> Optional[Self]:
+    def get(cls, id: int) -> Self | None:
         assistant_id = int(id)
         assistant = db.session.get(cls, assistant_id)
         return assistant
 
     @classmethod
-    def get_by_name(cls, name: str) -> Optional[Self]:
+    def get_by_name(cls, name: str) -> Self | None:
         assistant = db.session.scalar(db.select(cls).filter_by(name=name))
         log.debug("get assistant by name '%s' result: %s", name, assistant)
         return assistant
@@ -73,11 +74,11 @@ class Assistant(db.Model):
         log.debug("updated attributes %s of assistant %d", updated_keys, self.id)
         return self
 
-    def get_knowledgebases(self) -> List:
+    def get_knowledgebases(self) -> builtins.list:
         """Get list of knowledgebases associated with this assistant."""
         return self.knowledgebases.all()
 
-    def get_knowledgebase_ids(self) -> List[int]:
+    def get_knowledgebase_ids(self) -> builtins.list[int]:
         """Get list of knowledgebase IDs associated with this assistant."""
         return [kb.id for kb in self.knowledgebases.all()]
 

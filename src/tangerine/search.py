@@ -58,7 +58,8 @@ class SearchProvider(ABC):
         self.sql_loaded = False
         self.sql_query = ""
         if self.RETRIEVAL_METHOD is None:
-            raise TypeError("Subclasses must set RETRIEVAL_METHOD to a non-None value")
+            msg = "Subclasses must set RETRIEVAL_METHOD to a non-None value"
+            raise TypeError(msg)
         log.debug("initializing search provider %s", self.__class__.__name__)
 
     @abstractmethod
@@ -303,10 +304,13 @@ class SearchEngine:
         rankings = [int(num.strip()) - 1 for num in response.split(",")]
         log.info("AUDIT: model response rankings: %s, valid rankings: %s", rankings, valid_rankings)
         if not rankings or not all([r in valid_rankings for r in rankings]):
-            raise ValueError(
+            msg = (
                 f"Invalid model rankings: {rankings}, "
                 f"valid rankings: {valid_rankings}, "
                 f"model response: {response}"
+            )
+            raise ValueError(
+                msg
             )
 
         # Sort results based on LLM ranking
@@ -327,7 +331,8 @@ class SearchEngine:
         for r in results:
             document_id = r.document.id
             if not document_id:
-                raise ValueError("document id cannot be 'None'")
+                msg = "document id cannot be 'None'"
+                raise ValueError(msg)
             if document_id not in aggregated_results:
                 aggregated_results[document_id] = SearchResult(document=r.document, score=0)
             aggregated_results[document_id].rrf_score += 1 / (1 + r.rank)

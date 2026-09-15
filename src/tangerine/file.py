@@ -110,7 +110,8 @@ class QualityDetector:
         Train the model
         """
         if not self.training_data_loaded:
-            raise Exception("training data must be loaded")
+            msg = "training data must be loaded"
+            raise Exception(msg)
 
         # Train a simple TF-IDF + Logistic Regression model
         self.model_ready = False
@@ -131,9 +132,11 @@ class QualityDetector:
         Detect the quality of the text
         """
         if not self.training_data_loaded:
-            raise Exception("training data must be loaded")
+            msg = "training data must be loaded"
+            raise Exception(msg)
         if not self.model_ready:
-            raise Exception("model must be ready")
+            msg = "model must be ready"
+            raise Exception(msg)
 
         detection_vectors = self.vectorizer.transform([specimen])
         try:
@@ -155,22 +158,26 @@ class QualityDetector:
 
 def validate_file_path(full_path: str) -> None:
     if not isinstance(full_path, str):
-        raise TypeError(f"file path must be a string, not {type(full_path)}")
+        msg = f"file path must be a string, not {type(full_path)}"
+        raise TypeError(msg)
     elif not full_path.strip():
-        raise ValueError("file path cannot be empty string")
+        msg = "file path cannot be empty string"
+        raise ValueError(msg)
     else:
         # https://stackoverflow.com/a/73659000
         invalid_chars = set('\\?%*:|"<>')
 
         for char in invalid_chars:
             if char in full_path:
-                raise ValueError(f"file path cannot contain characters: {invalid_chars}")
+                msg = f"file path cannot contain characters: {invalid_chars}"
+                raise ValueError(msg)
 
 
 def validate_source(source: str) -> None:
     source_regex = r"^[\w-]+$"
     if not source or not source.strip() or not re.match(source_regex, source):
-        raise ValueError(f"source must match regex: {source_regex}")
+        msg = f"source must match regex: {source_regex}"
+        raise ValueError(msg)
 
 
 def validate_file_type(full_path: str) -> None:
@@ -178,7 +185,8 @@ def validate_file_type(full_path: str) -> None:
         full_path.endswith(ft)
         for ft in [".txt", ".pdf", ".md", ".rst", ".html", ".adoc", ".yaml", ".yml", ".json"]
     ):
-        raise ValueError("unsupported file type")
+        msg = "unsupported file type"
+        raise ValueError(msg)
 
 
 def _flatten(obj, prefix="", depth=0, max_depth=15):
@@ -362,7 +370,7 @@ def _convert_relative_links(md: str, url: str) -> str:
     return "\n".join(md_lines)
 
 
-def _process_md(text: str, url: Optional[str] = None) -> str:
+def _process_md(text: str, url: str | None = None) -> str:
     """
     Process markdown text to yield better text chunks when text is split
 
@@ -477,9 +485,9 @@ class File:
         full_path: str,
         active: bool = True,
         pending_removal: bool = False,
-        content: Optional[str] = "",
-        hash: Optional[str] = "",
-        citation_url: Optional[str] = None,
+        content: str | None = "",
+        hash: str | None = "",
+        citation_url: str | None = None,
         **kwargs,
     ):
         self.source = source

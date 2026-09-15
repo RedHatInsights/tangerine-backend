@@ -1,8 +1,9 @@
 import logging
-from typing import List, Optional, Self
+from typing import Self
 
 from tangerine.db import db
 from tangerine.utils import get_files_for_knowledgebase
+import builtins
 
 log = logging.getLogger("tangerine.models.knowledgebase")
 
@@ -66,17 +67,17 @@ class KnowledgeBase(db.Model):
         return new_kb
 
     @classmethod
-    def list(cls) -> List[Self]:
+    def list(cls) -> list[Self]:
         return db.session.scalars(db.select(cls)).all()
 
     @classmethod
-    def get(cls, id: int) -> Optional[Self]:
+    def get(cls, id: int) -> Self | None:
         kb_id = int(id)
         kb = db.session.get(cls, kb_id)
         return kb
 
     @classmethod
-    def get_by_name(cls, name: str) -> Optional[Self]:
+    def get_by_name(cls, name: str) -> Self | None:
         kb = db.session.scalar(db.select(cls).filter_by(name=name))
         log.debug("get knowledgebase by name '%s' result: %s", name, kb)
         return kb
@@ -99,7 +100,7 @@ class KnowledgeBase(db.Model):
         """Check if this knowledgebase is associated with any assistants."""
         return self.assistants.count() > 0
 
-    def get_associated_assistants(self) -> List:
+    def get_associated_assistants(self) -> builtins.list:
         """Get list of assistants associated with this knowledgebase."""
         return self.assistants.all()
 
@@ -107,8 +108,9 @@ class KnowledgeBase(db.Model):
         """Delete this knowledgebase. Raises ValueError if still associated with assistants."""
         if self.is_associated_with_assistants():
             associated = [a.name for a in self.get_associated_assistants()]
+            msg = f"Cannot delete knowledgebase '{self.name}' - still associated with assistants: {associated}"
             raise ValueError(
-                f"Cannot delete knowledgebase '{self.name}' - still associated with assistants: {associated}"
+                msg
             )
 
         db.session.delete(self)

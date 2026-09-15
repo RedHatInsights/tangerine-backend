@@ -226,7 +226,8 @@ class VectorStoreInterface:
 
     def get_distinct_cmetadata(self, search_filter):
         if not search_filter:
-            raise ValueError("empty metadata")
+            msg = "empty metadata"
+            raise ValueError(msg)
 
         metadata_as_str, filter_ = self._build_metadata_filter(search_filter)
         query = text(
@@ -238,7 +239,8 @@ class VectorStoreInterface:
 
     def get_ids_and_cmetadata(self, search_filter):
         if not search_filter:
-            raise ValueError("empty metadata")
+            msg = "empty metadata"
+            raise ValueError(msg)
 
         metadata_as_str, filter_ = self._build_metadata_filter(search_filter)
         query = text(f"SELECT id, cmetadata FROM langchain_pg_embedding WHERE {filter_}")

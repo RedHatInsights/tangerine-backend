@@ -3,7 +3,7 @@ import tempfile
 from concurrent import futures
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Iterator, List, Optional
+from collections.abc import Iterator
 
 import boto3
 import jinja2
@@ -25,37 +25,37 @@ log = logging.getLogger("tangerine.s3sync")
 
 class PathConfig(BaseModel):
     prefix: str
-    citation_url_template: Optional[str] = None
-    extensions: Optional[List[str]] = None
+    citation_url_template: str | None = None
+    extensions: list[str] | None = None
 
 
 class KnowledgeBaseConfig(BaseModel):
     name: str
     description: str
     bucket: str
-    paths: List[PathConfig]
+    paths: list[PathConfig]
 
 
 class AssistantConfig(BaseModel):
     name: str
     description: str
-    system_prompt: Optional[str] = None
-    model: Optional[str] = None
-    knowledgebases: List[str]  # List of knowledgebase names
+    system_prompt: str | None = None
+    model: str | None = None
+    knowledgebases: list[str]  # List of knowledgebase names
 
 
 class SyncConfigDefaults(BaseModel):
-    extensions: List[str]
+    extensions: list[str]
     citation_url_template: str
 
 
 class SyncConfig(BaseModel):
     defaults: SyncConfigDefaults
-    knowledgebases: List[KnowledgeBaseConfig]
-    assistants: List[AssistantConfig]
+    knowledgebases: list[KnowledgeBaseConfig]
+    assistants: list[AssistantConfig]
 
 
-def get_all_s3_objects(bucket: str, prefix: str) -> List:
+def get_all_s3_objects(bucket: str, prefix: str) -> list:
     objects = []
     paginator = s3.get_paginator("list_objects_v2")
     pages = paginator.paginate(Bucket=bucket, Prefix=prefix)
@@ -86,7 +86,7 @@ def download_obj(bucket: str, obj_key: str, dest_dir: str):
     s3.download_file(bucket, obj_key, str(download_path))
 
 
-def download_objs_concurrent(bucket: str, files: List[File], dest_dir: str) -> Iterator[bool]:
+def download_objs_concurrent(bucket: str, files: list[File], dest_dir: str) -> Iterator[bool]:
     keys = [file.full_path for file in files]
     log.debug("downloading %d files from s3 bucket '%s' to %s", len(keys), bucket, dest_dir)
     with ThreadPoolExecutor() as executor:
@@ -113,7 +113,7 @@ def embed_file(app_context, file: File, tmpdir: str, knowledgebase_id: int) -> F
         knowledgebase = KnowledgeBase.get(knowledgebase_id)
         path_on_disk = Path(tmpdir) / Path(file.full_path)
 
-        with open(path_on_disk, "r") as fp:
+        with open(path_on_disk) as fp:
             # add new files as active=False until all embedding was successful
             file.content = fp.read()
             file.active = False
@@ -124,8 +124,8 @@ def embed_file(app_context, file: File, tmpdir: str, knowledgebase_id: int) -> F
 
 
 def embed_files_concurrent(
-    bucket: str, files: List[File], tmpdir: str, knowledgebase_id: int
-) -> Iterator[Optional[File]]:
+    bucket: str, files: list[File], tmpdir: str, knowledgebase_id: int
+) -> Iterator[File | None]:
     with ThreadPoolExecutor(max_workers=cfg.S3_SYNC_POOL_SIZE) as executor:
         key_for_future = {
             executor.submit(
@@ -147,7 +147,7 @@ def embed_files_concurrent(
 
 def get_file_list(
     knowledgebase_config: KnowledgeBaseConfig, defaults: SyncConfigDefaults
-) -> List[File]:
+) -> list[File]:
     files = []
 
     bucket = knowledgebase_config.bucket
@@ -219,7 +219,7 @@ def compare_files(
     knowledgebase: KnowledgeBase,
     defaults: SyncConfigDefaults,
     resync: bool,
-) -> tuple[List[dict], List[File], set[dict], int, int, int]:
+) -> tuple[list[dict], list[File], set[dict], int, int, int]:
     files = get_file_list(knowledgebase_config, defaults)
 
     # collect all unique file objects currently stored for this knowledgebase in the DB
@@ -314,8 +314,8 @@ def compare_files(
 
 
 def download_s3_files_and_embed(
-    bucket, files: List[File], knowledgebase_id: int
-) -> tuple[List[File], int, int]:
+    bucket, files: list[File], knowledgebase_id: int
+) -> tuple[list[File], int, int]:
     log.debug("%d s3 objects to download", len(files))
 
     completed_files = []
