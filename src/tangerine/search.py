@@ -26,9 +26,7 @@ DEFAULT_FILTER = {
 class SearchResult:
     """Class to hold search results with document and scores."""
 
-    def __init__(
-        self, document: Document, score: float, rank: int = 0, rrf_score: float = 0.0
-    ):
+    def __init__(self, document: Document, score: float, rank: int = 0, rrf_score: float = 0.0):
         self.document = document
         self.score = float(score)
         self.rank = 0
@@ -309,9 +307,7 @@ class SearchEngine:
                 f"valid rankings: {valid_rankings}, "
                 f"model response: {response}"
             )
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
 
         # Sort results based on LLM ranking
         sorted_results = []

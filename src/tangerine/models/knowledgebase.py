@@ -109,9 +109,7 @@ class KnowledgeBase(db.Model):
         if self.is_associated_with_assistants():
             associated = [a.name for a in self.get_associated_assistants()]
             msg = f"Cannot delete knowledgebase '{self.name}' - still associated with assistants: {associated}"
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
 
         db.session.delete(self)
         db.session.commit()

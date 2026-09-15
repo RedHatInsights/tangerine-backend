@@ -1,4 +1,3 @@
-
 import pytest
 
 from tangerine.file import _convert_relative_links, _remove_large_md_code_blocks

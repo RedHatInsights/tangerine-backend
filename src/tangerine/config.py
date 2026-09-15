@@ -1,4 +1,3 @@
-
 import logging
 import os
 
@@ -154,10 +153,10 @@ def get_model_config(model_name: str | None) -> dict:
             model_name,
             redact_model_config(model_config),
         )
-        msg = f"model config for '{model_name}' missing one or more of required keys: {required_keys}"
-        raise ValueError(
-            msg
+        msg = (
+            f"model config for '{model_name}' missing one or more of required keys: {required_keys}"
         )
+        raise ValueError(msg)
 
     # AUDIT LOG: Returning valid config
     log.info("AUDIT: Returning valid model_config for %s", model_name)

@@ -30,7 +30,9 @@ class Assistant(db.Model):
         return f"<Assistant {self.id}>"
 
     @classmethod
-    def create(cls, name: str, description: str, system_prompt: str | None = None, **kwargs) -> Self:
+    def create(
+        cls, name: str, description: str, system_prompt: str | None = None, **kwargs
+    ) -> Self:
         new_assistant = cls(
             name=name,
             description=description,
