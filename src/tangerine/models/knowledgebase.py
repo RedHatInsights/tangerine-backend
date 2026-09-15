@@ -1,9 +1,9 @@
+import builtins
 import logging
 from typing import Self
 
 from tangerine.db import db
 from tangerine.utils import get_files_for_knowledgebase
-import builtins
 
 log = logging.getLogger("tangerine.models.knowledgebase")
 

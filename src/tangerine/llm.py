@@ -1,7 +1,7 @@
 import logging
 import time
-from typing import TYPE_CHECKING
 from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 from langchain_community.callbacks.manager import get_openai_callback
 from langchain_community.callbacks.openai_info import OpenAICallbackHandler
@@ -55,7 +55,7 @@ def _record_metrics(
         processing_rate = cb.prompt_tokens / processing_time
         completion_rate = cb.completion_tokens / completion_time
     except ZeroDivisionError:
-        log.error("unexpected time diff of 0")
+        log.exception("unexpected time diff of 0")
         completion_rate = 0
 
     log.info(

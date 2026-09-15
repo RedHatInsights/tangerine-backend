@@ -10,7 +10,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.types import ARRAY, String
 
 import tangerine.config as cfg
-import tangerine.llm as llm
+from tangerine import llm
 
 from .db import db
 from .embeddings import embed_query
@@ -27,7 +27,7 @@ class SearchResult:
     """Class to hold search results with document and scores."""
 
     def __init__(
-        self, document: Document, score: int | float, rank: int = 0, rrf_score: float = 0.0
+        self, document: Document, score: float, rank: int = 0, rrf_score: float = 0.0
     ):
         self.document = document
         self.score = float(score)
@@ -303,7 +303,7 @@ class SearchEngine:
         valid_rankings = list(range(0, len(search_results)))
         rankings = [int(num.strip()) - 1 for num in response.split(",")]
         log.info("AUDIT: model response rankings: %s, valid rankings: %s", rankings, valid_rankings)
-        if not rankings or not all([r in valid_rankings for r in rankings]):
+        if not rankings or not all(r in valid_rankings for r in rankings):
             msg = (
                 f"Invalid model rankings: {rankings}, "
                 f"valid rankings: {valid_rankings}, "
@@ -370,7 +370,7 @@ class SearchEngine:
                     "AUDIT: LLM reranking succeeded, got %d sorted results", len(sorted_results)
                 )
             except Exception:
-                log.error("AUDIT: LLM reranking FAILED - falling back to RRF sorting")
+                log.exception("AUDIT: LLM reranking FAILED - falling back to RRF sorting")
                 log.exception("model re-ranking failed")
 
         if not sorted_results:

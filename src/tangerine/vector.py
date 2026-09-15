@@ -215,7 +215,7 @@ class VectorStoreInterface:
 
         metadata_as_str = {key: str(val) for key, val in metadata.items()}
 
-        for key in metadata_as_str.keys():
+        for key in metadata_as_str:
             # use parameterized query
             filter_stmt = f"cmetadata->>'{key}' = :{key}"
             filter_stmts.append(filter_stmt)

@@ -1,9 +1,9 @@
+import builtins
 import logging
 from typing import Self
 
 import tangerine.config as cfg
 from tangerine.db import db
-import builtins
 
 log = logging.getLogger("tangerine.models.assistant")
 
@@ -30,7 +30,7 @@ class Assistant(db.Model):
         return f"<Assistant {self.id}>"
 
     @classmethod
-    def create(cls, name: str, description: str, system_prompt: str = None, **kwargs) -> Self:
+    def create(cls, name: str, description: str, system_prompt: str | None = None, **kwargs) -> Self:
         new_assistant = cls(
             name=name,
             description=description,

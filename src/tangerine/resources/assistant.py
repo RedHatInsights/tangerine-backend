@@ -8,8 +8,7 @@ from flask_restful import Resource
 from langchain_core.documents import Document
 from sqlalchemy.exc import SQLAlchemyError
 
-import tangerine.llm as llm
-from tangerine import config
+from tangerine import config, llm
 from tangerine.config import DEFAULT_SYSTEM_PROMPT
 from tangerine.embeddings import embed_query
 from tangerine.metrics import get_counter
@@ -936,7 +935,7 @@ class AssistantKnowledgeBasesApi(Resource):
             log.exception(
                 "database error associating knowledgebases with assistant %d", assistant_id
             )
-            return {"error": f"Database error: {str(e)}"}, 500
+            return {"error": f"Database error: {e!s}"}, 500
 
         return {"associated_knowledgebases": associated}, 200
 
@@ -975,6 +974,6 @@ class AssistantKnowledgeBasesApi(Resource):
             log.exception(
                 "database error disassociating knowledgebases from assistant %d", assistant_id
             )
-            return {"error": f"Database error: {str(e)}"}, 500
+            return {"error": f"Database error: {e!s}"}, 500
 
         return {"disassociated_knowledgebases": disassociated}, 200

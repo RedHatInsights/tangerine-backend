@@ -1,9 +1,9 @@
 import logging
 import tempfile
+from collections.abc import Iterator
 from concurrent import futures
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from collections.abc import Iterator
 
 import boto3
 import jinja2
@@ -99,7 +99,7 @@ def download_objs_concurrent(bucket: str, files: list[File], dest_dir: str) -> I
                 log.info("download for %s: success", key)
                 yield True
             except Exception as err:
-                log.error("download for %s hit error: %s", key, err)
+                log.exception("download for %s hit error: %s", key, err)
                 yield False
 
 
@@ -141,7 +141,7 @@ def embed_files_concurrent(
                 log.info("create embeddings for %s: success", key)
                 yield file
             except Exception as err:
-                log.error("hit error creating embeddings for %s: %s", key, err)
+                log.exception("hit error creating embeddings for %s: %s", key, err)
                 yield None
 
 
@@ -163,7 +163,7 @@ def get_file_list(
             # check if this file extension matches any of the desired extensions
             if not path_config.extensions:
                 path_config.extensions = defaults.extensions
-            if not any([full_path.endswith(f".{ext}") for ext in path_config.extensions]):
+            if not any(full_path.endswith(f".{ext}") for ext in path_config.extensions):
                 continue
 
             # generate citation URL for this file
@@ -251,7 +251,7 @@ def compare_files(
 
         # check if the entire prefix is no longer defined in the knowledgebase config
         prefixes = [path_config.prefix for path_config in knowledgebase_config.paths]
-        if not any([full_path.startswith(prefix) for prefix in prefixes]):
+        if not any(full_path.startswith(prefix) for prefix in prefixes):
             log.debug(
                 "%s uses prefix not found in knowledgebase config, will remove file", full_path
             )
@@ -281,13 +281,13 @@ def compare_files(
         elif knowledgebase_object.get("citation_url") != files_by_key[full_path].citation_url:
             log.debug("%s needs citation url update", full_path)
             metadata_update_args.append(
-                dict(
-                    metadata={"citation_url": files_by_key[full_path].citation_url},
-                    search_filter={
+                {
+                    "metadata": {"citation_url": files_by_key[full_path].citation_url},
+                    "search_filter": {
                         "full_path": full_path,
                         "knowledgebase_id": str(knowledgebase.id),
                     },
-                )
+                }
             )
 
     # determine which new files to add
@@ -508,7 +508,7 @@ def run(resync: bool = False) -> int:
         )
         exit_code = 1
     if kbs_not_found:
-        kb_names_joined = ", ".join([name for name in kbs_not_found])
+        kb_names_joined = ", ".join(list(kbs_not_found))
         log.error(
             f"could not associate assistants with non-existent knowledgebases: {kb_names_joined}"
         )

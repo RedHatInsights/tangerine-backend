@@ -1,4 +1,3 @@
-# flake8: noqa: E501
 
 import logging
 import os
@@ -149,7 +148,7 @@ def get_model_config(model_name: str | None) -> dict:
     log.info("AUDIT: Found model_config for %s: %s", model_name, redact_model_config(model_config))
 
     required_keys = ("model", "openai_api_base", "openai_api_key", "temperature")
-    if not all([key in model_config for key in required_keys]):
+    if not all(key in model_config for key in required_keys):
         log.error(
             "AUDIT: INVALID MODEL CONFIG - missing keys for %s, config=%s",
             model_name,

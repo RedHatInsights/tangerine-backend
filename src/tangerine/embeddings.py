@@ -1,7 +1,6 @@
 import io
 import json
 import logging
-from typing import Optional
 
 import httpx
 from httpx_retries import Retry, RetryTransport

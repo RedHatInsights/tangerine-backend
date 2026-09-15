@@ -4,7 +4,6 @@ import logging
 import os
 import re
 from io import StringIO
-from typing import Optional
 
 import html2text
 import joblib
@@ -81,7 +80,7 @@ class QualityDetector:
                 with open("junk.txt", "a") as fp:
                     fp.write(specimen + "\n\n\n\n")
             except OSError as err:
-                log.error("unable to log junk: %s", err)
+                log.exception("unable to log junk: %s", err)
 
     def _store(self):
         try:
@@ -315,7 +314,7 @@ def _convert_md_tables(text: str) -> str:
     # parse tables found in this text using pytablereader
     table_loader = ptr.MarkdownTableTextLoader(text)
     tables = table_loader.load()
-    table_for_regex = dict()
+    table_for_regex = {}
     for table in tables:
         # create a regex pattern to match: '| header1   | header2   | (and so on)... |'
         headers = [re.escape(header) for header in table.headers]
