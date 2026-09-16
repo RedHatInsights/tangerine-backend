@@ -1,16 +1,14 @@
-from typing import List
-
 from .file import File, validate_file_path, validate_source
 from .vector import vector_db
 
 
-def embed_files_for_knowledgebase(files: List[File], knowledgebase_id: int) -> None:
+def embed_files_for_knowledgebase(files: list[File], knowledgebase_id: int) -> None:
     for file in files:
         file.validate()
         vector_db.add_file(file, knowledgebase_id)
 
 
-def get_files_for_knowledgebase(knowledgebase_id: int) -> List[str]:
+def get_files_for_knowledgebase(knowledgebase_id: int) -> list[str]:
     """
     Get unique list of all file display names for a knowledgebase by querying vector database.
 
@@ -24,7 +22,7 @@ def get_files_for_knowledgebase(knowledgebase_id: int) -> List[str]:
     return unique_metadatas
 
 
-def remove_files_from_knowledgebase(knowledgebase, metadata: dict) -> List[str]:
+def remove_files_from_knowledgebase(knowledgebase, metadata: dict) -> list[str]:
     metadata["knowledgebase_id"] = str(knowledgebase.id)
     if "full_path" in metadata:
         validate_file_path(metadata["full_path"])

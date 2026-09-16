@@ -4,7 +4,7 @@ import requests
 from langchain_core.prompts import ChatPromptTemplate
 
 import tangerine.config as cfg
-import tangerine.llm as llm
+from tangerine import llm
 from tangerine.nltk import get_words
 
 log = logging.getLogger("tangerine.models.interactions")
@@ -27,7 +27,7 @@ class JiraAgent:
             summaries = response.json()
             log.info("AUDIT: JiraAgent HTTP request successful")
         except Exception:
-            log.error("AUDIT: JiraAgent HTTP request FAILED - returning error message")
+            log.exception("AUDIT: JiraAgent HTTP request FAILED - returning error message")
             log.exception("Error fetching info from Jira")
             return "I tried getting info from Jira, but something went wrong."
 
