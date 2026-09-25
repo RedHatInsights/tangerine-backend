@@ -1,5 +1,7 @@
-.*
+*
 
-!/.flaskenv
-
-data/
+!migrations
+!src
+!.flaskenv
+!Pipfile*
+!pyproject.toml
