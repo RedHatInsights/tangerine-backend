@@ -8,7 +8,7 @@ metrics = RESTfulPrometheusMetrics.for_app_factory(
 )
 
 
-def get_counter(name: str, description: str, labels: list[str] = None) -> Counter:
+def get_counter(name: str, description: str, labels: list[str] | None = None) -> Counter:
     metric_name = f"{cfg.METRICS_PREFIX}_{name}"
 
     if labels:
@@ -17,7 +17,7 @@ def get_counter(name: str, description: str, labels: list[str] = None) -> Counte
     return Counter(metric_name, description)
 
 
-def get_gauge(name: str, description: str, labels: list[str] = None) -> Gauge:
+def get_gauge(name: str, description: str, labels: list[str] | None = None) -> Gauge:
     metric_name = f"{cfg.METRICS_PREFIX}_{name}"
 
     if labels:

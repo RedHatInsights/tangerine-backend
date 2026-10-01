@@ -10,7 +10,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.types import ARRAY, String
 
 import tangerine.config as cfg
-import tangerine.llm as llm
+from tangerine import llm
 
 from .db import db
 from .embeddings import embed_query
@@ -26,9 +26,7 @@ DEFAULT_FILTER = {
 class SearchResult:
     """Class to hold search results with document and scores."""
 
-    def __init__(
-        self, document: Document, score: int | float, rank: int = 0, rrf_score: float = 0.0
-    ):
+    def __init__(self, document: Document, score: float, rank: int = 0, rrf_score: float = 0.0):
         self.document = document
         self.score = float(score)
         self.rank = 0
@@ -58,7 +56,8 @@ class SearchProvider(ABC):
         self.sql_loaded = False
         self.sql_query = ""
         if self.RETRIEVAL_METHOD is None:
-            raise TypeError("Subclasses must set RETRIEVAL_METHOD to a non-None value")
+            msg = "Subclasses must set RETRIEVAL_METHOD to a non-None value"
+            raise TypeError(msg)
         log.debug("initializing search provider %s", self.__class__.__name__)
 
     @abstractmethod
@@ -302,12 +301,13 @@ class SearchEngine:
         valid_rankings = list(range(0, len(search_results)))
         rankings = [int(num.strip()) - 1 for num in response.split(",")]
         log.info("AUDIT: model response rankings: %s, valid rankings: %s", rankings, valid_rankings)
-        if not rankings or not all([r in valid_rankings for r in rankings]):
-            raise ValueError(
+        if not rankings or not all(r in valid_rankings for r in rankings):
+            msg = (
                 f"Invalid model rankings: {rankings}, "
                 f"valid rankings: {valid_rankings}, "
                 f"model response: {response}"
             )
+            raise ValueError(msg)
 
         # Sort results based on LLM ranking
         sorted_results = []
@@ -327,7 +327,8 @@ class SearchEngine:
         for r in results:
             document_id = r.document.id
             if not document_id:
-                raise ValueError("document id cannot be 'None'")
+                msg = "document id cannot be 'None'"
+                raise ValueError(msg)
             if document_id not in aggregated_results:
                 aggregated_results[document_id] = SearchResult(document=r.document, score=0)
             aggregated_results[document_id].rrf_score += 1 / (1 + r.rank)
@@ -365,7 +366,7 @@ class SearchEngine:
                     "AUDIT: LLM reranking succeeded, got %d sorted results", len(sorted_results)
                 )
             except Exception:
-                log.error("AUDIT: LLM reranking FAILED - falling back to RRF sorting")
+                log.exception("AUDIT: LLM reranking FAILED - falling back to RRF sorting")
                 log.exception("model re-ranking failed")
 
         if not sorted_results:

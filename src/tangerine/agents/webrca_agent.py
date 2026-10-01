@@ -29,7 +29,7 @@ class WebRCAAgent:
             data = response.json()
             log.info("AUDIT: WebRCAAgent HTTP request successful")
         except Exception:
-            log.error("AUDIT: WebRCAAgent HTTP request FAILED - returning error message")
+            log.exception("AUDIT: WebRCAAgent HTTP request FAILED - returning error message")
             log.exception("Error fetching incidents from Web RCA")
             return "I tried getting info from Web RCA, but something went wrong."
 
@@ -41,7 +41,7 @@ class WebRCAAgent:
         # Matches patterns like ITN-2024-12345, optionally followed by punctuation
         matches = re.findall(r"\bITN-\d{4}-\d+\b", query, re.IGNORECASE)
         # Normalize and deduplicate
-        unique_ids = sorted(set(match.upper() for match in matches))
+        unique_ids = sorted({match.upper() for match in matches})
         return ", ".join(unique_ids)
 
     def _get_token(self):

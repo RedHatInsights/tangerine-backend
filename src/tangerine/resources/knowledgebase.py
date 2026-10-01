@@ -44,7 +44,7 @@ class KnowledgeBasesApi(Resource):
             return {"data": kb.to_dict()}, 201
         except Exception as e:
             log.exception("error creating knowledgebase")
-            return {"error": f"Failed to create knowledgebase: {str(e)}"}, 500
+            return {"error": f"Failed to create knowledgebase: {e!s}"}, 500
 
 
 class KnowledgeBaseApi(Resource):
@@ -89,7 +89,7 @@ class KnowledgeBaseApi(Resource):
             return {"data": updated_kb.to_dict()}
         except Exception as e:
             log.exception("error updating knowledgebase %d", kb_id)
-            return {"error": f"Failed to update knowledgebase: {str(e)}"}, 500
+            return {"error": f"Failed to update knowledgebase: {e!s}"}, 500
 
     def delete(self, id):
         """Delete a knowledgebase."""
@@ -114,7 +114,7 @@ class KnowledgeBaseApi(Resource):
             deleted_docs = vector_db.delete_document_chunks(search_filter)
         except Exception as e:
             log.exception("error deleting vector database chunks for knowledgebase %d", kb_id)
-            return {"error": f"Failed to delete document chunks: {str(e)}"}, 500
+            return {"error": f"Failed to delete document chunks: {e!s}"}, 500
 
         log.info("deleted knowledgebase %d and %d document chunks", kb_id, len(deleted_docs))
         return {
@@ -151,7 +151,7 @@ class KnowledgeBaseDocuments(Resource):
             try:
                 new_file.validate()
             except ValueError as err:
-                return {"error": f"validation failed for {file.filename}: {str(err)}"}, 400
+                return {"error": f"validation failed for {file.filename}: {err!s}"}, 400
             files.append(new_file)
 
         def generate_progress():

@@ -1,7 +1,6 @@
 import io
 import json
 import logging
-from typing import Optional
 
 import httpx
 from httpx_retries import Retry, RetryTransport
@@ -86,7 +85,7 @@ embeddings = OpenAIEmbeddings(
 )
 
 
-def embed_query(query: str) -> Optional[Embeddings]:
+def embed_query(query: str) -> Embeddings | None:
     if cfg.EMBED_QUERY_PREFIX:
         query = f"{cfg.EMBED_QUERY_PREFIX}: {query}"
     return embeddings.embed_query(query)

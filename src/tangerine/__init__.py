@@ -83,13 +83,13 @@ def s3sync(force_resync, force_resync_until):
 
     if not force_resync and force_resync_until:
         expires_dt = dt.datetime.fromisoformat(force_resync_until_env_var)
-        now_dt = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+        now_dt = dt.datetime.now(dt.UTC).replace(microsecond=0)
         if now_dt < expires_dt:
             force_resync = True
         current_app.logger.info(
             "force resync until %s (utc: %s), current time: %s, force_resync=%s",
             expires_dt,
-            expires_dt.astimezone(dt.timezone.utc),
+            expires_dt.astimezone(dt.UTC),
             now_dt,
             force_resync,
         )

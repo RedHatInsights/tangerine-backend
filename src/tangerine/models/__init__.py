@@ -5,9 +5,9 @@ from .knowledgebase import KnowledgeBase
 
 __all__ = [
     "Assistant",
-    "KnowledgeBase",
-    "RelevanceScore",
-    "QuestionEmbedding",
-    "UserFeedback",
     "Interaction",
+    "KnowledgeBase",
+    "QuestionEmbedding",
+    "RelevanceScore",
+    "UserFeedback",
 ]

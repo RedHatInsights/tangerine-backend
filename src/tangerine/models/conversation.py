@@ -146,9 +146,9 @@ class Conversation(db.Model):
         # Create a version with only introduction prompts and AI messages
         intro_only_msgs = []
         for msg in prev_msgs:
-            if msg.get("sender") == "ai":
-                intro_only_msgs.append(msg)
-            elif msg.get("sender") == "human" and msg.get("isIntroductionPrompt", False):
+            if msg.get("sender") == "ai" or (
+                msg.get("sender") == "human" and msg.get("isIntroductionPrompt", False)
+            ):
                 intro_only_msgs.append(msg)
 
         # Generate title for introduction-only scenario

@@ -1,9 +1,9 @@
 import logging
 import tempfile
+from collections.abc import Iterator
 from concurrent import futures
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Iterator, List, Optional
 
 import boto3
 import jinja2
@@ -25,37 +25,37 @@ log = logging.getLogger("tangerine.s3sync")
 
 class PathConfig(BaseModel):
     prefix: str
-    citation_url_template: Optional[str] = None
-    extensions: Optional[List[str]] = None
+    citation_url_template: str | None = None
+    extensions: list[str] | None = None
 
 
 class KnowledgeBaseConfig(BaseModel):
     name: str
     description: str
     bucket: str
-    paths: List[PathConfig]
+    paths: list[PathConfig]
 
 
 class AssistantConfig(BaseModel):
     name: str
     description: str
-    system_prompt: Optional[str] = None
-    model: Optional[str] = None
-    knowledgebases: List[str]  # List of knowledgebase names
+    system_prompt: str | None = None
+    model: str | None = None
+    knowledgebases: list[str]  # List of knowledgebase names
 
 
 class SyncConfigDefaults(BaseModel):
-    extensions: List[str]
+    extensions: list[str]
     citation_url_template: str
 
 
 class SyncConfig(BaseModel):
     defaults: SyncConfigDefaults
-    knowledgebases: List[KnowledgeBaseConfig]
-    assistants: List[AssistantConfig]
+    knowledgebases: list[KnowledgeBaseConfig]
+    assistants: list[AssistantConfig]
 
 
-def get_all_s3_objects(bucket: str, prefix: str) -> List:
+def get_all_s3_objects(bucket: str, prefix: str) -> list:
     objects = []
     paginator = s3.get_paginator("list_objects_v2")
     pages = paginator.paginate(Bucket=bucket, Prefix=prefix)
@@ -86,7 +86,7 @@ def download_obj(bucket: str, obj_key: str, dest_dir: str):
     s3.download_file(bucket, obj_key, str(download_path))
 
 
-def download_objs_concurrent(bucket: str, files: List[File], dest_dir: str) -> Iterator[bool]:
+def download_objs_concurrent(bucket: str, files: list[File], dest_dir: str) -> Iterator[bool]:
     keys = [file.full_path for file in files]
     log.debug("downloading %d files from s3 bucket '%s' to %s", len(keys), bucket, dest_dir)
     with ThreadPoolExecutor() as executor:
@@ -99,7 +99,7 @@ def download_objs_concurrent(bucket: str, files: List[File], dest_dir: str) -> I
                 log.info("download for %s: success", key)
                 yield True
             except Exception as err:
-                log.error("download for %s hit error: %s", key, err)
+                log.exception("download for %s hit error: %s", key, err)
                 yield False
 
 
@@ -113,7 +113,7 @@ def embed_file(app_context, file: File, tmpdir: str, knowledgebase_id: int) -> F
         knowledgebase = KnowledgeBase.get(knowledgebase_id)
         path_on_disk = Path(tmpdir) / Path(file.full_path)
 
-        with open(path_on_disk, "r") as fp:
+        with open(path_on_disk) as fp:
             # add new files as active=False until all embedding was successful
             file.content = fp.read()
             file.active = False
@@ -124,8 +124,8 @@ def embed_file(app_context, file: File, tmpdir: str, knowledgebase_id: int) -> F
 
 
 def embed_files_concurrent(
-    bucket: str, files: List[File], tmpdir: str, knowledgebase_id: int
-) -> Iterator[Optional[File]]:
+    bucket: str, files: list[File], tmpdir: str, knowledgebase_id: int
+) -> Iterator[File | None]:
     with ThreadPoolExecutor(max_workers=cfg.S3_SYNC_POOL_SIZE) as executor:
         key_for_future = {
             executor.submit(
@@ -141,13 +141,13 @@ def embed_files_concurrent(
                 log.info("create embeddings for %s: success", key)
                 yield file
             except Exception as err:
-                log.error("hit error creating embeddings for %s: %s", key, err)
+                log.exception("hit error creating embeddings for %s: %s", key, err)
                 yield None
 
 
 def get_file_list(
     knowledgebase_config: KnowledgeBaseConfig, defaults: SyncConfigDefaults
-) -> List[File]:
+) -> list[File]:
     files = []
 
     bucket = knowledgebase_config.bucket
@@ -163,7 +163,7 @@ def get_file_list(
             # check if this file extension matches any of the desired extensions
             if not path_config.extensions:
                 path_config.extensions = defaults.extensions
-            if not any([full_path.endswith(f".{ext}") for ext in path_config.extensions]):
+            if not any(full_path.endswith(f".{ext}") for ext in path_config.extensions):
                 continue
 
             # generate citation URL for this file
@@ -219,7 +219,7 @@ def compare_files(
     knowledgebase: KnowledgeBase,
     defaults: SyncConfigDefaults,
     resync: bool,
-) -> tuple[List[dict], List[File], set[dict], int, int, int]:
+) -> tuple[list[dict], list[File], set[dict], int, int, int]:
     files = get_file_list(knowledgebase_config, defaults)
 
     # collect all unique file objects currently stored for this knowledgebase in the DB
@@ -251,7 +251,7 @@ def compare_files(
 
         # check if the entire prefix is no longer defined in the knowledgebase config
         prefixes = [path_config.prefix for path_config in knowledgebase_config.paths]
-        if not any([full_path.startswith(prefix) for prefix in prefixes]):
+        if not any(full_path.startswith(prefix) for prefix in prefixes):
             log.debug(
                 "%s uses prefix not found in knowledgebase config, will remove file", full_path
             )
@@ -281,13 +281,13 @@ def compare_files(
         elif knowledgebase_object.get("citation_url") != files_by_key[full_path].citation_url:
             log.debug("%s needs citation url update", full_path)
             metadata_update_args.append(
-                dict(
-                    metadata={"citation_url": files_by_key[full_path].citation_url},
-                    search_filter={
+                {
+                    "metadata": {"citation_url": files_by_key[full_path].citation_url},
+                    "search_filter": {
                         "full_path": full_path,
                         "knowledgebase_id": str(knowledgebase.id),
                     },
-                )
+                }
             )
 
     # determine which new files to add
@@ -314,8 +314,8 @@ def compare_files(
 
 
 def download_s3_files_and_embed(
-    bucket, files: List[File], knowledgebase_id: int
-) -> tuple[List[File], int, int]:
+    bucket, files: list[File], knowledgebase_id: int
+) -> tuple[list[File], int, int]:
     log.debug("%d s3 objects to download", len(files))
 
     completed_files = []
@@ -508,7 +508,7 @@ def run(resync: bool = False) -> int:
         )
         exit_code = 1
     if kbs_not_found:
-        kb_names_joined = ", ".join([name for name in kbs_not_found])
+        kb_names_joined = ", ".join(list(kbs_not_found))
         log.error(
             f"could not associate assistants with non-existent knowledgebases: {kb_names_joined}"
         )
