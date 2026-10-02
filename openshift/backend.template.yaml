@@ -48,7 +48,7 @@ parameters:
   - name: ENABLE_FULL_TEXT_SEARCH
     value: "false"
   - name: MIGRATION_COMMAND
-    value: "flask db upgrade"
+    value: '["flask", "db", "upgrade"]'
   - name: ENABLE_JIRA_AGENT
     value: "false"
   - name: ENABLE_WEB_RCA_AGENT
@@ -125,7 +125,7 @@ objects:
         initContainers:
           - name: db-migrations
             image: ${IMAGE}:${IMAGE_TAG}
-            command: ["${MIGRATION_COMMAND}"]
+            command: "${{MIGRATION_COMMAND}}"
             resources:
               requests:
                 memory: ${MEMORY_REQUEST}
