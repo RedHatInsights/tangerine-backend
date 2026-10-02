@@ -125,7 +125,7 @@ objects:
         initContainers:
           - name: db-migrations
             image: ${IMAGE}:${IMAGE_TAG}
-            command: ["/bin/bash", "-c", "${MIGRATION_COMMAND}"]
+            command: ["${MIGRATION_COMMAND}"]
             resources:
               requests:
                 memory: ${MEMORY_REQUEST}

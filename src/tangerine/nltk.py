@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 import nltk
 from nltk.corpus import words
@@ -14,6 +15,7 @@ def init_nltk():
     try:
         find("corpora/words")
     except LookupError:
+        Path(cfg.NLTK_DATA_DIR).mkdir(mode=0o755, parents=True, exist_ok=True)
         log.info(f"Downloading NLTK words corpus to {cfg.NLTK_DATA_DIR}...")
         nltk.download("words", quiet=True, download_dir=cfg.NLTK_DATA_DIR)
 

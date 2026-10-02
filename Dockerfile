@@ -1,47 +1,37 @@
-FROM registry.access.redhat.com/ubi9/python-312:9.8-1789345409 AS builder
+FROM registry.access.redhat.com/hi/python:3.12.14-builder-1790221360 AS builder
 
 USER root
 
 ENV PIPENV_VERBOSITY=-1
 
-COPY Pipfile .
-COPY Pipfile.lock .
 COPY pyproject.toml .
+COPY Pipfile* .
 
 RUN pip install pipenv
-RUN python3 -m venv .venv
-RUN source .venv/bin/activate
-RUN pipenv sync
+RUN python3 -m venv /opt/venv
+RUN source /opt/venv/bin/activate && \
+	pipenv sync
 
-COPY migrations .
-COPY src .
-COPY .flaskenv .
+COPY src /opt/app
+COPY migrations /opt/app/migrations
+COPY .flaskenv /opt/app/.flaskenv
 
-FROM registry.access.redhat.com/ubi10/ubi-minimal:10.2-1789645153
+USER ${CONTAINER_DEFAULT_USER}
 
-ENV APP_ROOT=/opt/app-root/src
+FROM registry.access.redhat.com/hi/python:3.12.14-1790221360
+
 ENV LC_ALL=C.utf8
 ENV LANG=C.utf8
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONIOENCODING=UTF-8
-ENV NLTK_DATA_DIR=/nltk_data
-ENV PATH="/opt/app-root/src/.venv/bin:$PATH"
+ENV NLTK_DATA_DIR=/tmp/nltk_data
+ENV PATH="/opt/venv/bin:$PATH"
 
-USER root
-
-RUN microdnf install -y --setopt=install_weak_deps=0 --setopt=tsflags=nodocs python3 && \
-  microdnf clean all && \
-  rm -rf /var/cache/dnf/* && \
-  mkdir /nltk_data && \
-  chown -R 1001:0 /nltk_data && \
-  chmod -R g=u /nltk_data
-
-WORKDIR $APP_ROOT
-
-COPY --from=builder $APP_ROOT .
-
-USER 1001
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /opt/app /opt/app
 
 EXPOSE 8000
+
+WORKDIR /opt/app
 
 CMD ["flask", "run", "--host=0.0.0.0", "--port=8000"]

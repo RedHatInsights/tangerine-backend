@@ -1,24 +1,34 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "minimumReleaseAge": "7 days",
   "extends": [
     ":disableMajorUpdates",
-    "github>konflux-ci/mintmaker-presets:cve-automerge-all",
-    "github>konflux-ci/mintmaker-presets:group-python-requirements",
-    "helpers:pinGitHubActionDigestsToSemver"
+    "helpers:pinGitHubActionDigests",
+    "helpers:disableTypesNodeMajor",
+    "github>konflux-ci/mintmaker-presets:cve-automerge-all"
   ],
-  "dockerfile": {
-    "managerFilePatterns": [
-      "/Dockerfile$/"
-    ]
+  "pipenv": {
+    "enabled": false
   },
   "packageRules": [
     {
-      "matchDatasources": [ "docker" ],
-      "matchPackageNames": [
-        "registry.access.redhat.com/ubi9/python-312",
-        "registry.access.redhat.com/ubi10/ubi-minimal"
-      ],
-      "versioning": "redhat"
+      "description": "Group python dependencies",
+      "matchManagers": [ "pipenv" ],
+      "matchDepTypes": [ "devDependencies" ],
+      "matchUpdateTypes": [ "minor", "patch", "digest" ],
+      "groupName": "pipenv dependencies"
+    },
+    {
+      "description": "Group container image updates",
+      "matchManagers": [ "dockerfile" ],
+      "matchUpdateTypes": [ "digest", "patch", "pinDigest" ],
+      "groupName": "container images"
+    },
+    {
+      "description": "Group GitHub Actions updates",
+      "matchManagers": [ "github-actions" ],
+      "matchUpdateTypes": [ "digest", "minor", "patch", "pinDigest" ],
+      "groupName": "GitHub Actions"
     }
   ]
 }
